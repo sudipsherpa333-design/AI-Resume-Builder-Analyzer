@@ -1,0 +1,102 @@
+
+> ai-resume-builder-frontend@1.0.0 dev
+> concurrently "npm run dev --prefix backend" "npm run dev --prefix frontend"
+
+[1] 
+[1] > ai-resume-builder-frontend@1.0.0 dev
+[1] > concurrently "npm run dev:front" "npm run dev:back"
+[1] 
+[0] 
+[0] > backend@1.0.0 dev
+[0] > nodemon src/server.js
+[0] 
+[0] [33m[nodemon] 3.1.10[39m
+[0] [33m[nodemon] to restart at any time, enter `rs`[39m
+[0] [33m[nodemon] watching path(s): src/**/*[39m
+[0] [33m[nodemon] watching extensions: js,mjs,json[39m
+[0] [32m[nodemon] starting `node src/server.js`[39m
+[1] [0] 
+[1] [0] > ai-resume-builder-frontend@1.0.0 dev:front
+[1] [0] > vite
+[1] [0] 
+[1] [1] 
+[1] [1] > ai-resume-builder-frontend@1.0.0 dev:back
+[1] [1] > cd ../backend && npm run dev
+[1] [1] 
+[1] [1] 
+[1] [1] > backend@1.0.0 dev
+[1] [1] > nodemon src/server.js
+[1] [1] 
+[1] [1] [33m[nodemon] 3.1.10[39m
+[1] [1] [33m[nodemon] to restart at any time, enter `rs`[39m
+[1] [1] [33m[nodemon] watching path(s): src/**/*[39m
+[1] [1] [33m[nodemon] watching extensions: js,mjs,json[39m
+[1] [1] [32m[nodemon] starting `node src/server.js`[39m
+[0] [dotenv@17.2.3] injecting env (8) from .env -- tip: ⚙️  enable debug logging with { debug: true }
+[0] [dotenv@17.2.3] injecting env (0) from .env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+[0] 🔍 Checking environment variables...
+[0] 🔗 Connecting to MongoDB...
+[0] (node:103012) [MONGOOSE] Warning: Duplicate schema index on {"email":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+[0] (Use `node --trace-warnings ...` to show where the warning was created)
+[0] (node:103012) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+[0] (node:103012) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+[1] [0] Port 5174 is in use, trying another one...
+[1] [0] Port 5175 is in use, trying another one...
+[1] [0] Port 5176 is in use, trying another one...
+[1] [0] Port 5177 is in use, trying another one...
+[1] [0] Port 5178 is in use, trying another one...
+[1] [0] 
+[1] [0]   VITE v4.5.14  ready in 517 ms
+[1] [0] 
+[1] [0]   ➜  Local:   http://localhost:5179/
+[1] [0]   ➜  Network: http://10.83.40.126:5179/
+[1] [1] [dotenv@17.2.3] injecting env (8) from .env -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+[1] [1] [dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  enable debug logging with { debug: true }
+[1] [1] 🔍 Checking environment variables...
+[1] [1] 🔗 Connecting to MongoDB...
+[1] [1] (node:103102) [MONGOOSE] Warning: Duplicate schema index on {"email":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+[1] [1] (Use `node --trace-warnings ...` to show where the warning was created)
+[1] [1] (node:103102) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+[1] [1] (node:103102) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+[0] ✅ MongoDB Connected: ac-h8lsd2k-shard-00-02.h5be6xs.mongodb.net
+[0] 📊 Database: ai_resume_db
+[0] 
+[0] ==================================================
+[0] 🚀 AI Resume Builder & Analyzer Backend
+[0] ==================================================
+[0] ✅ Server running in development mode
+[0] 📍 Port: 5001
+[0] 🌐 URL: http://localhost:5001
+[0] 📚 API: http://localhost:5001/api
+[0] ❤️  Health: http://localhost:5001/api/health
+[0] 🗄️  Database: ai_resume_db
+[0] 🌍 CORS Enabled for: http://localhost:5175
+[0] ==================================================
+[0] 📝 By: Sudip Sherpa
+[0] 🎓 BCA 6th Semester Project
+[0] ==================================================
+[0] 
+[0] ❌ Port 5001 is already in use. Trying port 5002...
+[0] ✅ Server now running on port 5002
+[0] 🌐 URL: http://localhost:5002
+[1] [1] ✅ MongoDB Connected: ac-h8lsd2k-shard-00-02.h5be6xs.mongodb.net
+[1] [1] 📊 Database: ai_resume_db
+[1] [1] 
+[1] [1] ==================================================
+[1] [1] 🚀 AI Resume Builder & Analyzer Backend
+[1] [1] ==================================================
+[1] [1] ✅ Server running in development mode
+[1] [1] 📍 Port: 5001
+[1] [1] 🌐 URL: http://localhost:5001
+[1] [1] 📚 API: http://localhost:5001/api
+[1] [1] ❤️  Health: http://localhost:5001/api/health
+[1] [1] 🗄️  Database: ai_resume_db
+[1] [1] 🌍 CORS Enabled for: http://localhost:5175
+[1] [1] ==================================================
+[1] [1] 📝 By: Sudip Sherpa
+[1] [1] 🎓 BCA 6th Semester Project
+[1] [1] ==================================================
+[1] [1] 
+[1] [1] ✅ Server now running on port 5002
+[1] [1] 🌐 URL: http://localhost:5002
+[1] [1] ❌ Port 5001 is already in use. Trying port 5002...
