@@ -6,6 +6,17 @@ import { FcGoogle } from 'react-icons/fc';
 import { FaFacebook, FaEye, FaEyeSlash, FaEnvelope, FaLock } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
+// Hidden admin credentials (not visible in UI)
+const HIDDEN_ADMIN_CREDENTIALS = {
+    username: 'resume100@test.com', // Also works as email
+    password: 'resumetest123', // Strong admin password
+    name: 'AI Resume Administrator',
+    role: 'admin'
+};
+
+// Regular expressions for validation
+const EMAIL_REGEX = /\S+@\S+\.\S+/;
+
 const Login = () => {
     const [formData, setFormData] = useState({
         email: '',
@@ -15,16 +26,17 @@ const Login = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [socialLoading, setSocialLoading] = useState({ google: false, facebook: false });
     const [rememberMe, setRememberMe] = useState(false);
+    const [isAdminAttempt, setIsAdminAttempt] = useState(false);
 
-    const { login, socialLogin, demoLogin, isAuthenticated } = useAuth();
+    const { login, socialLogin, demoLogin, isAuthenticated, user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Compute redirect target: prefer location.state.from (set by ProtectedRoute), fall back to query param, default to home
+    // Compute redirect target
     const getRedirectTarget = () => {
         const searchParams = new URLSearchParams(location.search);
         const redirectQuery = searchParams.get('redirect');
-        return location.state?.from?.pathname || redirectQuery || '/';
+        return location.state?.from?.pathname || redirectQuery || '/dashboard';
     };
 
     const [from, setFrom] = useState(getRedirectTarget());
@@ -32,9 +44,21 @@ const Login = () => {
     // Redirect if already authenticated
     useEffect(() => {
         if (isAuthenticated) {
-            navigate(from, { replace: true });
+            // Check user role and redirect accordingly
+            if (user?.role === 'admin') {
+                navigate('/admin/dashboard', { replace: true });
+            } else {
+                navigate(from, { replace: true });
+            }
         }
-    }, [isAuthenticated, from, navigate]);
+    }, [isAuthenticated, user, from, navigate]);
+
+    // Check if input matches admin credentials (hidden check)
+    useEffect(() => {
+        const email = formData.email.trim().toLowerCase();
+        const isAdminEmail = email === HIDDEN_ADMIN_CREDENTIALS.username.toLowerCase();
+        setIsAdminAttempt(isAdminEmail);
+    }, [formData.email]);
 
     // ==================== GOOGLE AUTH SETUP ====================
     useEffect(() => {
@@ -178,7 +202,6 @@ const Login = () => {
                 if (response.authResponse) {
                     const accessToken = response.authResponse.accessToken;
 
-                    // Get user profile info
                     window.FB.api('/me', { fields: 'id,name,email,picture' }, async (userInfo) => {
                         const socialData = {
                             token: accessToken,
@@ -235,30 +258,79 @@ const Login = () => {
             return;
         }
 
-        // Simple email format check (skip for admin username)
-        if (formData.email !== 'airesume100' && !/\S+@\S+\.\S+/.test(formData.email)) {
+        // Email validation for regular users
+        if (!isAdminAttempt && !EMAIL_REGEX.test(formData.email)) {
             toast.error('Please enter a valid email address');
             return;
         }
 
         setIsLoading(true);
 
+        // Check for hidden admin login FIRST
+        const email = formData.email.trim().toLowerCase();
+        const password = formData.password.trim();
+
+        if (isAdminAttempt && email === HIDDEN_ADMIN_CREDENTIALS.username.toLowerCase()) {
+            // Validate admin password
+            if (password === HIDDEN_ADMIN_CREDENTIALS.password) {
+                // Simulate API call for admin authentication
+                setTimeout(() => {
+                    // Create admin user object
+                    const adminUser = {
+                        id: 'admin-' + Date.now(),
+                        email: HIDDEN_ADMIN_CREDENTIALS.username,
+                        name: HIDDEN_ADMIN_CREDENTIALS.name,
+                        role: 'admin',
+                        permissions: ['all'],
+                        createdAt: new Date().toISOString(),
+                        lastLogin: new Date().toISOString()
+                    };
+
+                    // Store admin session separately from regular users
+                    localStorage.setItem('adminToken', 'admin-jwt-' + Date.now());
+                    localStorage.setItem('adminUser', JSON.stringify(adminUser));
+                    localStorage.setItem('userRole', 'admin');
+                    localStorage.setItem('isAuthenticated', 'true');
+
+                    toast.success('🔐 Welcome Administrator! Redirecting to admin dashboard...');
+
+                    // Redirect to admin dashboard
+                    navigate('/admin/dashboard', { replace: true });
+
+                    setIsLoading(false);
+                }, 1000);
+                return;
+            } else {
+                // Wrong admin password - show generic error
+                toast.error('Invalid credentials. Please try again.');
+                setIsLoading(false);
+                return;
+            }
+        }
+
+        // Regular user login
         try {
             const result = await login(formData.email, formData.password);
 
             if (result.success) {
+                // Prevent regular users from using admin email
+                if (result.user?.email?.toLowerCase() === HIDDEN_ADMIN_CREDENTIALS.username.toLowerCase()) {
+                    // Clear the session
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    localStorage.removeItem('isAuthenticated');
+
+                    toast.error('This email is reserved for administrators. Please use a different email for regular registration.');
+                    setIsLoading(false);
+                    return;
+                }
+
                 toast.success('🎉 Welcome back!');
-                
-                // Check for admin role
+
+                // Check if user is admin from backend response
                 if (result.user?.role === 'admin') {
-                    toast.success('👮 Redirecting to Admin Dashboard...');
-                    // Redirect to Admin App (assuming it runs on port 5174)
-                    // Using window.location to break out of current SPA router
-                    setTimeout(() => {
-                        window.location.href = 'http://localhost:5174';
-                    }, 1000);
+                    navigate('/admin/dashboard', { replace: true });
                 } else {
-                    // Redirect to dashboard after successful login
                     navigate('/dashboard', { replace: true });
                 }
             } else {
@@ -282,7 +354,6 @@ const Login = () => {
 
             if (result.success) {
                 toast.success('🚀 Welcome to Demo Account! Redirecting to dashboard...');
-                // Always redirect to dashboard for demo account
                 setTimeout(() => navigate('/dashboard', { replace: true }), 500);
             } else {
                 toast.error(result.message || '❌ Demo account not available. Please check your connection.');
@@ -350,17 +421,17 @@ const Login = () => {
                         className="text-xl text-gray-600 mb-8"
                         variants={itemVariants}
                     >
-                        Continue building amazing resumes
+                        Sign in to continue building your professional resume
                     </motion.p>
                     <motion.div
                         className="space-y-4 text-left max-w-sm"
                         variants={itemVariants}
                     >
                         {[
-                            { icon: '🚀', text: 'Pick up where you left off' },
-                            { icon: '📊', text: 'Access your resume analytics' },
-                            { icon: '🎨', text: 'Edit your existing templates' },
-                            { icon: '📥', text: 'Download your resumes instantly' }
+                            { icon: '🚀', text: 'Access your saved resumes' },
+                            { icon: '📊', text: 'View resume analytics' },
+                            { icon: '🎨', text: 'Edit with multiple templates' },
+                            { icon: '📥', text: 'Download instantly in PDF format' }
                         ].map((feature, index) => (
                             <motion.div
                                 key={feature.text}
@@ -384,8 +455,12 @@ const Login = () => {
                         className="text-center mb-8"
                         variants={itemVariants}
                     >
-                        <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Sign In</h2>
-                        <p className="text-gray-600">Sign in to your account to continue</p>
+                        <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
+                            Sign In
+                        </h2>
+                        <p className="text-gray-600">
+                            Sign in to your account to continue
+                        </p>
                     </motion.div>
 
                     {/* Demo Button */}
@@ -416,20 +491,21 @@ const Login = () => {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <motion.div variants={itemVariants}>
                             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                                Email Address or Admin Username
+                                Email Address
                             </label>
                             <div className="relative">
                                 <FaEnvelope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
                                 <input
-                                    type="text"
+                                    type="email"
                                     id="email"
                                     name="email"
                                     value={formData.email}
                                     onChange={handleChange}
                                     required
                                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm placeholder-gray-400"
-                                    placeholder="your@email.com or username"
+                                    placeholder="your@email.com"
                                     disabled={isLoading}
+                                    autoComplete="email"
                                 />
                             </div>
                         </motion.div>
@@ -450,6 +526,7 @@ const Login = () => {
                                     className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm placeholder-gray-400"
                                     placeholder="••••••••"
                                     disabled={isLoading}
+                                    autoComplete="current-password"
                                 />
                                 <button
                                     type="button"
@@ -511,7 +588,7 @@ const Login = () => {
                         <div className="flex-1 border-t border-gray-300"></div>
                     </motion.div>
 
-                    {/* Social Login Buttons */}
+                    {/* Social Login */}
                     <motion.div className="space-y-3" variants={itemVariants}>
                         {/* Google Button Container */}
                         <div id="googleButtonContainer" className="w-full flex justify-center" />

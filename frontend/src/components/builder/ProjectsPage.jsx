@@ -1,7 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
+import {
+    FaProjectDiagram,
+    FaCalendarAlt,
+    FaLink,
+    FaCode,
+    FaTrash,
+    FaPlus,
+    FaStar,
+    FaExternalLinkAlt
+} from 'react-icons/fa';
 
-const ProjectsPage = ({ resumeData, onInputChange, onAddNew, onRemove, onNext, onPrev, currentStep, isStepValid }) => {
-    const { projects } = resumeData;
+const EnhancedProjectsPage = ({ resumeData, onInputChange, onAddNew, onRemove }) => {
+    const projects = Array.isArray(resumeData.projects) ? resumeData.projects : [];
 
     const handleChange = (id, field, value) => {
         onInputChange('projects', field, value, id);
@@ -17,94 +27,174 @@ const ProjectsPage = ({ resumeData, onInputChange, onAddNew, onRemove, onNext, o
         }
     };
 
+    const calculateIsStepValid = () => {
+        if (projects.length === 0) return false;
+        return projects.some(proj => proj.name && proj.description);
+    };
+
+    const isStepValid = calculateIsStepValid();
+
     return (
-        <div style={styles.container}>
-            <div style={styles.header}>
-                <h2 style={styles.title}>Projects</h2>
-                <p style={styles.subtitle}>Showcase your personal or professional projects</p>
+        <div className="enhanced-projects-page">
+            <div className="page-header">
+                <div className="header-icon">
+                    <FaProjectDiagram />
+                </div>
+                <div className="header-content">
+                    <h2 className="page-title">Projects</h2>
+                    <p className="page-subtitle">Showcase your personal and professional projects</p>
+                </div>
             </div>
 
-            <div style={styles.projectsList}>
-                {projects.map((project, index) => (
-                    <div key={project.id} style={styles.projectCard}>
-                        <div style={styles.cardHeader}>
-                            <h3 style={styles.cardTitle}>Project #{index + 1}</h3>
+            <div className="projects-list">
+                {projects.map((proj, index) => (
+                    <div key={proj.id || index} className="project-card">
+                        <div className="card-header">
+                            <div className="card-title-section">
+                                <div className="card-icon">
+                                    <FaProjectDiagram />
+                                </div>
+                                <h3>
+                                    Project #{index + 1}
+                                    {proj.name && proj.description && (
+                                        <span className="status-badge complete">
+                                            <FaStar /> Complete
+                                        </span>
+                                    )}
+                                </h3>
+                            </div>
                             {projects.length > 1 && (
                                 <button
-                                    onClick={() => removeProject(project.id)}
-                                    style={styles.removeButton}
+                                    onClick={() => removeProject(proj.id)}
+                                    className="remove-btn"
                                 >
-                                    Remove
+                                    <FaTrash /> Remove
                                 </button>
                             )}
                         </div>
 
-                        <div style={styles.form}>
-                            <div style={styles.row}>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Project Name *</label>
+                        <div className="card-content">
+                            <div className="form-grid">
+                                {/* Project Name */}
+                                <div className="input-group">
+                                    <label>
+                                        <FaProjectDiagram className="input-icon" />
+                                        Project Name *
+                                    </label>
                                     <input
                                         type="text"
-                                        value={project.name || ''}
-                                        onChange={(e) => handleChange(project.id, 'name', e.target.value)}
-                                        style={styles.input}
+                                        value={proj.name || ''}
+                                        onChange={(e) => handleChange(proj.id, 'name', e.target.value)}
                                         placeholder="E-commerce Platform"
+                                        className={`input-field ${proj.name ? 'filled' : ''}`}
                                     />
                                 </div>
-                            </div>
 
-                            <div style={styles.inputGroup}>
-                                <label style={styles.label}>Project Description</label>
-                                <textarea
-                                    value={project.description || ''}
-                                    onChange={(e) => handleChange(project.id, 'description', e.target.value)}
-                                    style={styles.textarea}
-                                    placeholder="Full-stack e-commerce solution with payment integration and inventory management. Features include user authentication, product catalog, shopping cart, and order processing."
-                                    rows={4}
-                                />
-                            </div>
+                                {/* Project Type */}
+                                <div className="input-group">
+                                    <label>Project Type</label>
+                                    <select
+                                        value={proj.type || ''}
+                                        onChange={(e) => handleChange(proj.id, 'type', e.target.value)}
+                                        className="input-field"
+                                    >
+                                        <option value="">Select type</option>
+                                        <option value="personal">Personal Project</option>
+                                        <option value="professional">Professional</option>
+                                        <option value="academic">Academic</option>
+                                        <option value="open-source">Open Source</option>
+                                        <option value="freelance">Freelance</option>
+                                    </select>
+                                </div>
 
-                            <div style={styles.row}>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Technologies Used</label>
+                                {/* Dates */}
+                                <div className="input-group">
+                                    <label>
+                                        <FaCalendarAlt className="input-icon" />
+                                        Start Date
+                                    </label>
                                     <input
-                                        type="text"
-                                        value={project.technologies || ''}
-                                        onChange={(e) => handleChange(project.id, 'technologies', e.target.value)}
-                                        style={styles.input}
-                                        placeholder="React, Node.js, MongoDB, Stripe, AWS"
+                                        type="month"
+                                        value={proj.startDate || ''}
+                                        onChange={(e) => handleChange(proj.id, 'startDate', e.target.value)}
+                                        className="input-field"
                                     />
                                 </div>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Project Link</label>
+
+                                <div className="input-group">
+                                    <label>
+                                        <FaCalendarAlt className="input-icon" />
+                                        End Date
+                                    </label>
+                                    <input
+                                        type="month"
+                                        value={proj.endDate || ''}
+                                        onChange={(e) => handleChange(proj.id, 'endDate', e.target.value)}
+                                        className="input-field"
+                                        disabled={proj.current}
+                                    />
+                                </div>
+
+                                {/* URLs */}
+                                <div className="input-group">
+                                    <label>
+                                        <FaLink className="input-icon" />
+                                        Live URL
+                                    </label>
                                     <input
                                         type="url"
-                                        value={project.link || ''}
-                                        onChange={(e) => handleChange(project.id, 'link', e.target.value)}
-                                        style={styles.input}
+                                        value={proj.url || ''}
+                                        onChange={(e) => handleChange(proj.id, 'url', e.target.value)}
+                                        placeholder="https://project-demo.com"
+                                        className={`input-field ${proj.url ? 'filled' : ''}`}
+                                    />
+                                </div>
+
+                                <div className="input-group">
+                                    <label>
+                                        <FaCode className="input-icon" />
+                                        GitHub URL
+                                    </label>
+                                    <input
+                                        type="url"
+                                        value={proj.github || ''}
+                                        onChange={(e) => handleChange(proj.id, 'github', e.target.value)}
                                         placeholder="https://github.com/username/project"
+                                        className={`input-field ${proj.github ? 'filled' : ''}`}
                                     />
                                 </div>
                             </div>
 
-                            <div style={styles.row}>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Start Date</label>
-                                    <input
-                                        type="month"
-                                        value={project.startDate || ''}
-                                        onChange={(e) => handleChange(project.id, 'startDate', e.target.value)}
-                                        style={styles.input}
-                                    />
+                            {/* Technologies */}
+                            <div className="input-group">
+                                <label>Technologies Used</label>
+                                <input
+                                    type="text"
+                                    value={proj.technologies || ''}
+                                    onChange={(e) => handleChange(proj.id, 'technologies', e.target.value)}
+                                    placeholder="React, Node.js, MongoDB, AWS, Docker"
+                                    className="input-field"
+                                />
+                                <div className="input-tip">
+                                    Separate technologies with commas
                                 </div>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>End Date</label>
-                                    <input
-                                        type="month"
-                                        value={project.endDate || ''}
-                                        onChange={(e) => handleChange(project.id, 'endDate', e.target.value)}
-                                        style={styles.input}
-                                    />
+                            </div>
+
+                            {/* Description */}
+                            <div className="textarea-group">
+                                <label>Project Description & Features *</label>
+                                <textarea
+                                    value={proj.description || ''}
+                                    onChange={(e) => handleChange(proj.id, 'description', e.target.value)}
+                                    placeholder="• Developed a full-stack e-commerce platform with React and Node.js
+• Implemented user authentication, payment processing, and admin dashboard
+• Optimized performance achieving 95% Lighthouse score
+• Containerized with Docker and deployed on AWS"
+                                    className="description-textarea"
+                                    rows={5}
+                                />
+                                <div className="textarea-tip">
+                                    Use bullet points to highlight key features and achievements
                                 </div>
                             </div>
                         </div>
@@ -112,189 +202,380 @@ const ProjectsPage = ({ resumeData, onInputChange, onAddNew, onRemove, onNext, o
                 ))}
             </div>
 
-            <button
-                onClick={addNewProject}
-                style={styles.addButton}
-            >
-                + Add Another Project
+            <button onClick={addNewProject} className="add-project-btn">
+                <FaPlus /> Add Another Project
             </button>
 
-            <div style={styles.tips}>
-                <h4 style={styles.tipsTitle}>💡 Project Tips:</h4>
-                <ul style={styles.tipsList}>
-                    <li>Include both personal and professional projects</li>
-                    <li>Highlight technologies and frameworks used</li>
-                    <li>Provide links to GitHub, live demos, or portfolios</li>
-                    <li>Describe the problem you solved and your role</li>
-                    <li>Mention any measurable results or impact</li>
-                </ul>
-            </div>
-
-            <div style={styles.validationSection}>
+            <div className="validation-section">
                 {isStepValid ? (
-                    <div style={styles.validStatus}>
-                        ✓ At least one project added - Ready to continue
+                    <div className="validation-success">
+                        <div className="success-icon">✓</div>
+                        <div className="success-content">
+                            <h4>Projects Complete!</h4>
+                            <p>Your projects have been saved successfully.</p>
+                        </div>
                     </div>
                 ) : (
-                    <div style={styles.invalidStatus}>
-                        ⚠ Please add at least one project with a name
+                    <div className="validation-warning">
+                        <div className="warning-icon">!</div>
+                        <div className="warning-content">
+                            <h4>Add Projects</h4>
+                            <p>Add at least one project with name and description to showcase your work.</p>
+                        </div>
                     </div>
                 )}
             </div>
+
+            <style jsx>{`
+                .enhanced-projects-page {
+                    padding: 0;
+                    max-width: 100%;
+                }
+
+                .page-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                    margin-bottom: 2rem;
+                    padding-bottom: 1rem;
+                    border-bottom: 2px solid #e5e7eb;
+                }
+
+                .header-icon {
+                    width: 50px;
+                    height: 50px;
+                    background: linear-gradient(135deg, #6366F1, #4F46E5);
+                    border-radius: 12px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-size: 1.5rem;
+                }
+
+                .header-content .page-title {
+                    font-size: 1.75rem;
+                    font-weight: 700;
+                    color: #1f2937;
+                    margin: 0 0 0.25rem 0;
+                }
+
+                .header-content .page-subtitle {
+                    font-size: 0.95rem;
+                    color: #6b7280;
+                    margin: 0;
+                }
+
+                .projects-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem;
+                    margin-bottom: 2rem;
+                }
+
+                .project-card {
+                    background: white;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 12px;
+                    padding: 1.5rem;
+                    transition: all 0.3s ease;
+                }
+
+                .project-card:hover {
+                    border-color: #6366f1;
+                    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+                }
+
+                .card-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 1.5rem;
+                }
+
+                .card-title-section {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                }
+
+                .card-icon {
+                    width: 36px;
+                    height: 36px;
+                    background: #eef2ff;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: #6366f1;
+                }
+
+                .card-title-section h3 {
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    color: #1f2937;
+                    margin: 0;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                }
+
+                .status-badge.complete {
+                    background: #e0e7ff;
+                    color: #3730a3;
+                    font-size: 0.75rem;
+                    padding: 0.25rem 0.75rem;
+                    border-radius: 20px;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.25rem;
+                }
+
+                .remove-btn {
+                    padding: 0.5rem 1rem;
+                    background: #fee2e2;
+                    color: #dc2626;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                }
+
+                .remove-btn:hover {
+                    background: #fecaca;
+                }
+
+                .card-content {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem;
+                }
+
+                .form-grid {
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 1.25rem;
+                }
+
+                .input-group {
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .input-group label {
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    color: #374151;
+                    margin-bottom: 0.5rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                }
+
+                .input-icon {
+                    color: #6366f1;
+                    font-size: 0.875rem;
+                }
+
+                .input-field {
+                    padding: 0.75rem 1rem;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 8px;
+                    font-size: 0.95rem;
+                    color: #1f2937;
+                    background: white;
+                    transition: all 0.3s ease;
+                    appearance: none;
+                }
+
+                .input-field:focus {
+                    outline: none;
+                    border-color: #6366f1;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+                }
+
+                .input-field.filled {
+                    border-color: #6366f1;
+                    background-color: #eef2ff;
+                }
+
+                select.input-field {
+                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+                    background-repeat: no-repeat;
+                    background-position: right 0.75rem center;
+                    background-size: 1.5em 1.5em;
+                    padding-right: 2.5rem;
+                }
+
+                .input-tip {
+                    font-size: 0.75rem;
+                    color: #6b7280;
+                    margin-top: 0.5rem;
+                    font-style: italic;
+                }
+
+                .textarea-group {
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .textarea-group label {
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    color: #374151;
+                    margin-bottom: 0.5rem;
+                }
+
+                .description-textarea {
+                    padding: 0.75rem 1rem;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 8px;
+                    font-size: 0.95rem;
+                    color: #1f2937;
+                    background: white;
+                    transition: all 0.3s ease;
+                    resize: vertical;
+                    min-height: 150px;
+                    line-height: 1.6;
+                    font-family: inherit;
+                }
+
+                .description-textarea:focus {
+                    outline: none;
+                    border-color: #6366f1;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+                }
+
+                .description-textarea::placeholder {
+                    color: #9ca3af;
+                }
+
+                .textarea-tip {
+                    font-size: 0.75rem;
+                    color: #6b7280;
+                    margin-top: 0.5rem;
+                    font-style: italic;
+                }
+
+                .add-project-btn {
+                    width: 100%;
+                    padding: 1rem;
+                    background: #eef2ff;
+                    color: #3730a3;
+                    border: 2px dashed #6366f1;
+                    border-radius: 8px;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.75rem;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    margin-bottom: 2rem;
+                }
+
+                .add-project-btn:hover {
+                    background: #e0e7ff;
+                    border-color: #4f46e5;
+                }
+
+                .validation-section {
+                    padding: 1.5rem;
+                    border-radius: 12px;
+                }
+
+                .validation-success {
+                    background: #d1fae5;
+                    border: 1px solid #a7f3d0;
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                    padding: 1.5rem;
+                    border-radius: 12px;
+                }
+
+                .success-icon {
+                    width: 40px;
+                    height: 40px;
+                    background: #10b981;
+                    color: white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 1.25rem;
+                    font-weight: bold;
+                }
+
+                .success-content h4 {
+                    font-size: 1rem;
+                    font-weight: 600;
+                    color: #065f46;
+                    margin: 0 0 0.25rem 0;
+                }
+
+                .success-content p {
+                    font-size: 0.875rem;
+                    color: #047857;
+                    margin: 0;
+                }
+
+                .validation-warning {
+                    background: #fef3c7;
+                    border: 1px solid #fde68a;
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                    padding: 1.5rem;
+                    border-radius: 12px;
+                }
+
+                .warning-icon {
+                    width: 40px;
+                    height: 40px;
+                    background: #f59e0b;
+                    color: white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 1.25rem;
+                    font-weight: bold;
+                }
+
+                .warning-content h4 {
+                    font-size: 1rem;
+                    font-weight: 600;
+                    color: #92400e;
+                    margin: 0 0 0.25rem 0;
+                }
+
+                .warning-content p {
+                    font-size: 0.875rem;
+                    color: #b45309;
+                    margin: 0;
+                }
+
+                @media (max-width: 768px) {
+                    .form-grid {
+                        grid-template-columns: 1fr;
+                    }
+                    
+                    .card-header {
+                        flex-direction: column;
+                        gap: 1rem;
+                        align-items: flex-start;
+                    }
+                }
+            `}</style>
         </div>
     );
 };
 
-const styles = {
-    container: {
-        padding: '20px',
-        maxWidth: '800px',
-        margin: '0 auto',
-    },
-    header: {
-        textAlign: 'center',
-        marginBottom: '30px',
-    },
-    title: {
-        fontSize: '2rem',
-        fontWeight: '700',
-        color: '#000000',
-        marginBottom: '8px',
-    },
-    subtitle: {
-        fontSize: '1rem',
-        color: '#000000',
-        fontWeight: '400',
-        opacity: 0.8,
-    },
-    projectsList: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '24px',
-        marginBottom: '24px',
-    },
-    projectCard: {
-        backgroundColor: '#f8fafc',
-        padding: '24px',
-        borderRadius: '12px',
-        border: '1px solid #e2e8f0',
-    },
-    cardHeader: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '20px',
-    },
-    cardTitle: {
-        fontSize: '18px',
-        fontWeight: '600',
-        color: '#000000',
-        margin: 0,
-    },
-    removeButton: {
-        padding: '8px 16px',
-        backgroundColor: '#e53e3e',
-        color: 'white',
-        border: 'none',
-        borderRadius: '6px',
-        fontSize: '14px',
-        cursor: 'pointer',
-    },
-    form: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '20px',
-    },
-    row: {
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '16px',
-    },
-    inputGroup: {
-        display: 'flex',
-        flexDirection: 'column',
-    },
-    label: {
-        fontSize: '14px',
-        fontWeight: '600',
-        color: '#000000',
-        marginBottom: '8px',
-    },
-    input: {
-        padding: '12px 16px',
-        border: '2px solid #e2e8f0',
-        borderRadius: '8px',
-        fontSize: '16px',
-        transition: 'all 0.3s ease',
-        backgroundColor: 'white',
-        outline: 'none',
-        color: '#000000',
-    },
-    textarea: {
-        padding: '12px 16px',
-        border: '2px solid #e2e8f0',
-        borderRadius: '8px',
-        fontSize: '16px',
-        transition: 'all 0.3s ease',
-        backgroundColor: 'white',
-        resize: 'vertical',
-        fontFamily: 'inherit',
-        outline: 'none',
-        minHeight: '100px',
-        color: '#000000',
-        lineHeight: '1.6',
-    },
-    addButton: {
-        padding: '12px 24px',
-        backgroundColor: '#3b82f6',
-        color: 'white',
-        border: 'none',
-        borderRadius: '8px',
-        fontSize: '16px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        marginBottom: '24px',
-        width: '100%',
-    },
-    tips: {
-        backgroundColor: '#f7fafc',
-        padding: '20px',
-        borderRadius: '8px',
-        border: '1px solid #e2e8f0',
-        marginBottom: '24px',
-    },
-    tipsTitle: {
-        fontSize: '16px',
-        fontWeight: '600',
-        color: '#000000',
-        marginBottom: '12px',
-    },
-    tipsList: {
-        color: '#000000',
-        fontSize: '14px',
-        lineHeight: '1.6',
-        paddingLeft: '20px',
-        margin: 0,
-        opacity: 0.8,
-    },
-    validationSection: {
-        padding: '16px',
-        backgroundColor: '#f7fafc',
-        borderRadius: '8px',
-        border: '1px solid #e2e8f0',
-        textAlign: 'center',
-    },
-    validStatus: {
-        color: '#000000',
-        fontSize: '14px',
-        fontWeight: '500',
-        opacity: 0.8,
-    },
-    invalidStatus: {
-        color: '#e53e3e',
-        fontSize: '14px',
-        fontWeight: '500',
-    },
-};
-
-export default ProjectsPage;
+export default EnhancedProjectsPage;

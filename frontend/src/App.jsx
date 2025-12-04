@@ -1,3 +1,4 @@
+// src/App.jsx
 import React, { Suspense, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 
@@ -8,6 +9,7 @@ import { PageLoader } from "./components/LoadingSpinner.jsx";
 
 // Context
 import { useAuth } from "./context/AuthContext.jsx";
+import { ResumeProvider } from "./context/ResumeContext.jsx";
 
 // Lazy loaded pages for better performance
 const Home = React.lazy(() => import("./pages/Home.jsx"));
@@ -22,6 +24,7 @@ const Analyzer = React.lazy(() => import("./pages/Analyzer.jsx"));
 const Resumes = React.lazy(() => import("./pages/Resumes.jsx"));
 const Profile = React.lazy(() => import("./pages/Profile.jsx"));
 const NotFound = React.lazy(() => import("./pages/NotFound.jsx"));
+const AdminDashboard = React.lazy(() => import("./pages/admin/AdminDashboard.jsx"));
 
 // Enhanced Error Boundary
 class ErrorBoundary extends React.Component {
@@ -145,6 +148,33 @@ const ScrollToTop = () => {
     return null;
 };
 
+// Admin Route Component
+const AdminRoute = ({ children }) => {
+    const { isAuthenticated, isLoading, isAdmin } = useAuth();
+    const location = useLocation();
+
+    if (isLoading) {
+        return <PageLoader />;
+    }
+
+    if (!isAuthenticated) {
+        const from = location.pathname + location.search;
+        return (
+            <Navigate
+                to={`/login?redirect=${encodeURIComponent(from)}`}
+                replace
+                state={{ from: location }}
+            />
+        );
+    }
+
+    if (!isAdmin) {
+        return <Navigate to="/unauthorized" replace />;
+    }
+
+    return children;
+};
+
 // Main App Component
 function App() {
     const { isAuthenticated, isLoading } = useAuth();
@@ -155,7 +185,9 @@ function App() {
 
     // Check if current path is 404 page
     const isNotFoundPage = location.pathname === '/404' ||
-        (!['/', '/login', '/register', '/forgot-password', '/reset-password', '/dashboard', '/builder', '/templates', '/analyzer', '/resumes', '/profile'].includes(location.pathname) &&
+        (!['/', '/login', '/register', '/forgot-password', '/reset-password',
+            '/dashboard', '/builder', '/templates', '/analyzer', '/resumes',
+            '/profile', '/admin', '/unauthorized'].includes(location.pathname) &&
             !location.pathname.startsWith('/builder/') &&
             !location.pathname.startsWith('/resumes/') &&
             !location.pathname.startsWith('/reset-password/'));
@@ -233,12 +265,14 @@ function App() {
                                 }
                             />
 
-                            {/* Protected Routes */}
+                            {/* Protected Routes with ResumeProvider */}
                             <Route
                                 path="/dashboard"
                                 element={
                                     <ProtectedRoute>
-                                        <Dashboard />
+                                        <ResumeProvider>
+                                            <Dashboard />
+                                        </ResumeProvider>
                                     </ProtectedRoute>
                                 }
                             />
@@ -248,16 +282,20 @@ function App() {
                                 path="/builder"
                                 element={
                                     <ProtectedRoute>
-                                        <Builder />
+                                        <ResumeProvider>
+                                            <Builder />
+                                        </ResumeProvider>
                                     </ProtectedRoute>
                                 }
                             />
 
                             <Route
-                                path="/builder/:templateId"
+                                path="/builder/:resumeId"
                                 element={
                                     <ProtectedRoute>
-                                        <Builder />
+                                        <ResumeProvider>
+                                            <Builder />
+                                        </ResumeProvider>
                                     </ProtectedRoute>
                                 }
                             />
@@ -266,7 +304,9 @@ function App() {
                                 path="/templates"
                                 element={
                                     <ProtectedRoute>
-                                        <TemplateSelect />
+                                        <ResumeProvider>
+                                            <TemplateSelect />
+                                        </ResumeProvider>
                                     </ProtectedRoute>
                                 }
                             />
@@ -276,7 +316,9 @@ function App() {
                                 path="/analyzer"
                                 element={
                                     <ProtectedRoute>
-                                        <Analyzer />
+                                        <ResumeProvider>
+                                            <Analyzer />
+                                        </ResumeProvider>
                                     </ProtectedRoute>
                                 }
                             />
@@ -286,7 +328,9 @@ function App() {
                                 path="/resumes"
                                 element={
                                     <ProtectedRoute>
-                                        <Resumes />
+                                        <ResumeProvider>
+                                            <Resumes />
+                                        </ResumeProvider>
                                     </ProtectedRoute>
                                 }
                             />
@@ -295,7 +339,9 @@ function App() {
                                 path="/resumes/:resumeId"
                                 element={
                                     <ProtectedRoute>
-                                        <Resumes />
+                                        <ResumeProvider>
+                                            <Resumes />
+                                        </ResumeProvider>
                                     </ProtectedRoute>
                                 }
                             />
@@ -307,6 +353,34 @@ function App() {
                                     <ProtectedRoute>
                                         <Profile />
                                     </ProtectedRoute>
+                                }
+                            />
+
+                            {/* Admin Routes */}
+                            <Route
+                                path="/admin"
+                                element={
+                                    <AdminRoute>
+                                        <AdminDashboard />
+                                    </AdminRoute>
+                                }
+                            />
+
+                            <Route
+                                path="/unauthorized"
+                                element={
+                                    <div className="min-h-screen flex items-center justify-center">
+                                        <div className="text-center">
+                                            <h1 className="text-3xl font-bold text-red-600 mb-4">Access Denied</h1>
+                                            <p className="text-gray-600 mb-6">You don't have permission to access this page.</p>
+                                            <button
+                                                onClick={() => window.history.back()}
+                                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                            >
+                                                Go Back
+                                            </button>
+                                        </div>
+                                    </div>
                                 }
                             />
 
@@ -386,6 +460,24 @@ function App() {
                                 element={<Navigate to="/profile" replace />}
                             />
 
+                            {/* Preview Route */}
+                            <Route
+                                path="/preview/:resumeId"
+                                element={
+                                    <ProtectedRoute>
+                                        <ResumeProvider>
+                                            {/* You'll need to create a Preview component */}
+                                            <div className="min-h-screen flex items-center justify-center">
+                                                <div className="text-center">
+                                                    <h1 className="text-2xl font-bold mb-4">Preview Feature Coming Soon</h1>
+                                                    <p className="text-gray-600">Resume preview functionality will be available soon!</p>
+                                                </div>
+                                            </div>
+                                        </ResumeProvider>
+                                    </ProtectedRoute>
+                                }
+                            />
+
                             {/* 404 Page - Catch all route */}
                             <Route
                                 path="*"
@@ -402,4 +494,5 @@ function App() {
     );
 }
 
+// Wrap App with AuthProvider at the top level (in index.js or main.jsx)
 export default App;

@@ -67,29 +67,79 @@ const Navbar = () => {
         return location.pathname === path;
     };
 
+    // FIXED: Handle logo click - go to dashboard if authenticated, home if not
+    const handleLogoClick = (e) => {
+        if (isAuthenticated && location.pathname !== '/dashboard') {
+            e.preventDefault();
+            navigate('/dashboard');
+        }
+        // If not authenticated, let it go to home page naturally
+    };
+
     // Navigation items for authenticated users
     const navItems = [
         {
+            path: '/dashboard',
+            label: 'Dashboard',
+            icon: '📊',
+            requiresAuth: true
+        },
+        {
             path: '/builder',
             label: 'Builder',
-            icon: '🛠️'
+            icon: '🛠️',
+            requiresAuth: true
         },
         {
             path: '/analyzer',
             label: 'Analyzer',
-            icon: '📊'
+            icon: '🔍',
+            requiresAuth: true
         },
         {
             path: '/templates',
             label: 'Templates',
-            icon: '🎨'
+            icon: '🎨',
+            requiresAuth: true
         }
     ];
+
+    // Public navigation items (only shown when not authenticated)
+    const publicNavItems = [
+        {
+            path: '/',
+            label: 'Home',
+            icon: '🏠',
+            requiresAuth: false
+        },
+        {
+            path: '/features',
+            label: 'Features',
+            icon: '✨',
+            requiresAuth: false
+        },
+        {
+            path: '/pricing',
+            label: 'Pricing',
+            icon: '💰',
+            requiresAuth: false
+        }
+    ];
+
+    // Get navigation items based on authentication status
+    const getNavItems = () => {
+        if (isAuthenticated) {
+            return navItems;
+        }
+        return publicNavItems;
+    };
+
+    const currentNavItems = getNavItems();
 
     // Styles
     const styles = {
         navbar: {
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: isAuthenticated ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white',
             padding: '1rem 0',
             position: 'sticky',
             top: 0,
@@ -106,8 +156,9 @@ const Navbar = () => {
             alignItems: 'center',
             justifyContent: 'space-between',
         },
+        // FIXED: Logo with conditional navigation
         logo: {
-            color: 'white',
+            color: isAuthenticated ? 'white' : '#667eea',
             textDecoration: 'none',
             fontSize: '1.5rem',
             fontWeight: 'bold',
@@ -115,6 +166,7 @@ const Navbar = () => {
             alignItems: 'center',
             gap: '0.5rem',
             transition: 'all 0.3s ease',
+            cursor: 'pointer',
         },
         desktopNav: {
             display: 'flex',
@@ -127,7 +179,7 @@ const Navbar = () => {
             gap: '1rem',
         },
         navItem: {
-            color: 'white',
+            color: isAuthenticated ? 'white' : '#4a5568',
             textDecoration: 'none',
             padding: '0.6rem 1.2rem',
             borderRadius: '8px',
@@ -137,12 +189,13 @@ const Navbar = () => {
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            background: 'rgba(255, 255, 255, 0.1)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
+            background: isAuthenticated ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+            border: isAuthenticated ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
         },
         activeNavItem: {
-            background: 'rgba(255, 255, 255, 0.2)',
-            border: '1px solid rgba(255, 255, 255, 0.3)',
+            background: isAuthenticated ? 'rgba(255, 255, 255, 0.2)' : '#f7fafc',
+            border: isAuthenticated ? '1px solid rgba(255, 255, 255, 0.3)' : 'none',
+            color: isAuthenticated ? 'white' : '#667eea',
             transform: 'translateY(-1px)',
             boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
         },
@@ -152,17 +205,17 @@ const Navbar = () => {
             gap: '1rem',
         },
         loginBtn: {
-            color: 'white',
+            color: isAuthenticated ? 'white' : '#667eea',
             textDecoration: 'none',
             fontWeight: '500',
             padding: '0.6rem 1.2rem',
             borderRadius: '6px',
             transition: 'all 0.3s ease',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
+            border: `1px solid ${isAuthenticated ? 'rgba(255, 255, 255, 0.2)' : '#e2e8f0'}`,
         },
         registerBtn: {
-            background: 'white',
-            color: '#667eea',
+            background: isAuthenticated ? 'white' : '#667eea',
+            color: isAuthenticated ? '#667eea' : 'white',
             textDecoration: 'none',
             fontWeight: '600',
             padding: '0.6rem 1.5rem',
@@ -261,9 +314,9 @@ const Navbar = () => {
         },
         mobileMenuButton: {
             display: 'none',
-            background: 'rgba(255, 255, 255, 0.1)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            color: 'white',
+            background: isAuthenticated ? 'rgba(255, 255, 255, 0.1)' : 'rgba(102, 126, 234, 0.1)',
+            border: isAuthenticated ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(102, 126, 234, 0.2)',
+            color: isAuthenticated ? 'white' : '#667eea',
             fontSize: '1.2rem',
             cursor: 'pointer',
             padding: '0.5rem',
@@ -276,7 +329,7 @@ const Navbar = () => {
             right: isMobileMenuOpen ? 0 : '-100%',
             width: '300px',
             height: '100vh',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: isAuthenticated ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white',
             padding: '6rem 2rem 2rem',
             display: 'flex',
             flexDirection: 'column',
@@ -287,7 +340,7 @@ const Navbar = () => {
             backdropFilter: 'blur(10px)',
         },
         mobileNavLink: {
-            color: 'white',
+            color: isAuthenticated ? 'white' : '#4a5568',
             textDecoration: 'none',
             padding: '1rem 1.5rem',
             borderRadius: '8px',
@@ -295,13 +348,13 @@ const Navbar = () => {
             display: 'flex',
             alignItems: 'center',
             gap: '1rem',
-            background: 'rgba(255, 255, 255, 0.1)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
+            background: isAuthenticated ? 'rgba(255, 255, 255, 0.1)' : 'rgba(102, 126, 234, 0.05)',
+            border: isAuthenticated ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(102, 126, 234, 0.1)',
         },
         mobileLogoutBtn: {
-            color: 'white',
-            background: 'rgba(255, 255, 255, 0.1)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: isAuthenticated ? 'white' : '#4a5568',
+            background: isAuthenticated ? 'rgba(255, 255, 255, 0.1)' : 'rgba(102, 126, 234, 0.05)',
+            border: isAuthenticated ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(102, 126, 234, 0.1)',
             padding: '1rem 1.5rem',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -328,24 +381,50 @@ const Navbar = () => {
     return (
         <nav style={styles.navbar}>
             <div style={styles.container}>
-                {/* Logo */}
-                <Link
-                    to="/"
-                    style={styles.logo}
-                    onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-                    onMouseLeave={(e) => e.target.style.transform = 'none'}
-                >
-                    <span>📄</span>
-                    ResumeCraft
-                </Link>
+                {/* Logo - FIXED: Goes to Dashboard when authenticated */}
+                {isAuthenticated ? (
+                    // When authenticated, make it a button that goes to dashboard
+                    <div
+                        style={styles.logo}
+                        onClick={() => navigate('/dashboard')}
+                        onMouseEnter={(e) => {
+                            e.target.style.transform = 'translateY(-2px)';
+                            e.target.style.opacity = '0.9';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.target.style.transform = 'none';
+                            e.target.style.opacity = '1';
+                        }}
+                    >
+                        <span>📄</span>
+                        ResumeCraft
+                    </div>
+                ) : (
+                    // When not authenticated, normal link to home
+                    <Link
+                        to="/"
+                        style={styles.logo}
+                        onMouseEnter={(e) => {
+                            e.target.style.transform = 'translateY(-2px)';
+                            e.target.style.opacity = '0.9';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.target.style.transform = 'none';
+                            e.target.style.opacity = '1';
+                        }}
+                    >
+                        <span>📄</span>
+                        ResumeCraft
+                    </Link>
+                )}
 
                 {/* Desktop Navigation */}
                 <div style={styles.desktopNav}>
                     {isAuthenticated ? (
                         <>
-                            {/* Navigation Items - Builder, Analyzer, Templates */}
+                            {/* Navigation Items - Dashboard, Builder, Analyzer, Templates */}
                             <div style={styles.navItems}>
-                                {navItems.map((item) => (
+                                {currentNavItems.map((item) => (
                                     <Link
                                         key={item.path}
                                         to={item.path}
@@ -446,44 +525,80 @@ const Navbar = () => {
                             </div>
                         </>
                     ) : (
-                        <div style={styles.authButtons}>
-                            <Link
-                                to="/login"
-                                style={styles.loginBtn}
-                                onMouseEnter={(e) => {
-                                    e.target.style.background = 'rgba(255, 255, 255, 0.2)';
-                                    e.target.style.transform = 'translateY(-1px)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.target.style.background = 'rgba(255, 255, 255, 0.1)';
-                                    e.target.style.transform = 'none';
-                                }}
-                            >
-                                Login
-                            </Link>
-                            <Link
-                                to="/register"
-                                style={styles.registerBtn}
-                                onMouseEnter={(e) => {
-                                    e.target.style.transform = 'translateY(-2px)';
-                                    e.target.style.boxShadow = '0 4px 15px rgba(0,0,0,0.15)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.target.style.transform = 'none';
-                                    e.target.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-                                }}
-                            >
-                                Get Started
-                            </Link>
-                        </div>
+                        <>
+                            {/* Public Navigation Items */}
+                            <div style={styles.navItems}>
+                                {currentNavItems.map((item) => (
+                                    <Link
+                                        key={item.path}
+                                        to={item.path}
+                                        style={{
+                                            ...styles.navItem,
+                                            ...(isActiveRoute(item.path) && styles.activeNavItem)
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            if (!isActiveRoute(item.path)) {
+                                                e.target.style.background = 'rgba(102, 126, 234, 0.05)';
+                                                e.target.style.transform = 'translateY(-1px)';
+                                            }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            if (!isActiveRoute(item.path)) {
+                                                e.target.style.background = 'transparent';
+                                                e.target.style.transform = 'none';
+                                            }
+                                        }}
+                                    >
+                                        <span>{item.icon}</span>
+                                        {item.label}
+                                    </Link>
+                                ))}
+                            </div>
+
+                            {/* Auth Buttons */}
+                            <div style={styles.authButtons}>
+                                <Link
+                                    to="/login"
+                                    style={styles.loginBtn}
+                                    onMouseEnter={(e) => {
+                                        e.target.style.background = 'rgba(102, 126, 234, 0.05)';
+                                        e.target.style.transform = 'translateY(-1px)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.target.style.background = 'transparent';
+                                        e.target.style.transform = 'none';
+                                    }}
+                                >
+                                    Login
+                                </Link>
+                                <Link
+                                    to="/register"
+                                    style={styles.registerBtn}
+                                    onMouseEnter={(e) => {
+                                        e.target.style.transform = 'translateY(-2px)';
+                                        e.target.style.boxShadow = '0 4px 15px rgba(0,0,0,0.15)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.target.style.transform = 'none';
+                                        e.target.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                                    }}
+                                >
+                                    Get Started
+                                </Link>
+                            </div>
+                        </>
                     )}
 
                     {/* Mobile Menu Button */}
                     <button
                         style={styles.mobileMenuButton}
                         onClick={toggleMobileMenu}
-                        onMouseEnter={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.2)'}
-                        onMouseLeave={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.1)'}
+                        onMouseEnter={(e) => e.target.style.background =
+                            isAuthenticated ? 'rgba(255, 255, 255, 0.2)' : 'rgba(102, 126, 234, 0.15)'
+                        }
+                        onMouseLeave={(e) => e.target.style.background =
+                            isAuthenticated ? 'rgba(255, 255, 255, 0.1)' : 'rgba(102, 126, 234, 0.05)'
+                        }
                         aria-label="Toggle menu"
                     >
                         ☰
@@ -495,6 +610,7 @@ const Navbar = () => {
             <div style={styles.mobileNav}>
                 {isAuthenticated ? (
                     <>
+                        {/* Mobile Profile Header */}
                         <div style={{
                             ...styles.profileButton,
                             marginBottom: '1rem',
@@ -519,7 +635,7 @@ const Navbar = () => {
                         </div>
 
                         {/* Mobile Navigation Items */}
-                        {navItems.map((item) => (
+                        {currentNavItems.map((item) => (
                             <Link
                                 key={item.path}
                                 to={item.path}
@@ -563,21 +679,36 @@ const Navbar = () => {
                     </>
                 ) : (
                     <>
+                        {/* Mobile Navigation Items for Public */}
+                        {currentNavItems.map((item) => (
+                            <Link
+                                key={item.path}
+                                to={item.path}
+                                style={styles.mobileNavLink}
+                                onClick={closeMobileMenu}
+                                onMouseEnter={(e) => e.target.style.background = 'rgba(102, 126, 234, 0.1)'}
+                                onMouseLeave={(e) => e.target.style.background = 'rgba(102, 126, 234, 0.05)'}
+                            >
+                                <span>{item.icon}</span> {item.label}
+                            </Link>
+                        ))}
+
                         <Link
                             to="/login"
                             style={styles.mobileNavLink}
                             onClick={closeMobileMenu}
-                            onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
-                            onMouseLeave={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+                            onMouseEnter={(e) => e.target.style.background = 'rgba(102, 126, 234, 0.1)'}
+                            onMouseLeave={(e) => e.target.style.background = 'rgba(102, 126, 234, 0.05)'}
                         >
                             <span>🔑</span> Login
                         </Link>
+
                         <Link
                             to="/register"
                             style={{
                                 ...styles.mobileNavLink,
-                                background: 'white',
-                                color: '#667eea',
+                                background: '#667eea',
+                                color: 'white',
                                 fontWeight: '600',
                                 justifyContent: 'center',
                                 marginTop: '1rem',

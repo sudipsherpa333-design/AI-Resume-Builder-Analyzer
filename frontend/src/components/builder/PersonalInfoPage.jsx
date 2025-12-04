@@ -1,15 +1,72 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
-    const { personalInfo } = resumeData;
+    const { personalInfo = {} } = resumeData;
 
+    // Initialize state for form
+    const [formData, setFormData] = useState({
+        firstName: personalInfo.firstName || '',
+        lastName: personalInfo.lastName || '',
+        email: personalInfo.email || '',
+        phone: personalInfo.phone || '',
+        address: personalInfo.address || '',
+        city: personalInfo.city || '',
+        state: personalInfo.state || '',
+        zipCode: personalInfo.zipCode || '',
+        country: personalInfo.country || '',
+        linkedin: personalInfo.linkedin || '',
+        portfolio: personalInfo.portfolio || '',
+        summary: personalInfo.summary || ''
+    });
+
+    // Update local state when resumeData changes
+    useEffect(() => {
+        setFormData({
+            firstName: personalInfo.firstName || '',
+            lastName: personalInfo.lastName || '',
+            email: personalInfo.email || '',
+            phone: personalInfo.phone || '',
+            address: personalInfo.address || '',
+            city: personalInfo.city || '',
+            state: personalInfo.state || '',
+            zipCode: personalInfo.zipCode || '',
+            country: personalInfo.country || '',
+            linkedin: personalInfo.linkedin || '',
+            portfolio: personalInfo.portfolio || '',
+            summary: personalInfo.summary || ''
+        });
+    }, [personalInfo]);
+
+    // Handle input changes
     const handleChange = (field, value) => {
-        onInputChange(`personalInfo.${field}`, value);
+        // Update local state
+        setFormData(prev => ({
+            ...prev,
+            [field]: value
+        }));
+
+        // Call parent's onInputChange with the updated field
+        // Pass the entire personalInfo object with the update
+        const updatedPersonalInfo = {
+            ...personalInfo,
+            [field]: value
+        };
+
+        // Call parent's update function
+        if (typeof onInputChange === 'function') {
+            onInputChange('personalInfo', updatedPersonalInfo);
+        }
     };
 
     // Check if field is filled for validation indicators
     const isFieldFilled = (field) => {
-        return personalInfo[field] && personalInfo[field].trim().length > 0;
+        return formData[field] && formData[field].trim().length > 0;
+    };
+
+    // Check if step is valid (all required fields filled)
+    const checkStepValidity = () => {
+        const requiredFields = ['firstName', 'lastName', 'email'];
+        return requiredFields.every(field => isFieldFilled(field));
     };
 
     return (
@@ -35,10 +92,11 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                             </div>
                             <input
                                 type="text"
-                                value={personalInfo.firstName || ''}
+                                value={formData.firstName}
                                 onChange={(e) => handleChange('firstName', e.target.value)}
                                 className={`input ${isFieldFilled('firstName') ? 'valid' : ''}`}
                                 placeholder="Sudipro"
+                                autoComplete="given-name"
                             />
                             {!isFieldFilled('firstName') && (
                                 <p className="hint-text">Required field</p>
@@ -56,10 +114,11 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                             </div>
                             <input
                                 type="text"
-                                value={personalInfo.lastName || ''}
+                                value={formData.lastName}
                                 onChange={(e) => handleChange('lastName', e.target.value)}
                                 className={`input ${isFieldFilled('lastName') ? 'valid' : ''}`}
                                 placeholder="Pro"
+                                autoComplete="family-name"
                             />
                             {!isFieldFilled('lastName') && (
                                 <p className="hint-text">Required field</p>
@@ -83,10 +142,11 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                             </div>
                             <input
                                 type="email"
-                                value={personalInfo.email || ''}
+                                value={formData.email}
                                 onChange={(e) => handleChange('email', e.target.value)}
                                 className={`input ${isFieldFilled('email') ? 'valid' : ''}`}
                                 placeholder="sudipro@example.com"
+                                autoComplete="email"
                             />
                             {!isFieldFilled('email') && (
                                 <p className="hint-text">Required field</p>
@@ -99,10 +159,11 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                             </label>
                             <input
                                 type="tel"
-                                value={personalInfo.phone || ''}
+                                value={formData.phone}
                                 onChange={(e) => handleChange('phone', e.target.value)}
                                 className="input"
                                 placeholder="+977 9813319818"
+                                autoComplete="tel"
                             />
                         </div>
                     </div>
@@ -115,10 +176,11 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                         <label className="label">Address</label>
                         <input
                             type="text"
-                            value={personalInfo.address || ''}
+                            value={formData.address}
                             onChange={(e) => handleChange('address', e.target.value)}
                             className="input"
                             placeholder="Sifal, Kathmandu"
+                            autoComplete="street-address"
                         />
                     </div>
 
@@ -127,10 +189,11 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                             <label className="label">City</label>
                             <input
                                 type="text"
-                                value={personalInfo.city || ''}
+                                value={formData.city}
                                 onChange={(e) => handleChange('city', e.target.value)}
                                 className="input"
                                 placeholder="Kathmandu"
+                                autoComplete="address-level2"
                             />
                         </div>
 
@@ -138,10 +201,11 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                             <label className="label">State/Province</label>
                             <input
                                 type="text"
-                                value={personalInfo.state || ''}
+                                value={formData.state}
                                 onChange={(e) => handleChange('state', e.target.value)}
                                 className="input"
                                 placeholder="Bagmati"
+                                autoComplete="address-level1"
                             />
                         </div>
 
@@ -149,10 +213,11 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                             <label className="label">ZIP Code</label>
                             <input
                                 type="text"
-                                value={personalInfo.zipCode || ''}
+                                value={formData.zipCode}
                                 onChange={(e) => handleChange('zipCode', e.target.value)}
                                 className="input"
                                 placeholder="44600"
+                                autoComplete="postal-code"
                             />
                         </div>
 
@@ -160,10 +225,11 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                             <label className="label">Country</label>
                             <input
                                 type="text"
-                                value={personalInfo.country || ''}
+                                value={formData.country}
                                 onChange={(e) => handleChange('country', e.target.value)}
                                 className="input"
                                 placeholder="Nepal"
+                                autoComplete="country-name"
                             />
                         </div>
                     </div>
@@ -181,7 +247,7 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                                 <span className="input-icon">🔗</span>
                                 <input
                                     type="url"
-                                    value={personalInfo.linkedin || ''}
+                                    value={formData.linkedin}
                                     onChange={(e) => handleChange('linkedin', e.target.value)}
                                     className="input with-icon"
                                     placeholder="https://linkedin.com/in/sudipro"
@@ -197,7 +263,7 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                                 <span className="input-icon">🌐</span>
                                 <input
                                     type="url"
-                                    value={personalInfo.portfolio || ''}
+                                    value={formData.portfolio}
                                     onChange={(e) => handleChange('portfolio', e.target.value)}
                                     className="input with-icon"
                                     placeholder="https://sudipro.dev"
@@ -215,14 +281,15 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                             Summary <span className="optional">(optional)</span>
                         </label>
                         <textarea
-                            value={personalInfo.summary || ''}
+                            value={formData.summary}
                             onChange={(e) => handleChange('summary', e.target.value)}
                             className="textarea"
                             placeholder="Experienced software developer from Nepal with expertise in modern web technologies. Passionate about creating scalable solutions and contributing to the tech community..."
                             rows={4}
+                            maxLength={500}
                         />
                         <div className="char-count">
-                            {(personalInfo.summary || '').length}/500 characters
+                            {formData.summary.length}/500 characters
                         </div>
                         <p className="hint-text">
                             This will appear at the top of your resume. Keep it concise and professional.
@@ -232,17 +299,17 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
             </div>
 
             {/* Validation Status */}
-            <div className={`validation-section ${isStepValid ? 'valid' : 'invalid'}`}>
+            <div className={`validation-section ${checkStepValidity() ? 'valid' : 'invalid'}`}>
                 <div className="validation-header">
                     <div className="status-indicator">
-                        <div className={`status-dot ${isStepValid ? 'valid' : 'invalid'}`}></div>
+                        <div className={`status-dot ${checkStepValidity() ? 'valid' : 'invalid'}`}></div>
                         <span className="status-text">
-                            {isStepValid ? 'All Requirements Met' : 'Requirements Pending'}
+                            {checkStepValidity() ? 'All Requirements Met' : 'Requirements Pending'}
                         </span>
                     </div>
                 </div>
                 <div className="validation-message">
-                    {isStepValid ? (
+                    {checkStepValidity() ? (
                         <span className="message valid">
                             ✓ All required fields completed. You can proceed to the next step.
                         </span>
@@ -259,11 +326,16 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                     padding: 0;
                     max-width: 100%;
                     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+                    background: #ffffff;
+                    min-height: 100%;
                 }
 
                 .header {
                     text-align: center;
                     margin-bottom: 2.5rem;
+                    padding: 1rem;
+                    background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+                    border-radius: 12px;
                 }
 
                 .title {
@@ -294,7 +366,7 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                     margin-bottom: 1.25rem;
                     display: flex;
                     align-items: center;
-                    gap: 0.5rem;
+                    gap: 0.75rem;
                 }
 
                 .section-title::before {
@@ -307,8 +379,8 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
 
                 .form-grid {
                     display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                    gap: 1.25rem;
+                    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                    gap: 1.5rem;
                 }
 
                 .input-group {
@@ -350,10 +422,18 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                 .validation-indicator {
                     font-size: 0.875rem;
                     font-weight: 700;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 20px;
+                    height: 20px;
+                    background: #38a169;
+                    color: white;
+                    border-radius: 50%;
                 }
 
                 .validation-indicator.valid {
-                    color: #38a169;
+                    color: #ffffff;
                 }
 
                 .input, .textarea {
@@ -373,6 +453,7 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                 .input:focus, .textarea:focus {
                     border-color: #4299e1;
                     box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15);
+                    transform: translateY(-1px);
                 }
 
                 .input.valid, .textarea.valid {
@@ -391,6 +472,7 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                     transform: translateY(-50%);
                     font-size: 1rem;
                     color: #718096;
+                    z-index: 1;
                 }
 
                 .input.with-icon {
@@ -424,6 +506,7 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                     border-radius: 10px;
                     background: #f7fafc;
                     border: 1px solid #e2e8f0;
+                    animation: fadeIn 0.3s ease;
                 }
 
                 .validation-section.valid {
@@ -492,6 +575,17 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
                     color: #c53030;
                 }
 
+                @keyframes fadeIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(10px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
                 @media (max-width: 768px) {
                     .title {
                         font-size: 1.75rem;
@@ -518,6 +612,10 @@ const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
 
                     .title {
                         font-size: 1.5rem;
+                    }
+                    
+                    .header {
+                        padding: 1rem 0.5rem;
                     }
                 }
             `}</style>
