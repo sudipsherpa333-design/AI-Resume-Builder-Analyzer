@@ -1,5 +1,5 @@
 // src/pages/Dashboard.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -13,14 +13,12 @@ import {
     FaTrash,
     FaCopy,
     FaDownload,
-    FaEye,
     FaSync,
     FaUser,
     FaBriefcase,
     FaGraduationCap,
     FaCogs,
     FaProjectDiagram,
-    FaCertificate,
     FaHistory,
     FaCalendarAlt,
     FaArrowRight,
@@ -31,6 +29,7 @@ import {
     FaSpinner,
     FaRegClock,
     FaPalette,
+    FaChevronRight,
     FaExclamationTriangle
 } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
@@ -40,23 +39,29 @@ import toast from 'react-hot-toast';
 const Dashboard = () => {
     const { user, logout } = useAuth();
     const {
-        resumes,
-        loading,
-        error,
-        createResume,
-        deleteResume,
-        duplicateResume,
-        exportResume,
-        getResumeStats,
-        searchResumes,
-        refreshResumes
+        resumes = [],
+        loading = false,
+        error = null,
+        createResume = () => Promise.reject(new Error('Not implemented')),
+        deleteResume = () => Promise.reject(new Error('Not implemented')),
+        duplicateResume = () => Promise.reject(new Error('Not implemented')),
+        exportResume = () => Promise.reject(new Error('Not implemented')),
+        getResumeStats = () => Promise.resolve({
+            total: 0,
+            recent: 0,
+            completed: 0,
+            templates: {},
+            averageScore: 0
+        }),
+        searchResumes = () => Promise.resolve([]),
+        refreshResumes = () => Promise.resolve([])
     } = useResume();
+
     const navigate = useNavigate();
 
     const [filter, setFilter] = useState('all');
     const [sortBy, setSortBy] = useState('updated');
     const [searchQuery, setSearchQuery] = useState('');
-    const [isCreating, setIsCreating] = useState(false);
     const [stats, setStats] = useState({
         total: 0,
         recent: 0,
@@ -67,7 +72,7 @@ const Dashboard = () => {
     const [searchLoading, setSearchLoading] = useState(false);
     const [filteredResumes, setFilteredResumes] = useState([]);
 
-    // Load stats on component mount and when resumes change
+    // Load stats on component mount
     useEffect(() => {
         const loadStats = async () => {
             try {
@@ -75,69 +80,50 @@ const Dashboard = () => {
                 setStats(statsData);
             } catch (err) {
                 console.error('Error loading stats:', err);
+                // Set default stats if API fails
+                setStats({
+                    total: resumes.length,
+                    recent: resumes.filter(r => {
+                        const date = r.updatedAt || r.createdAt;
+                        if (!date) return false;
+                        return new Date(date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+                    }).length,
+                    completed: calculateCompletedCount(resumes),
+                    templates: groupTemplates(resumes),
+                    averageScore: 0
+                });
             }
         };
 
         if (user) {
             loadStats();
         }
-    }, [user, getResumeStats]);
+    }, [user, getResumeStats, resumes]);
 
     // Handle search and filtering
     useEffect(() => {
         const performSearch = async () => {
-            if (resumes.length === 0) {
+            if (!resumes || resumes.length === 0) {
                 setFilteredResumes([]);
                 return;
             }
 
             setSearchLoading(true);
             try {
-                const results = await searchResumes(searchQuery, filter, sortBy);
+                // Try to use the context's search function if available
+                let results;
+                if (typeof searchResumes === 'function') {
+                    results = await searchResumes(searchQuery, filter, sortBy);
+                } else {
+                    // Fallback to client-side search
+                    results = performClientSideSearch(resumes, searchQuery, filter, sortBy);
+                }
                 setFilteredResumes(results);
             } catch (err) {
                 console.error('Search error:', err);
                 // Fallback to client-side filtering
-                let filtered = [...resumes];
-
-                if (searchQuery) {
-                    const lowerQuery = searchQuery.toLowerCase();
-                    filtered = filtered.filter(resume => {
-                        const data = resume.data || resume.content || {};
-                        return (
-                            resume.title.toLowerCase().includes(lowerQuery) ||
-                            (data.personalInfo?.firstName?.toLowerCase() || '').includes(lowerQuery) ||
-                            (data.personalInfo?.lastName?.toLowerCase() || '').includes(lowerQuery) ||
-                            (data.summary?.toLowerCase() || '').includes(lowerQuery)
-                        );
-                    });
-                }
-
-                if (filter !== 'all') {
-                    filtered = filtered.filter(resume => resume.template === filter);
-                }
-
-                // Apply sorting
-                filtered.sort((a, b) => {
-                    const getDate = (resume) => {
-                        if (resume.updatedAt) return new Date(resume.updatedAt);
-                        if (resume.meta?.updatedAt) return new Date(resume.meta.updatedAt);
-                        return new Date(0);
-                    };
-
-                    switch (sortBy) {
-                        case 'title':
-                            return a.title.localeCompare(b.title);
-                        case 'created':
-                            return new Date(b.createdAt || b.meta?.createdAt || 0) -
-                                new Date(a.createdAt || a.meta?.createdAt || 0);
-                        case 'updated':
-                        default:
-                            return getDate(b) - getDate(a);
-                    }
-                });
-
-                setFilteredResumes(filtered);
+                const results = performClientSideSearch(resumes, searchQuery, filter, sortBy);
+                setFilteredResumes(results);
             } finally {
                 setSearchLoading(false);
             }
@@ -150,49 +136,78 @@ const Dashboard = () => {
         return () => clearTimeout(debounceTimer);
     }, [searchQuery, filter, sortBy, resumes, searchResumes]);
 
-    const handleCreateResume = async () => {
-        if (isCreating) return;
+    // Helper function for client-side search
+    const performClientSideSearch = useCallback((resumesList, query, filterType, sortType) => {
+        let filtered = [...(resumesList || [])];
 
-        setIsCreating(true);
-        try {
-            const newResume = await createResume({
-                title: 'New Resume',
-                template: 'modern',
-                content: {
-                    personalInfo: {
-                        firstName: user?.firstName || '',
-                        lastName: user?.lastName || '',
-                        email: user?.email || '',
-                        phone: '',
-                        location: '',
-                        linkedin: '',
-                        github: '',
-                        portfolio: '',
-                        title: ''
-                    },
-                    summary: '',
-                    experience: [],
-                    education: [],
-                    skills: [],
-                    projects: [],
-                    certifications: [],
-                    languages: [],
-                    references: []
-                }
+        if (query) {
+            const lowerQuery = query.toLowerCase();
+            filtered = filtered.filter(resume => {
+                const data = resume.data || resume.content || {};
+                const title = resume.title || '';
+                const firstName = data.personalInfo?.firstName || '';
+                const lastName = data.personalInfo?.lastName || '';
+                const summary = data.summary || '';
+
+                return (
+                    title.toLowerCase().includes(lowerQuery) ||
+                    firstName.toLowerCase().includes(lowerQuery) ||
+                    lastName.toLowerCase().includes(lowerQuery) ||
+                    summary.toLowerCase().includes(lowerQuery)
+                );
             });
-
-            if (newResume) {
-                toast.success('New resume created!');
-                navigate(`/builder/${newResume.id}`);
-            } else {
-                toast.error('Failed to create resume');
-            }
-        } catch (err) {
-            console.error('Error creating resume:', err);
-            toast.error(err.message || 'Failed to create resume');
-        } finally {
-            setIsCreating(false);
         }
+
+        if (filterType !== 'all') {
+            filtered = filtered.filter(resume => resume.template === filterType);
+        }
+
+        // Apply sorting
+        filtered.sort((a, b) => {
+            const getDate = (resume) => {
+                if (resume.updatedAt) return new Date(resume.updatedAt);
+                if (resume.createdAt) return new Date(resume.createdAt);
+                if (resume.meta?.updatedAt) return new Date(resume.meta?.updatedAt);
+                return new Date(0);
+            };
+
+            switch (sortType) {
+                case 'title':
+                    return (a.title || '').localeCompare(b.title || '');
+                case 'created':
+                    const dateA = a.createdAt || a.meta?.createdAt;
+                    const dateB = b.createdAt || b.meta?.createdAt;
+                    return new Date(dateB || 0) - new Date(dateA || 0);
+                case 'updated':
+                default:
+                    return getDate(b) - getDate(a);
+            }
+        });
+
+        return filtered;
+    }, []);
+
+    // Helper function to calculate completed count
+    const calculateCompletedCount = useCallback((resumesList) => {
+        return resumesList.filter(resume => {
+            const data = resume.data || resume.content || {};
+            return data.summary && data.summary.trim().length > 50 &&
+                data.experience && data.experience.length > 0;
+        }).length;
+    }, []);
+
+    // Helper function to group templates
+    const groupTemplates = useCallback((resumesList) => {
+        const templateCount = {};
+        resumesList.forEach(resume => {
+            const template = resume.template || 'unknown';
+            templateCount[template] = (templateCount[template] || 0) + 1;
+        });
+        return templateCount;
+    }, []);
+
+    const handleBuildResume = () => {
+        navigate('/builder');
     };
 
     const handleDeleteResume = async (id, title, e) => {
@@ -248,10 +263,14 @@ const Dashboard = () => {
         try {
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return 'N/A';
+
+            const now = new Date();
+            const isCurrentYear = date.getFullYear() === now.getFullYear();
+
             return date.toLocaleDateString('en-US', {
                 month: 'short',
                 day: 'numeric',
-                year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                ...(!isCurrentYear && { year: 'numeric' })
             });
         } catch {
             return 'N/A';
@@ -282,7 +301,7 @@ const Dashboard = () => {
             case 'creative': return 'Creative';
             case 'professional': return 'Professional';
             case 'minimal': return 'Minimal';
-            default: return template.charAt(0).toUpperCase() + template.slice(1);
+            default: return template ? template.charAt(0).toUpperCase() + template.slice(1) : 'Unknown';
         }
     };
 
@@ -291,12 +310,8 @@ const Dashboard = () => {
     };
 
     const getCompletedCount = useMemo(() => {
-        return resumes.filter(resume => {
-            const data = getResumeData(resume);
-            return data.summary && data.summary.trim().length > 50 &&
-                data.experience && data.experience.length > 0;
-        }).length;
-    }, [resumes]);
+        return calculateCompletedCount(resumes);
+    }, [resumes, calculateCompletedCount]);
 
     const calculateProgress = (resume) => {
         const data = getResumeData(resume);
@@ -312,6 +327,12 @@ const Dashboard = () => {
         if (data.certifications && data.certifications.length > 0) completed++;
 
         return Math.round((completed / total) * 100);
+    };
+
+    const handleResumeClick = (resume) => {
+        if (resume && resume.id) {
+            navigate(`/builder/${resume.id}`);
+        }
     };
 
     if (loading || searchLoading) {
@@ -331,20 +352,20 @@ const Dashboard = () => {
                 <div className="text-center max-w-md p-8 bg-white rounded-2xl shadow-lg">
                     <FaExclamationCircle className="text-4xl text-red-500 mx-auto mb-4" />
                     <h3 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Resumes</h3>
-                    <p className="text-gray-600 mb-4">{error}</p>
-                    <div className="flex gap-3 justify-center">
+                    <p className="text-gray-600 mb-4">{error.message || error.toString()}</p>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
                         <button
                             onClick={handleRefresh}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 justify-center"
                         >
                             <FaSync />
                             Try Again
                         </button>
                         <button
-                            onClick={handleCreateResume}
+                            onClick={handleBuildResume}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
                         >
-                            Create New Resume
+                            Build New Resume
                         </button>
                     </div>
                 </div>
@@ -369,12 +390,7 @@ const Dashboard = () => {
                                 <FaUser className="text-blue-500" />
                                 <span>{user?.email || 'Demo User'}</span>
                             </div>
-                            <button
-                                onClick={logout}
-                                className="px-4 py-2 text-sm text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition"
-                            >
-                                Logout
-                            </button>
+
                         </div>
                     </div>
                 </div>
@@ -392,7 +408,7 @@ const Dashboard = () => {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-gray-600">Total Resumes</p>
-                                <h3 className="text-3xl font-bold text-gray-900 mt-2">{stats.total}</h3>
+                                <h3 className="text-3xl font-bold text-gray-900 mt-2">{resumes.length || 0}</h3>
                             </div>
                             <div className="p-3 bg-blue-100 rounded-full">
                                 <FaFileAlt className="text-2xl text-blue-600" />
@@ -401,7 +417,7 @@ const Dashboard = () => {
                         <div className="mt-4 pt-4 border-t">
                             <div className="flex items-center text-sm text-gray-600">
                                 <FaHistory className="mr-2" />
-                                <span>{stats.recent} updated in last 30 days</span>
+                                <span>{stats.recent || 0} updated recently</span>
                             </div>
                         </div>
                     </motion.div>
@@ -416,7 +432,7 @@ const Dashboard = () => {
                             <div>
                                 <p className="text-sm text-gray-600">Resume Progress</p>
                                 <h3 className="text-3xl font-bold text-gray-900 mt-2">
-                                    {getCompletedCount}/{resumes.length}
+                                    {getCompletedCount}/{resumes.length || 0}
                                 </h3>
                             </div>
                             <div className="p-3 bg-green-100 rounded-full">
@@ -441,7 +457,7 @@ const Dashboard = () => {
                             <div>
                                 <p className="text-sm text-gray-600">Template Usage</p>
                                 <h3 className="text-3xl font-bold text-gray-900 mt-2">
-                                    {Object.keys(stats.templates).length}
+                                    {Object.keys(stats.templates || {}).length}
                                 </h3>
                             </div>
                             <div className="p-3 bg-purple-100 rounded-full">
@@ -469,31 +485,24 @@ const Dashboard = () => {
                             <h2 className="text-2xl font-bold text-gray-900">Your Resumes</h2>
                             <p className="text-gray-600 text-sm mt-1">
                                 {filteredResumes.length} resume{filteredResumes.length !== 1 ? 's' : ''} found
+                                {resumes.length > 0 && ` • ${getCompletedCount} completed`}
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-3">
                             <button
-                                onClick={handleCreateResume}
-                                disabled={isCreating}
-                                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                onClick={handleBuildResume}
+                                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition font-semibold flex items-center gap-2 group"
                             >
-                                {isCreating ? (
-                                    <>
-                                        <FaSpinner className="animate-spin" />
-                                        Creating...
-                                    </>
-                                ) : (
-                                    <>
-                                        <FaPlus />
-                                        Create New Resume
-                                    </>
-                                )}
+                                <FaPlus />
+                                Build Resume
+                                <FaChevronRight className="text-sm group-hover:translate-x-1 transition-transform" />
                             </button>
+
                             <Link
                                 to="/templates"
                                 className="px-6 py-3 bg-white text-gray-700 border border-gray-300 rounded-xl hover:bg-gray-50 transition flex items-center gap-2"
                             >
-                                <FaFileAlt />
+                                <FaPalette />
                                 Browse Templates
                             </Link>
                             <button
@@ -573,39 +582,41 @@ const Dashboard = () => {
                             const progress = calculateProgress(resume);
                             const updatedAt = resume.updatedAt || resume.meta?.updatedAt;
                             const createdAt = resume.createdAt || resume.meta?.createdAt;
+                            const template = resume.template || 'unknown';
+                            const title = resume.title || 'Untitled Resume';
 
                             return (
                                 <motion.div
-                                    key={resume.id}
+                                    key={resume.id || index}
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.1 * index }}
                                     className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-shadow cursor-pointer group"
-                                    onClick={() => navigate(`/builder/${resume.id}`)}
+                                    onClick={() => handleResumeClick(resume)}
                                 >
                                     <div className="p-6">
                                         <div className="flex justify-between items-start mb-4">
                                             <div className="flex items-center gap-3">
-                                                {getTemplateIcon(resume.template)}
+                                                {getTemplateIcon(template)}
                                                 <div className="overflow-hidden">
                                                     <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition truncate">
-                                                        {resume.title}
+                                                        {title}
                                                     </h3>
                                                     <p className="text-sm text-gray-500">
-                                                        {getTemplateName(resume.template)} Template
+                                                        {getTemplateName(template)} Template
                                                     </p>
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
                                                 <button
-                                                    onClick={(e) => handleDuplicateResume(resume.id, resume.title, e)}
+                                                    onClick={(e) => handleDuplicateResume(resume.id, title, e)}
                                                     className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
                                                     title="Duplicate"
                                                 >
                                                     <FaCopy />
                                                 </button>
                                                 <button
-                                                    onClick={(e) => handleDeleteResume(resume.id, resume.title, e)}
+                                                    onClick={(e) => handleDeleteResume(resume.id, title, e)}
                                                     className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                                                     title="Delete"
                                                 >
@@ -623,8 +634,8 @@ const Dashboard = () => {
                                             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                                                 <div
                                                     className={`h-full rounded-full ${progress < 30 ? 'bg-red-500' :
-                                                            progress < 70 ? 'bg-yellow-500' :
-                                                                'bg-green-500'
+                                                        progress < 70 ? 'bg-yellow-500' :
+                                                            'bg-green-500'
                                                         }`}
                                                     style={{ width: `${progress}%` }}
                                                 />
@@ -674,7 +685,7 @@ const Dashboard = () => {
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        navigate(`/builder/${resume.id}`);
+                                                        handleResumeClick(resume);
                                                     }}
                                                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2"
                                                 >
@@ -682,22 +693,11 @@ const Dashboard = () => {
                                                     Edit Resume
                                                 </button>
                                                 <button
-                                                    onClick={(e) => handleExportResume(resume.id, resume.title, e)}
+                                                    onClick={(e) => handleExportResume(resume.id, title, e)}
                                                     className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
                                                     title="Export as JSON"
                                                 >
                                                     <FaDownload />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        // Navigate to preview page or open modal
-                                                        toast.success('Preview feature coming soon!');
-                                                    }}
-                                                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
-                                                    title="Preview"
-                                                >
-                                                    <FaEye />
                                                 </button>
                                             </div>
                                         </div>
@@ -716,29 +716,21 @@ const Dashboard = () => {
                             <div className="p-4 bg-blue-100 rounded-full inline-block mb-6">
                                 <FaFileAlt className="text-4xl text-blue-600" />
                             </div>
-                            <h3 className="text-2xl font-bold text-gray-900 mb-3">No Resumes Found</h3>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                                {resumes.length === 0 ? 'No Resumes Yet' : 'No Matching Resumes'}
+                            </h3>
                             <p className="text-gray-600 mb-6">
                                 {searchQuery || filter !== 'all'
                                     ? 'No resumes match your search criteria. Try adjusting your filters.'
-                                    : 'Start building your professional resume to land your dream job. Create your first resume in minutes!'}
+                                    : 'Start building your professional resume to land your dream job.'}
                             </p>
                             <div className="flex flex-col sm:flex-row gap-3 justify-center">
                                 <button
-                                    onClick={handleCreateResume}
-                                    disabled={isCreating}
-                                    className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition flex items-center gap-2 justify-center disabled:opacity-50"
+                                    onClick={handleBuildResume}
+                                    className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition flex items-center gap-2 justify-center"
                                 >
-                                    {isCreating ? (
-                                        <>
-                                            <FaSpinner className="animate-spin" />
-                                            Creating...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <FaPlus />
-                                            Create Your First Resume
-                                        </>
-                                    )}
+                                    <FaPlus />
+                                    {resumes.length === 0 ? 'Build Your First Resume' : 'Build Another Resume'}
                                 </button>
                                 {(searchQuery || filter !== 'all') && (
                                     <button
@@ -786,12 +778,11 @@ const Dashboard = () => {
                                         Browse More Templates
                                     </Link>
                                     <button
-                                        onClick={handleCreateResume}
-                                        disabled={isCreating}
-                                        className="px-6 py-3 bg-green-500 text-white rounded-xl hover:bg-green-600 transition font-semibold flex items-center gap-2 disabled:opacity-50"
+                                        onClick={handleBuildResume}
+                                        className="px-6 py-3 bg-green-500 text-white rounded-xl hover:bg-green-600 transition font-semibold flex items-center gap-2"
                                     >
                                         <FaPlus />
-                                        Create Another Resume
+                                        Build Another Resume
                                     </button>
                                 </div>
                             </div>
@@ -831,3 +822,11 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+
+
+
+
+
+
+

@@ -1,9 +1,9 @@
 import React from 'react';
 
-const ExperiencePage = ({ resumeData, onInputChange, onNext, onPrev, onAddNew, onRemove, currentStep, isStepValid }) => {
-    const { experience } = resumeData;
+const ExperiencePage = ({ resumeData, onInputChange, onAddNew, onRemove, isStepValid }) => {
+    const experience = Array.isArray(resumeData.experience) ? resumeData.experience : [];
 
-    const handleExperienceChange = (id, field, value) => {
+    const handleChange = (id, field, value) => {
         onInputChange('experience', field, value, id);
     };
 
@@ -18,106 +18,117 @@ const ExperiencePage = ({ resumeData, onInputChange, onNext, onPrev, onAddNew, o
     };
 
     return (
-        <div style={styles.container}>
-            <div style={styles.header}>
-                <h2 style={styles.title}>Work Experience</h2>
-                <p style={styles.subtitle}>List your relevant work experience</p>
+        <div className="experience-page">
+            <div className="header">
+                <h2 className="title">Work Experience</h2>
+                <p className="subtitle">List your relevant work experience</p>
             </div>
 
-            <div style={styles.experienceList}>
+            <div className="experience-list">
                 {experience.map((exp, index) => (
-                    <div key={exp.id} style={styles.experienceCard}>
-                        <div style={styles.cardHeader}>
-                            <h3 style={styles.cardTitle}>
+                    <div key={exp.id} className="experience-card">
+                        <div className="card-header">
+                            <h3 className="card-title">
                                 Experience #{index + 1}
+                                {exp.jobTitle && exp.company && <span className="checkmark"> ✓</span>}
                             </h3>
                             {experience.length > 1 && (
                                 <button
                                     onClick={() => removeExperience(exp.id)}
-                                    style={styles.removeButton}
+                                    className="remove-button"
                                 >
                                     Remove
                                 </button>
                             )}
                         </div>
 
-                        <div style={styles.form}>
-                            <div style={styles.row}>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Job Title *</label>
+                        <div className="form">
+                            <div className="form-row">
+                                <div className="input-group">
+                                    <label className="label">Job Title *</label>
                                     <input
                                         type="text"
-                                        value={exp.jobTitle}
-                                        onChange={(e) => handleExperienceChange(exp.id, 'jobTitle', e.target.value)}
-                                        style={styles.input}
+                                        value={exp.jobTitle || ''}
+                                        onChange={(e) => handleChange(exp.id, 'jobTitle', e.target.value)}
+                                        className="input"
                                         placeholder="Senior Software Engineer"
                                     />
                                 </div>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Company *</label>
+                                <div className="input-group">
+                                    <label className="label">Company *</label>
                                     <input
                                         type="text"
-                                        value={exp.company}
-                                        onChange={(e) => handleExperienceChange(exp.id, 'company', e.target.value)}
-                                        style={styles.input}
+                                        value={exp.company || ''}
+                                        onChange={(e) => handleChange(exp.id, 'company', e.target.value)}
+                                        className="input"
                                         placeholder="Tech Company Inc"
                                     />
                                 </div>
                             </div>
 
-                            <div style={styles.inputGroup}>
-                                <label style={styles.label}>Location</label>
-                                <input
-                                    type="text"
-                                    value={exp.location}
-                                    onChange={(e) => handleExperienceChange(exp.id, 'location', e.target.value)}
-                                    style={styles.input}
-                                    placeholder="San Francisco, CA"
-                                />
-                            </div>
-
-                            <div style={styles.row}>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Start Date</label>
+                            <div className="form-row">
+                                <div className="input-group">
+                                    <label className="label">Location</label>
                                     <input
-                                        type="month"
-                                        value={exp.startDate}
-                                        onChange={(e) => handleExperienceChange(exp.id, 'startDate', e.target.value)}
-                                        style={styles.input}
+                                        type="text"
+                                        value={exp.location || ''}
+                                        onChange={(e) => handleChange(exp.id, 'location', e.target.value)}
+                                        className="input"
+                                        placeholder="San Francisco, CA"
                                     />
                                 </div>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>End Date</label>
-                                    <input
-                                        type="month"
-                                        value={exp.endDate}
-                                        onChange={(e) => handleExperienceChange(exp.id, 'endDate', e.target.value)}
-                                        style={styles.input}
-                                        disabled={exp.current}
-                                    />
-                                </div>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.checkboxLabel}>
+                                <div className="input-group">
+                                    <label className="checkbox-label">
                                         <input
                                             type="checkbox"
-                                            checked={exp.current}
-                                            onChange={(e) => handleExperienceChange(exp.id, 'current', e.target.checked)}
-                                            style={styles.checkbox}
+                                            checked={exp.current || false}
+                                            onChange={(e) => handleChange(exp.id, 'current', e.target.checked)}
+                                            className="checkbox"
                                         />
                                         I currently work here
                                     </label>
                                 </div>
                             </div>
 
-                            <div style={styles.inputGroup}>
-                                <label style={styles.label}>Description</label>
+                            <div className="form-row">
+                                <div className="input-group">
+                                    <label className="label">Start Date *</label>
+                                    <input
+                                        type="month"
+                                        value={exp.startDate || ''}
+                                        onChange={(e) => handleChange(exp.id, 'startDate', e.target.value)}
+                                        className="input"
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label className="label">
+                                        {exp.current ? 'Start Date' : 'End Date *'}
+                                    </label>
+                                    <input
+                                        type="month"
+                                        value={exp.endDate || ''}
+                                        onChange={(e) => handleChange(exp.id, 'endDate', e.target.value)}
+                                        className="input"
+                                        disabled={exp.current}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="input-group">
+                                <label className="label">Job Description</label>
                                 <textarea
-                                    value={exp.description}
-                                    onChange={(e) => handleExperienceChange(exp.id, 'description', e.target.value)}
-                                    style={styles.textarea}
-                                    placeholder="Describe your responsibilities and achievements in this role..."
-                                    rows={4}
+                                    value={exp.description || ''}
+                                    onChange={(e) => handleChange(exp.id, 'description', e.target.value)}
+                                    className="textarea"
+                                    placeholder="• Led development of scalable web applications using React and Node.js
+• Managed team of 5 developers
+• Improved application performance by 40%
+• Implemented CI/CD pipelines"
+                                    rows={6}
                                 />
+                                <div className="textarea-hint">
+                                    Use bullet points for better readability
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -126,199 +137,225 @@ const ExperiencePage = ({ resumeData, onInputChange, onNext, onPrev, onAddNew, o
 
             <button
                 onClick={addNewExperience}
-                style={styles.addButton}
+                className="add-button"
             >
                 + Add Another Experience
             </button>
 
-            <div style={styles.navigation}>
-                <button
-                    onClick={onPrev}
-                    style={styles.backButton}
-                >
-                    ← Back
-                </button>
-                <button
-                    onClick={onNext}
-                    disabled={!isStepValid}
-                    style={{
-                        ...styles.nextButton,
-                        ...(!isStepValid && styles.disabledButton)
-                    }}
-                >
-                    Next: Education →
-                </button>
+            <div className="validation-section">
+                {isStepValid ? (
+                    <div className="valid-status">
+                        ✓ At least one experience added - Ready to continue
+                    </div>
+                ) : (
+                    <div className="invalid-status">
+                        ⚠ Please add at least one work experience with job title and company
+                    </div>
+                )}
             </div>
 
-            {!isStepValid && (
-                <div style={styles.validationMessage}>
-                    Please add at least one work experience with job title and company
-                </div>
-            )}
+            <style jsx>{`
+                .experience-page {
+                    padding: 0;
+                    max-width: 100%;
+                }
+
+                .header {
+                    text-align: center;
+                    margin-bottom: 2rem;
+                }
+
+                .title {
+                    font-size: 2rem;
+                    font-weight: 700;
+                    color: #000;
+                    margin-bottom: 0.5rem;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                }
+
+                .subtitle {
+                    font-size: 1rem;
+                    color: #666;
+                    font-weight: 400;
+                }
+
+                .experience-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem;
+                    margin-bottom: 1.5rem;
+                }
+
+                .experience-card {
+                    background: #f8fafc;
+                    padding: 1.5rem;
+                    border-radius: 0.75rem;
+                    border: 1px solid #e5e7eb;
+                }
+
+                .card-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 1.25rem;
+                }
+
+                .card-title {
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    color: #000;
+                    margin: 0;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                }
+
+                .checkmark {
+                    color: #10b981;
+                    font-weight: bold;
+                }
+
+                .remove-button {
+                    padding: 0.5rem 1rem;
+                    background: #dc2626;
+                    color: white;
+                    border: none;
+                    border-radius: 0.375rem;
+                    font-size: 0.875rem;
+                    cursor: pointer;
+                    transition: background 0.3s ease;
+                }
+
+                .remove-button:hover {
+                    background: #b91c1c;
+                }
+
+                .form {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.25rem;
+                }
+
+                .form-row {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 1rem;
+                }
+
+                .input-group {
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .label {
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    color: #000;
+                    margin-bottom: 0.5rem;
+                }
+
+                .checkbox-label {
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    color: #000;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    margin-top: 1.75rem;
+                }
+
+                .checkbox {
+                    margin: 0;
+                }
+
+                .input, .textarea {
+                    padding: 0.75rem 1rem;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 0.5rem;
+                    font-size: 1rem;
+                    transition: all 0.3s ease;
+                    background: white;
+                    outline: none;
+                    color: #000;
+                    font-family: inherit;
+                }
+
+                .input:focus, .textarea:focus {
+                    border-color: #3b82f6;
+                    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+                }
+
+                .textarea {
+                    resize: vertical;
+                    min-height: 120px;
+                    line-height: 1.6;
+                }
+
+                .textarea-hint {
+                    font-size: 0.75rem;
+                    color: #666;
+                    margin-top: 0.25rem;
+                    font-style: italic;
+                }
+
+                .add-button {
+                    padding: 0.75rem 1.5rem;
+                    background: #3b82f6;
+                    color: white;
+                    border: none;
+                    border-radius: 0.5rem;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    margin-bottom: 1.5rem;
+                    width: 100%;
+                    transition: background 0.3s ease;
+                }
+
+                .add-button:hover {
+                    background: #2563eb;
+                }
+
+                .validation-section {
+                    padding: 1rem;
+                    background: #f8fafc;
+                    border-radius: 0.5rem;
+                    border: 1px solid #e5e7eb;
+                    text-align: center;
+                }
+
+                .valid-status {
+                    color: #065f46;
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                }
+
+                .invalid-status {
+                    color: #dc2626;
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                }
+
+                @media (max-width: 768px) {
+                    .form-row {
+                        grid-template-columns: 1fr;
+                    }
+                    
+                    .title {
+                        font-size: 1.5rem;
+                    }
+                    
+                    .card-header {
+                        flex-direction: column;
+                        gap: 1rem;
+                        align-items: flex-start;
+                    }
+                }
+            `}</style>
         </div>
     );
-};
-
-const styles = {
-    container: {
-        padding: '30px',
-        maxWidth: '800px',
-        margin: '0 auto',
-    },
-    header: {
-        textAlign: 'center',
-        marginBottom: '40px',
-    },
-    title: {
-        fontSize: '2.5rem',
-        fontWeight: '700',
-        color: '#333',
-        marginBottom: '10px',
-    },
-    subtitle: {
-        fontSize: '1.1rem',
-        color: '#666',
-        fontWeight: '300',
-    },
-    experienceList: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '30px',
-        marginBottom: '30px',
-    },
-    experienceCard: {
-        backgroundColor: 'white',
-        padding: '25px',
-        borderRadius: '12px',
-        border: '2px solid #f1f5f9',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-    },
-    cardHeader: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '20px',
-        paddingBottom: '15px',
-        borderBottom: '2px solid #f1f5f9',
-    },
-    cardTitle: {
-        fontSize: '1.3rem',
-        fontWeight: '600',
-        color: '#333',
-        margin: 0,
-    },
-    removeButton: {
-        padding: '8px 16px',
-        backgroundColor: '#fef2f2',
-        color: '#dc2626',
-        border: '1px solid #fecaca',
-        borderRadius: '6px',
-        fontSize: '14px',
-        fontWeight: '500',
-        cursor: 'pointer',
-        transition: 'all 0.3s ease',
-    },
-    form: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '20px',
-    },
-    row: {
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr auto',
-        gap: '20px',
-        alignItems: 'end',
-    },
-    inputGroup: {
-        display: 'flex',
-        flexDirection: 'column',
-    },
-    label: {
-        fontSize: '14px',
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: '8px',
-    },
-    checkboxLabel: {
-        display: 'flex',
-        alignItems: 'center',
-        fontSize: '14px',
-        fontWeight: '500',
-        color: '#333',
-        cursor: 'pointer',
-    },
-    checkbox: {
-        marginRight: '8px',
-    },
-    input: {
-        padding: '12px 16px',
-        border: '2px solid #e1e5e9',
-        borderRadius: '8px',
-        fontSize: '16px',
-        transition: 'all 0.3s ease',
-        backgroundColor: 'white',
-    },
-    textarea: {
-        padding: '12px 16px',
-        border: '2px solid #e1e5e9',
-        borderRadius: '8px',
-        fontSize: '16px',
-        transition: 'all 0.3s ease',
-        backgroundColor: 'white',
-        resize: 'vertical',
-        fontFamily: 'inherit',
-    },
-    addButton: {
-        padding: '14px 24px',
-        backgroundColor: 'transparent',
-        color: '#667eea',
-        border: '2px dashed #667eea',
-        borderRadius: '8px',
-        fontSize: '16px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        transition: 'all 0.3s ease',
-        marginBottom: '30px',
-        width: '100%',
-    },
-    navigation: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        marginTop: '40px',
-    },
-    backButton: {
-        padding: '14px 30px',
-        backgroundColor: 'transparent',
-        color: '#666',
-        border: '2px solid #e1e5e9',
-        borderRadius: '8px',
-        fontSize: '16px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        transition: 'all 0.3s ease',
-    },
-    nextButton: {
-        padding: '14px 30px',
-        backgroundColor: '#4ade80',
-        color: 'white',
-        border: 'none',
-        borderRadius: '8px',
-        fontSize: '16px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        transition: 'all 0.3s ease',
-    },
-    disabledButton: {
-        backgroundColor: '#ccc',
-        cursor: 'not-allowed',
-    },
-    validationMessage: {
-        textAlign: 'center',
-        color: '#e53e3e',
-        marginTop: '20px',
-        fontSize: '14px',
-        fontWeight: '500',
-    },
 };
 
 export default ExperiencePage;

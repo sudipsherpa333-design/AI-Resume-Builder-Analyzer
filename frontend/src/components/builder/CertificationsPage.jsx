@@ -1,7 +1,7 @@
 import React from 'react';
 
-const CertificationsPage = ({ resumeData, onInputChange, onAddNew, onRemove, onNext, onPrev, currentStep, isStepValid }) => {
-    const { certifications } = resumeData;
+const CertificationsPage = ({ resumeData, onInputChange, onAddNew, onRemove, isStepValid }) => {
+    const certifications = Array.isArray(resumeData.certifications) ? resumeData.certifications : [];
 
     const handleChange = (id, field, value) => {
         onInputChange('certifications', field, value, id);
@@ -16,88 +16,91 @@ const CertificationsPage = ({ resumeData, onInputChange, onAddNew, onRemove, onN
     };
 
     return (
-        <div style={styles.container}>
-            <div style={styles.header}>
-                <h2 style={styles.title}>Certifications</h2>
-                <p style={styles.subtitle}>Add your professional certifications and licenses</p>
+        <div className="certifications-page">
+            <div className="header">
+                <h2 className="title">Certifications</h2>
+                <p className="subtitle">Add your professional certifications and licenses</p>
             </div>
 
-            <div style={styles.certificationsList}>
+            <div className="certifications-list">
                 {certifications.map((cert, index) => (
-                    <div key={cert.id} style={styles.certificationCard}>
-                        <div style={styles.cardHeader}>
-                            <h3 style={styles.cardTitle}>Certification #{index + 1}</h3>
+                    <div key={cert.id} className="certification-card">
+                        <div className="card-header">
+                            <h3 className="card-title">
+                                Certification #{index + 1}
+                                {cert.name && cert.issuer && <span className="checkmark"> ✓</span>}
+                            </h3>
                             <button
                                 onClick={() => removeCertification(cert.id)}
-                                style={styles.removeButton}
+                                className="remove-button"
                             >
                                 Remove
                             </button>
                         </div>
 
-                        <div style={styles.form}>
-                            <div style={styles.row}>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Certification Name *</label>
+                        <div className="form">
+                            <div className="form-row">
+                                <div className="input-group">
+                                    <label className="label">Certification Name *</label>
                                     <input
                                         type="text"
                                         value={cert.name || ''}
                                         onChange={(e) => handleChange(cert.id, 'name', e.target.value)}
-                                        style={styles.input}
+                                        className="input"
                                         placeholder="AWS Certified Solutions Architect"
                                     />
                                 </div>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Issuing Organization *</label>
+                                <div className="input-group">
+                                    <label className="label">Issuing Organization *</label>
                                     <input
                                         type="text"
                                         value={cert.issuer || ''}
                                         onChange={(e) => handleChange(cert.id, 'issuer', e.target.value)}
-                                        style={styles.input}
+                                        className="input"
                                         placeholder="Amazon Web Services"
                                     />
                                 </div>
                             </div>
 
-                            <div style={styles.row}>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Issue Date</label>
+                            <div className="form-row">
+                                <div className="input-group">
+                                    <label className="label">Issue Date</label>
                                     <input
                                         type="month"
                                         value={cert.date || ''}
                                         onChange={(e) => handleChange(cert.id, 'date', e.target.value)}
-                                        style={styles.input}
+                                        className="input"
                                     />
                                 </div>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Expiry Date</label>
+                                <div className="input-group">
+                                    <label className="label">Expiry Date</label>
                                     <input
                                         type="month"
                                         value={cert.expiryDate || ''}
                                         onChange={(e) => handleChange(cert.id, 'expiryDate', e.target.value)}
-                                        style={styles.input}
+                                        className="input"
                                     />
                                 </div>
                             </div>
 
-                            <div style={styles.row}>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Credential ID</label>
+                            <div className="form-row">
+                                <div className="input-group">
+                                    <label className="label">Credential ID</label>
                                     <input
                                         type="text"
                                         value={cert.credentialId || ''}
                                         onChange={(e) => handleChange(cert.id, 'credentialId', e.target.value)}
-                                        style={styles.input}
+                                        className="input"
                                         placeholder="AWS-ASA-12345"
                                     />
                                 </div>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Credential URL</label>
+                                <div className="input-group">
+                                    <label className="label">Credential URL</label>
                                     <input
                                         type="url"
                                         value={cert.credentialUrl || ''}
                                         onChange={(e) => handleChange(cert.id, 'credentialUrl', e.target.value)}
-                                        style={styles.input}
+                                        className="input"
                                         placeholder="https://www.credly.com/users/johndoe/badges"
                                     />
                                 </div>
@@ -109,151 +112,209 @@ const CertificationsPage = ({ resumeData, onInputChange, onAddNew, onRemove, onN
 
             <button
                 onClick={addNewCertification}
-                style={styles.addButton}
+                className="add-button"
             >
                 + Add Another Certification
             </button>
 
-            <div style={styles.optionalNote}>
-                <p style={styles.optionalText}>
+            <div className="optional-note">
+                <p className="optional-text">
                     💡 <strong>Note:</strong> Certifications are optional but can significantly boost your resume's credibility.
                     This step is always valid, so you can proceed even without adding certifications.
                 </p>
             </div>
 
-            <div style={styles.validationSection}>
-                <div style={styles.validStatus}>
+            <div className="validation-section">
+                <div className="valid-status">
                     ✓ Ready to continue - Certifications are optional but recommended
                 </div>
             </div>
+
+            <style jsx>{`
+                .certifications-page {
+                    padding: 0;
+                    max-width: 100%;
+                }
+
+                .header {
+                    text-align: center;
+                    margin-bottom: 2rem;
+                }
+
+                .title {
+                    font-size: 2rem;
+                    font-weight: 700;
+                    color: #000;
+                    margin-bottom: 0.5rem;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                }
+
+                .subtitle {
+                    font-size: 1rem;
+                    color: #666;
+                    font-weight: 400;
+                }
+
+                .certifications-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem;
+                    margin-bottom: 1.5rem;
+                }
+
+                .certification-card {
+                    background: #f8fafc;
+                    padding: 1.5rem;
+                    border-radius: 0.75rem;
+                    border: 1px solid #e5e7eb;
+                }
+
+                .card-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 1.25rem;
+                }
+
+                .card-title {
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    color: #000;
+                    margin: 0;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                }
+
+                .checkmark {
+                    color: #10b981;
+                    font-weight: bold;
+                }
+
+                .remove-button {
+                    padding: 0.5rem 1rem;
+                    background: #dc2626;
+                    color: white;
+                    border: none;
+                    border-radius: 0.375rem;
+                    font-size: 0.875rem;
+                    cursor: pointer;
+                    transition: background 0.3s ease;
+                }
+
+                .remove-button:hover {
+                    background: #b91c1c;
+                }
+
+                .form {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.25rem;
+                }
+
+                .form-row {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 1rem;
+                }
+
+                .input-group {
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .label {
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    color: #000;
+                    margin-bottom: 0.5rem;
+                }
+
+                .input {
+                    padding: 0.75rem 1rem;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 0.5rem;
+                    font-size: 1rem;
+                    transition: all 0.3s ease;
+                    background: white;
+                    outline: none;
+                    color: #000;
+                    font-family: inherit;
+                }
+
+                .input:focus {
+                    border-color: #3b82f6;
+                    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+                }
+
+                .add-button {
+                    padding: 0.75rem 1.5rem;
+                    background: #3b82f6;
+                    color: white;
+                    border: none;
+                    border-radius: 0.5rem;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    margin-bottom: 1.5rem;
+                    width: 100%;
+                    transition: background 0.3s ease;
+                }
+
+                .add-button:hover {
+                    background: #2563eb;
+                }
+
+                .optional-note {
+                    background: #f0fff4;
+                    padding: 1rem;
+                    border-radius: 0.5rem;
+                    border: 1px solid #bbf7d0;
+                    margin-bottom: 1.5rem;
+                }
+
+                .optional-text {
+                    color: #000;
+                    font-size: 0.875rem;
+                    line-height: 1.5;
+                    margin: 0;
+                    opacity: 0.8;
+                }
+
+                .validation-section {
+                    padding: 1rem;
+                    background: #f8fafc;
+                    border-radius: 0.5rem;
+                    border: 1px solid #e5e7eb;
+                    text-align: center;
+                }
+
+                .valid-status {
+                    color: #065f46;
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                }
+
+                @media (max-width: 768px) {
+                    .form-row {
+                        grid-template-columns: 1fr;
+                    }
+                    
+                    .title {
+                        font-size: 1.5rem;
+                    }
+                    
+                    .card-header {
+                        flex-direction: column;
+                        gap: 1rem;
+                        align-items: flex-start;
+                    }
+                }
+            `}</style>
         </div>
     );
-};
-
-const styles = {
-    container: {
-        padding: '20px',
-        maxWidth: '800px',
-        margin: '0 auto',
-    },
-    header: {
-        textAlign: 'center',
-        marginBottom: '30px',
-    },
-    title: {
-        fontSize: '2rem',
-        fontWeight: '700',
-        color: '#000000',
-        marginBottom: '8px',
-    },
-    subtitle: {
-        fontSize: '1rem',
-        color: '#000000',
-        fontWeight: '400',
-        opacity: 0.8,
-    },
-    certificationsList: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '24px',
-        marginBottom: '24px',
-    },
-    certificationCard: {
-        backgroundColor: '#f8fafc',
-        padding: '24px',
-        borderRadius: '12px',
-        border: '1px solid #e2e8f0',
-    },
-    cardHeader: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '20px',
-    },
-    cardTitle: {
-        fontSize: '18px',
-        fontWeight: '600',
-        color: '#000000',
-        margin: 0,
-    },
-    removeButton: {
-        padding: '8px 16px',
-        backgroundColor: '#e53e3e',
-        color: 'white',
-        border: 'none',
-        borderRadius: '6px',
-        fontSize: '14px',
-        cursor: 'pointer',
-    },
-    form: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '20px',
-    },
-    row: {
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '16px',
-    },
-    inputGroup: {
-        display: 'flex',
-        flexDirection: 'column',
-    },
-    label: {
-        fontSize: '14px',
-        fontWeight: '600',
-        color: '#000000',
-        marginBottom: '8px',
-    },
-    input: {
-        padding: '12px 16px',
-        border: '2px solid #e2e8f0',
-        borderRadius: '8px',
-        fontSize: '16px',
-        transition: 'all 0.3s ease',
-        backgroundColor: 'white',
-        outline: 'none',
-        color: '#000000',
-    },
-    addButton: {
-        padding: '12px 24px',
-        backgroundColor: '#3b82f6',
-        color: 'white',
-        border: 'none',
-        borderRadius: '8px',
-        fontSize: '16px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        marginBottom: '24px',
-        width: '100%',
-    },
-    optionalNote: {
-        backgroundColor: '#f0fff4',
-        padding: '16px',
-        borderRadius: '8px',
-        border: '1px solid #c6f6d5',
-        marginBottom: '24px',
-    },
-    optionalText: {
-        color: '#000000',
-        fontSize: '14px',
-        lineHeight: '1.5',
-        margin: 0,
-        opacity: 0.8,
-    },
-    validationSection: {
-        padding: '16px',
-        backgroundColor: '#f7fafc',
-        borderRadius: '8px',
-        border: '1px solid #e2e8f0',
-        textAlign: 'center',
-    },
-    validStatus: {
-        color: '#000000',
-        fontSize: '14px',
-        fontWeight: '500',
-        opacity: 0.8,
-    },
 };
 
 export default CertificationsPage;

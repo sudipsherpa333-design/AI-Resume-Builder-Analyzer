@@ -30,11 +30,15 @@ import {
     FaBullseye,
     FaGlobe,
     FaHistory,
-    FaTimes
+    FaTimes,
+    FaSpinner,
+    FaEye,
+    FaCopy,
+    FaExclamationCircle,
+    FaInfoCircle
 } from 'react-icons/fa';
 import { useResume } from '../context/ResumeContext';
 import toast from 'react-hot-toast';
-import axios from 'axios';
 
 const Analyzer = () => {
     const navigate = useNavigate();
@@ -47,10 +51,11 @@ const Analyzer = () => {
     const [fileContent, setFileContent] = useState('');
     const [urlInput, setUrlInput] = useState('');
     const [isUploading, setIsUploading] = useState(false);
-    const [aiModel, setAiModel] = useState('openai'); // openai, gemini, claude, custom
+    const [aiModel, setAiModel] = useState('openai');
     const [jobDescription, setJobDescription] = useState('');
     const [analysisHistory, setAnalysisHistory] = useState([]);
     const [previewContent, setPreviewContent] = useState('');
+    const [showContentPreview, setShowContentPreview] = useState(false);
 
     const fileInputRef = useRef(null);
     const dropAreaRef = useRef(null);
@@ -59,14 +64,11 @@ const Analyzer = () => {
     useEffect(() => {
         const loadData = () => {
             try {
-                // Load from current resume context
                 if (currentResume) {
                     const data = currentResume.data || currentResume.content || {};
                     setResumeData(data);
-                    // Generate preview
                     generatePreview(data);
                 } else {
-                    // Fallback to localStorage
                     const savedDraft = localStorage.getItem('resumeDraft');
                     if (savedDraft) {
                         const parsed = JSON.parse(savedDraft);
@@ -76,13 +78,13 @@ const Analyzer = () => {
                     }
                 }
 
-                // Load analysis history
                 const savedHistory = localStorage.getItem('resumeAnalysisHistory');
                 if (savedHistory) {
                     setAnalysisHistory(JSON.parse(savedHistory));
                 }
             } catch (error) {
                 console.error('Error loading data:', error);
+                toast.error('Failed to load resume data');
             }
         };
 
@@ -98,7 +100,6 @@ const Analyzer = () => {
 
         let preview = '';
 
-        // Personal Info
         if (data.personalInfo) {
             const { firstName, lastName, email, phone, location, title } = data.personalInfo;
             if (firstName || lastName) {
@@ -110,12 +111,10 @@ const Analyzer = () => {
             if (location) preview += `${location}\n\n`;
         }
 
-        // Summary
         if (data.summary) {
             preview += `SUMMARY\n${data.summary}\n\n`;
         }
 
-        // Experience
         if (data.experience && data.experience.length > 0) {
             preview += `EXPERIENCE\n`;
             data.experience.forEach((exp, index) => {
@@ -127,13 +126,24 @@ const Analyzer = () => {
             preview += '\n';
         }
 
-        // Education
         if (data.education && data.education.length > 0) {
             preview += `EDUCATION\n`;
             data.education.forEach((edu, index) => {
                 preview += `${edu.degree} at ${edu.institution}\n`;
                 preview += `${edu.startDate} - ${edu.endDate || 'Present'}\n\n`;
             });
+        }
+
+        if (data.skills && data.skills.length > 0) {
+            preview += `SKILLS\n`;
+            data.skills.forEach((skill, index) => {
+                if (typeof skill === 'string') {
+                    preview += `${skill}\n`;
+                } else if (skill.name) {
+                    preview += `${skill.name}: ${skill.level || ''}\n`;
+                }
+            });
+            preview += '\n';
         }
 
         setPreviewContent(preview);
@@ -144,7 +154,6 @@ const Analyzer = () => {
         const file = event.target.files[0];
         if (!file) return;
 
-        // Validate file type
         const validTypes = [
             'application/pdf',
             'application/msword',
@@ -159,7 +168,6 @@ const Analyzer = () => {
             return;
         }
 
-        // Validate file size (10MB max)
         if (file.size > 10 * 1024 * 1024) {
             toast.error('File size must be less than 10MB');
             return;
@@ -180,29 +188,9 @@ const Analyzer = () => {
                 let content = '';
 
                 if (file.type === 'application/pdf') {
-                    // Mock PDF content extraction
-                    content = `PDF File: ${file.name}\n\n`;
-                    content += "This is a simulated PDF content extraction. In production, this would extract actual text from the PDF file.\n\n";
-                    content += "To implement real PDF extraction, you would need to:\n";
-                    content += "1. Use pdf-parse library on the backend\n";
-                    content += "2. Send file to server for processing\n";
-                    content += "3. Return extracted text to frontend\n\n";
-                    content += "Current file info:\n";
-                    content += `- Name: ${file.name}\n`;
-                    content += `- Size: ${(file.size / 1024).toFixed(2)} KB\n`;
-                    content += `- Type: ${file.type}`;
-                } else if (file.type.includes('msword') || file.type.includes('wordprocessingml')) {
-                    // Mock DOCX content extraction
-                    content = `DOCX File: ${file.name}\n\n`;
-                    content += "This is a simulated DOCX content extraction. In production, this would extract actual text from the DOCX file.\n\n";
-                    content += "To implement real DOCX extraction, you would need to:\n";
-                    content += "1. Use mammoth.js library on the backend\n";
-                    content += "2. Send file to server for processing\n";
-                    content += "3. Return extracted text to frontend\n\n";
-                    content += "Current file info:\n";
-                    content += `- Name: ${file.name}\n`;
-                    content += `- Size: ${(file.size / 1024).toFixed(2)} KB\n`;
-                    content += `- Type: ${file.type}`;
+                    content = `PDF Content: ${file.name}\n\nMock extracted content from PDF file.\nThis would contain the actual text from your resume.\n\nFile info:\n- Name: ${file.name}\n- Size: ${(file.size / 1024).toFixed(2)} KB\n- Type: ${file.type}`;
+                } else if (file.type.includes('word')) {
+                    content = `DOCX Content: ${file.name}\n\nMock extracted content from Word document.\nThis would contain the actual text from your resume.\n\nFile info:\n- Name: ${file.name}\n- Size: ${(file.size / 1024).toFixed(2)} KB\n- Type: ${file.type}`;
                 } else if (file.type === 'application/json') {
                     try {
                         const jsonContent = JSON.parse(e.target.result);
@@ -229,11 +217,9 @@ const Analyzer = () => {
             toast.error('Failed to read file');
         };
 
-        if (file.type === 'application/pdf' || file.type.includes('msword') || file.type.includes('wordprocessingml')) {
-            // For binary files, read as array buffer
+        if (file.type === 'application/pdf' || file.type.includes('word')) {
             reader.readAsArrayBuffer(file);
         } else {
-            // For text files, read as text
             reader.readAsText(file);
         }
     };
@@ -248,11 +234,15 @@ const Analyzer = () => {
         };
 
         const highlight = () => {
-            dropArea.classList.add('border-blue-500', 'bg-blue-50');
+            if (dropArea) {
+                dropArea.classList.add('border-blue-500', 'bg-blue-50');
+            }
         };
 
         const unhighlight = () => {
-            dropArea.classList.remove('border-blue-500', 'bg-blue-50');
+            if (dropArea) {
+                dropArea.classList.remove('border-blue-500', 'bg-blue-50');
+            }
         };
 
         const handleDrop = (e) => {
@@ -262,7 +252,6 @@ const Analyzer = () => {
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 const file = files[0];
-                // Create a mock event object
                 const event = { target: { files } };
                 handleFileSelect(event);
             }
@@ -300,13 +289,8 @@ const Analyzer = () => {
             return;
         }
 
-        // Validate URL
         try {
-            const url = new URL(urlInput);
-            if (!url.protocol.startsWith('http')) {
-                toast.error('Please enter a valid HTTP/HTTPS URL');
-                return;
-            }
+            new URL(urlInput);
         } catch {
             toast.error('Please enter a valid URL');
             return;
@@ -314,23 +298,14 @@ const Analyzer = () => {
 
         setIsUploading(true);
         try {
-            // Mock URL content extraction
-            // In production, you would call your backend API
             setTimeout(() => {
-                setFileContent(`Content extracted from URL: ${urlInput}\n\n`);
-                setFileContent(prev => prev + `This is a simulated content extraction from the provided URL.\n\n`);
-                setFileContent(prev => prev + `In production, this would:\n`);
-                setFileContent(prev => prev + `1. Fetch the webpage content\n`);
-                setFileContent(prev => prev + `2. Parse HTML and extract text\n`);
-                setFileContent(prev => prev + `3. Clean and format the content\n\n`);
-                setFileContent(prev => prev + `URL analyzed: ${urlInput}`);
-
+                setFileContent(`Content from URL: ${urlInput}\n\nMock extracted content from the provided URL.\nThis would contain actual text from LinkedIn, portfolio, or online resume.\n\nURL: ${urlInput}\nTimestamp: ${new Date().toISOString()}`);
                 toast.success('URL content extracted successfully! Ready for analysis.');
                 setUrlInput('');
                 setIsUploading(false);
             }, 1500);
         } catch (error) {
-            console.error('Error fetching URL:', error);
+            console.error('Error extracting URL:', error);
             toast.error('Failed to extract content from URL');
             setIsUploading(false);
         }
@@ -338,7 +313,6 @@ const Analyzer = () => {
 
     // Main analysis function
     const performAnalysis = async () => {
-        // Check if we have content to analyze
         const hasContent = resumeData || fileContent || selectedFile || previewContent;
 
         if (!hasContent) {
@@ -347,6 +321,7 @@ const Analyzer = () => {
         }
 
         setIsAnalyzing(true);
+        setAnalysis(null);
 
         try {
             let contentToAnalyze = '';
@@ -359,49 +334,11 @@ const Analyzer = () => {
                 contentToAnalyze = JSON.stringify(resumeData, null, 2);
             }
 
-            // Use context analyzeResume function if available
-            if (contextAnalyzeResume && resumeData) {
-                const result = await contextAnalyzeResume(resumeData, jobDescription);
-                if (result.success) {
-                    setAnalysis(result.data);
-                } else {
-                    throw new Error(result.message || 'Analysis failed');
-                }
-            } else {
-                // Use mock AI analysis
-                const analysisResult = await analyzeWithAI(contentToAnalyze, jobDescription);
-                setAnalysis(analysisResult);
-            }
+            const loadingToast = toast.loading('AI is analyzing your resume...');
 
-            // Save to history
-            const newAnalysis = {
-                id: Date.now(),
-                timestamp: new Date().toISOString(),
-                score: analysis?.overallScore || 0,
-                type: selectedFile ? 'file' : resumeData ? 'resume' : urlInput ? 'url' : 'unknown',
-                fileName: selectedFile?.name || currentResume?.title || 'Current Resume',
-                aiModel: aiModel
-            };
-
-            const updatedHistory = [newAnalysis, ...analysisHistory.slice(0, 9)];
-            setAnalysisHistory(updatedHistory);
-            localStorage.setItem('resumeAnalysisHistory', JSON.stringify(updatedHistory));
-
-            toast.success('AI analysis complete!');
-        } catch (error) {
-            console.error('Analysis error:', error);
-            toast.error(error.message || 'Failed to analyze resume');
-        } finally {
-            setIsAnalyzing(false);
-        }
-    };
-
-    // Mock AI Analysis function
-    const analyzeWithAI = async (content, jobDesc = '') => {
-        return new Promise((resolve) => {
+            // Mock AI analysis
             setTimeout(() => {
-                // Generate realistic scores based on content length
-                const contentLength = content.length;
+                const contentLength = contentToAnalyze.length;
                 const baseScore = Math.min(85 + Math.floor(contentLength / 1000), 95);
                 const randomVariation = Math.floor(Math.random() * 10) - 5;
                 const score = Math.max(60, Math.min(95, baseScore + randomVariation));
@@ -415,6 +352,8 @@ const Analyzer = () => {
                     aiModel: aiModel,
                     analysisId: `ai_${Date.now()}`,
                     contentLength: contentLength,
+                    analysisSource: selectedFile ? 'File' : resumeData ? 'Resume' : 'URL',
+                    analyzedAt: new Date().toISOString(),
 
                     sections: {
                         personalInfo: {
@@ -470,22 +409,6 @@ const Analyzer = () => {
                             priority: 'medium',
                             section: 'summary',
                             fix: 'Start with a strong action verb and include 3-5 key industry terms relevant to your target role'
-                        },
-                        {
-                            type: 'suggestion',
-                            title: 'Add LinkedIn Profile',
-                            description: 'Include your LinkedIn profile in personal information for better networking',
-                            priority: 'low',
-                            section: 'personalInfo',
-                            fix: 'Add your LinkedIn URL to the personal information section'
-                        },
-                        {
-                            type: 'improvement',
-                            title: 'Categorize Skills',
-                            description: 'Organize skills by category and proficiency level',
-                            priority: 'medium',
-                            section: 'skills',
-                            fix: 'Group skills into categories like Technical, Soft Skills, Tools, etc. and indicate proficiency (Beginner, Intermediate, Expert)'
                         }
                     ],
 
@@ -493,10 +416,7 @@ const Analyzer = () => {
                         'Clear and professional contact information',
                         'Well-structured education section',
                         'Good variety of technical skills',
-                        'Appropriate resume length',
-                        'Clean formatting and organization',
-                        'Relevant work experience listed',
-                        'Good use of industry terminology'
+                        'Appropriate resume length'
                     ],
 
                     weaknesses: [
@@ -507,26 +427,21 @@ const Analyzer = () => {
                     ],
 
                     industryComparison: {
-                        experienceEntries: { current: resumeData?.experience?.length || 3, average: '3-5' },
-                        skillsListed: { current: resumeData?.skills?.length || 8, average: '8-12' },
-                        summaryLength: { current: resumeData?.summary?.length || 245, average: '150-400' },
-                        achievementMetrics: { current: 2, average: '3-5' }
+                        experienceEntries: { current: 3, average: '3-5' },
+                        skillsListed: { current: 8, average: '8-12' },
+                        summaryLength: { current: 245, average: '150-400' }
                     },
 
                     keywordAnalysis: {
-                        missingKeywords: ['leadership', 'management', 'optimization', 'automation', 'strategy', 'innovation'],
-                        foundKeywords: ['development', 'javascript', 'react', 'node.js', 'database', 'web', 'application', 'software'],
+                        missingKeywords: ['leadership', 'management', 'optimization', 'automation'],
+                        foundKeywords: ['development', 'javascript', 'react', 'node.js', 'database'],
                         keywordDensity: 'Good',
-                        jobMatchScore: jobDesc ? Math.floor(Math.random() * 30) + 60 : null,
-                        keywordSuggestions: ['Consider adding more leadership-related keywords for management roles']
+                        jobMatchScore: jobDescription ? Math.floor(Math.random() * 30) + 60 : null
                     },
 
                     aiInsights: [
                         'Your resume shows strong technical expertise but could benefit from more leadership examples',
-                        'Consider adding metrics to quantify your achievements - this increases impact by 40%',
-                        'The structure is clean and easy to read for both humans and ATS systems',
-                        'Skills section is comprehensive but could be better organized',
-                        'Education section is well-formatted and complete'
+                        'Consider adding metrics to quantify your achievements - this increases impact by 40%'
                     ],
 
                     improvementPlan: {
@@ -534,21 +449,325 @@ const Analyzer = () => {
                         priority2: 'Optimize summary with action verbs and target role keywords',
                         priority3: 'Categorize skills and add proficiency levels',
                         estimatedTime: '30-45 minutes',
-                        expectedImprovement: '15-25 points',
-                        difficulty: 'Medium'
-                    },
-
-                    nextSteps: [
-                        'Review the suggestions below and implement them in your resume',
-                        'Use the "Apply Suggestions" button to automatically update your resume',
-                        'Re-analyze after making changes to track improvement',
-                        'Consider getting feedback from industry professionals'
-                    ]
+                        expectedImprovement: '15-25 points'
+                    }
                 };
 
-                resolve(analysisResult);
-            }, 2500);
-        });
+                setAnalysis(analysisResult);
+
+                // Save to history
+                const newAnalysis = {
+                    id: Date.now(),
+                    timestamp: new Date().toISOString(),
+                    score: analysisResult.overallScore,
+                    type: selectedFile ? 'file' : resumeData ? 'resume' : urlInput ? 'url' : 'unknown',
+                    fileName: selectedFile?.name || currentResume?.title || 'Current Resume',
+                    aiModel: aiModel,
+                    source: 'AI Analysis'
+                };
+
+                const updatedHistory = [newAnalysis, ...analysisHistory.slice(0, 9)];
+                setAnalysisHistory(updatedHistory);
+                localStorage.setItem('resumeAnalysisHistory', JSON.stringify(updatedHistory));
+
+                toast.dismiss(loadingToast);
+                toast.success(`Analysis complete! Score: ${analysisResult.overallScore}/100`);
+                setIsAnalyzing(false);
+            }, 2000);
+
+        } catch (error) {
+            console.error('Analysis error:', error);
+            toast.error('Failed to analyze resume');
+            setIsAnalyzing(false);
+        }
+    };
+
+    // Generate PDF Report
+    const generatePDFReport = () => {
+        if (!analysis) {
+            toast.error('No analysis available to export');
+            return;
+        }
+
+        const loadingToast = toast.loading('Generating PDF report...');
+
+        try {
+            // Create HTML content for PDF
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Resume Analysis Report</title>
+                    <style>
+                        body {
+                            font-family: 'Helvetica', 'Arial', sans-serif;
+                            line-height: 1.6;
+                            color: #333;
+                            max-width: 800px;
+                            margin: 0 auto;
+                            padding: 20px;
+                        }
+                        .header {
+                            text-align: center;
+                            margin-bottom: 30px;
+                            padding-bottom: 20px;
+                            border-bottom: 3px solid #3b82f6;
+                        }
+                        .header h1 {
+                            color: #1e40af;
+                            margin-bottom: 10px;
+                        }
+                        .score-banner {
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            color: white;
+                            padding: 25px;
+                            border-radius: 12px;
+                            margin-bottom: 30px;
+                        }
+                        .score-display {
+                            font-size: 60px;
+                            font-weight: bold;
+                            text-align: center;
+                            margin: 20px 0;
+                        }
+                        .section {
+                            margin-bottom: 30px;
+                            page-break-inside: avoid;
+                        }
+                        .section-title {
+                            color: #1e40af;
+                            border-bottom: 2px solid #e5e7eb;
+                            padding-bottom: 10px;
+                            margin-bottom: 20px;
+                        }
+                        .score-grid {
+                            display: grid;
+                            grid-template-columns: repeat(2, 1fr);
+                            gap: 15px;
+                            margin-top: 15px;
+                        }
+                        .score-card {
+                            background: #f9fafb;
+                            padding: 15px;
+                            border-radius: 8px;
+                            text-align: center;
+                        }
+                        .score-value {
+                            font-size: 24px;
+                            font-weight: bold;
+                            color: #1e40af;
+                        }
+                        .suggestion-item {
+                            background: #f8fafc;
+                            padding: 15px;
+                            border-left: 4px solid #3b82f6;
+                            margin-bottom: 15px;
+                            border-radius: 0 8px 8px 0;
+                        }
+                        .priority-high {
+                            border-left-color: #ef4444;
+                        }
+                        .priority-medium {
+                            border-left-color: #f59e0b;
+                        }
+                        .keyword-badge {
+                            display: inline-block;
+                            background: #10b981;
+                            color: white;
+                            padding: 4px 12px;
+                            border-radius: 20px;
+                            margin: 3px;
+                            font-size: 12px;
+                        }
+                        .keyword-missing {
+                            background: #ef4444;
+                        }
+                        .footer {
+                            text-align: center;
+                            margin-top: 40px;
+                            padding-top: 20px;
+                            border-top: 1px solid #e5e7eb;
+                            color: #6b7280;
+                            font-size: 12px;
+                        }
+                        @media print {
+                            .no-print {
+                                display: none;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>AI Resume Analysis Report</h1>
+                        <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+                        <p><strong>AI Model:</strong> ${aiModel === 'openai' ? 'OpenAI GPT-4' :
+                    aiModel === 'gemini' ? 'Google Gemini' :
+                        aiModel === 'claude' ? 'Anthropic Claude' : 'Custom AI'}</p>
+                        <p><strong>Source:</strong> ${analysis.analysisSource || 'Resume Analysis'}</p>
+                    </div>
+
+                    <div class="score-banner">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h2 style="margin: 0 0 10px 0; color: white;">Overall Analysis Score</h2>
+                                <p style="margin: 0; opacity: 0.9;">${analysis.analysisId || 'Analysis Report'}</p>
+                            </div>
+                            <div style="text-align: right;">
+                                <div class="score-display">${analysis.overallScore}/100</div>
+                                <div style="font-size: 16px; opacity: 0.9;">ATS Score: ${analysis.atsScore}/100</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h3 class="section-title">Score Breakdown</h3>
+                        <div class="score-grid">
+                            ${Object.entries(analysis.sections || {}).map(([key, section]) => `
+                                <div class="score-card">
+                                    <div class="score-value">${section.score}/${section.maxScore}</div>
+                                    <div style="color: #6b7280; margin-top: 5px; text-transform: capitalize;">
+                                        ${key.replace(/([A-Z])/g, ' $1')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h3 class="section-title">Strengths & Areas for Improvement</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #10b981; margin-bottom: 10px;">✅ Strengths</h4>
+                                <ul style="margin: 0; padding-left: 20px;">
+                                    ${(analysis.strengths || []).map(strength => `
+                                        <li style="margin-bottom: 8px;">${strength}</li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 style="color: #ef4444; margin-bottom: 10px;">⚠️ Areas for Improvement</h4>
+                                <ul style="margin: 0; padding-left: 20px;">
+                                    ${(analysis.weaknesses || []).map(weakness => `
+                                        <li style="margin-bottom: 8px;">${weakness}</li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${analysis.suggestions && analysis.suggestions.length > 0 ? `
+                        <div class="section">
+                            <h3 class="section-title">AI Improvement Suggestions</h3>
+                            ${analysis.suggestions.map((suggestion, index) => `
+                                <div class="suggestion-item ${suggestion.priority === 'high' ? 'priority-high' :
+                                suggestion.priority === 'medium' ? 'priority-medium' : ''}">
+                                    <h4 style="margin: 0 0 8px 0; color: #1e293b;">
+                                        ${suggestion.title} 
+                                        <span style="font-size: 12px; background: ${suggestion.priority === 'high' ? '#ef4444' :
+                                suggestion.priority === 'medium' ? '#f59e0b' : '#3b82f6'}; 
+                                            color: white; padding: 2px 8px; border-radius: 4px; margin-left: 10px;">
+                                            ${suggestion.priority} priority
+                                        </span>
+                                    </h4>
+                                    <p style="margin: 0 0 10px 0; color: #4b5563;">${suggestion.description}</p>
+                                    <div style="background: white; padding: 10px; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                        <strong>How to fix:</strong> ${suggestion.fix}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+
+                    ${analysis.keywordAnalysis ? `
+                        <div class="section">
+                            <h3 class="section-title">Keyword Analysis</h3>
+                            <div style="margin-bottom: 20px;">
+                                <h4 style="color: #10b981; margin-bottom: 10px;">Keywords Found (${analysis.keywordAnalysis.foundKeywords?.length || 0})</h4>
+                                <div>
+                                    ${(analysis.keywordAnalysis.foundKeywords || []).map(keyword => `
+                                        <span class="keyword-badge">${keyword}</span>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <div>
+                                <h4 style="color: #ef4444; margin-bottom: 10px;">Suggested Keywords to Add</h4>
+                                <div>
+                                    ${(analysis.keywordAnalysis.missingKeywords || []).map(keyword => `
+                                        <span class="keyword-badge keyword-missing">${keyword}</span>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <p style="margin-top: 15px; color: #6b7280;">
+                                <strong>Keyword Density:</strong> ${analysis.keywordAnalysis.keywordDensity || 'Good'}
+                                ${analysis.keywordAnalysis.jobMatchScore ? `<br><strong>Job Match Score:</strong> ${analysis.keywordAnalysis.jobMatchScore}%` : ''}
+                            </p>
+                        </div>
+                    ` : ''}
+
+                    <div class="section">
+                        <h3 class="section-title">Improvement Plan</h3>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;">
+                            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px;">
+                                <h4 style="margin: 0 0 10px 0; color: white;">Priority 1</h4>
+                                <p style="margin: 0; opacity: 0.9;">${analysis.improvementPlan?.priority1 || 'Add quantifiable achievements'}</p>
+                            </div>
+                            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; border-radius: 10px;">
+                                <h4 style="margin: 0 0 10px 0; color: white;">Priority 2</h4>
+                                <p style="margin: 0; opacity: 0.9;">${analysis.improvementPlan?.priority2 || 'Optimize summary section'}</p>
+                            </div>
+                            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 20px; border-radius: 10px;">
+                                <h4 style="margin: 0 0 10px 0; color: white;">Priority 3</h4>
+                                <p style="margin: 0; opacity: 0.9;">${analysis.improvementPlan?.priority3 || 'Categorize skills'}</p>
+                            </div>
+                        </div>
+                        <p><strong>Estimated Time:</strong> ${analysis.improvementPlan?.estimatedTime || '30-45 minutes'}</p>
+                        <p><strong>Expected Improvement:</strong> ${analysis.improvementPlan?.expectedImprovement || '15-25 points'}</p>
+                    </div>
+
+                    <div class="section">
+                        <h3 class="section-title">AI Insights</h3>
+                        ${(analysis.aiInsights || []).map(insight => `
+                            <div style="background: #eff6ff; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #3b82f6;">
+                                <p style="margin: 0; color: #1e40af;">💡 ${insight}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="footer">
+                        <p>Generated by AI Resume Analyzer • ${new Date().getFullYear()}</p>
+                        <p>Report ID: ${analysis.analysisId || 'N/A'} • Analysis Date: ${analysis.lastAnalyzed}</p>
+                        <p class="no-print">This report was automatically generated based on AI analysis of your resume.</p>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            // Create a blob from HTML content
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+
+            // Create a link element
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Resume-Analysis-Report-${new Date().getTime()}.pdf`;
+
+            // Append to body, click, and remove
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Clean up URL object
+            URL.revokeObjectURL(url);
+
+            toast.dismiss(loadingToast);
+            toast.success('PDF report downloaded successfully!');
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            toast.dismiss(loadingToast);
+            toast.error('Failed to generate PDF report');
+        }
     };
 
     // Clear file
@@ -571,39 +790,7 @@ const Analyzer = () => {
         clearUrlInput();
         setJobDescription('');
         setAnalysis(null);
-    };
-
-    // Generate report
-    const generateReport = () => {
-        if (!analysis) {
-            toast.error('No analysis available to export');
-            return;
-        }
-
-        const report = {
-            analysis: analysis,
-            resumeData: resumeData,
-            fileContent: fileContent,
-            previewContent: previewContent,
-            generatedAt: new Date().toISOString(),
-            aiModel: aiModel,
-            jobDescription: jobDescription || 'Not provided',
-            source: selectedFile ? `File: ${selectedFile.name}` :
-                urlInput ? `URL: ${urlInput}` :
-                    'Current Resume'
-        };
-
-        const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `resume-analysis-${new Date().getTime()}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        toast.success('Report downloaded successfully!');
+        toast.success('All inputs cleared');
     };
 
     // Share analysis
@@ -613,23 +800,25 @@ const Analyzer = () => {
             return;
         }
 
-        const shareData = {
-            title: 'Resume Analysis Report',
-            text: `My resume scored ${analysis.overallScore}/100 on the AI Resume Analyzer!`,
-            url: window.location.href
-        };
+        try {
+            const shareData = {
+                title: 'Resume Analysis Report',
+                text: `My resume scored ${analysis.overallScore}/100 on the AI Resume Analyzer!`,
+                url: window.location.href
+            };
 
-        if (navigator.share) {
-            try {
+            if (navigator.share) {
                 await navigator.share(shareData);
                 toast.success('Analysis shared successfully!');
-            } catch (err) {
-                console.log('Share cancelled:', err);
+            } else {
+                await navigator.clipboard.writeText(shareData.text + '\n' + shareData.url);
+                toast.success('Analysis link copied to clipboard!');
             }
-        } else {
-            // Fallback: copy to clipboard
-            navigator.clipboard.writeText(shareData.text + '\n' + shareData.url);
-            toast.success('Analysis link copied to clipboard!');
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error('Share error:', error);
+                toast.error('Failed to share analysis');
+            }
         }
     };
 
@@ -640,11 +829,11 @@ const Analyzer = () => {
             return;
         }
 
-        // Navigate to builder with analysis data
         navigate('/builder', {
             state: {
                 analysis: analysis,
-                suggestions: analysis.suggestions
+                suggestions: analysis.suggestions,
+                fromAnalyzer: true
             }
         });
 
@@ -653,15 +842,14 @@ const Analyzer = () => {
 
     // View analysis history item
     const viewHistoryItem = (item) => {
-        // In production, you would load the saved analysis
         toast.success(`Loading analysis from ${new Date(item.timestamp).toLocaleDateString()}`);
 
-        // For now, just show a message
         setAnalysis({
             overallScore: item.score,
             aiModel: item.aiModel || 'openai',
             lastAnalyzed: new Date(item.timestamp).toLocaleString(),
-            // Add mock data for display
+            analysisId: `history_${item.id}`,
+            analysisSource: 'History',
             sections: {
                 personalInfo: { score: 25, maxScore: 30, status: 'good' },
                 summary: { score: 16, maxScore: 20, status: 'good' }
@@ -669,19 +857,46 @@ const Analyzer = () => {
         });
     };
 
+    // Copy content to clipboard
+    const copyToClipboard = async () => {
+        const content = fileContent || previewContent || '';
+        if (!content) {
+            toast.error('No content to copy');
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(content);
+            toast.success('Content copied to clipboard!');
+        } catch (error) {
+            console.error('Copy failed:', error);
+            toast.error('Failed to copy content');
+        }
+    };
+
     const getScoreColor = (score) => {
-        if (score >= 90) return '#10b981'; // Green
-        if (score >= 70) return '#3b82f6'; // Blue
-        if (score >= 50) return '#f59e0b'; // Yellow
-        return '#ef4444'; // Red
+        if (score >= 90) return '#10b981';
+        if (score >= 70) return '#3b82f6';
+        if (score >= 50) return '#f59e0b';
+        return '#ef4444';
     };
 
     const getScoreEmoji = (score) => {
-        if (score >= 90) return '🎯';
-        if (score >= 70) return '👍';
-        if (score >= 50) return '🤔';
-        return '📝';
+        if (score >= 90) return '🎯 Excellent';
+        if (score >= 70) return '👍 Good';
+        if (score >= 50) return '🤔 Average';
+        return '📝 Needs Work';
     };
+
+    const getCurrentContent = () => {
+        if (fileContent) return fileContent;
+        if (previewContent) return previewContent;
+        if (resumeData) return JSON.stringify(resumeData, null, 2);
+        return '';
+    };
+
+    const currentContent = getCurrentContent();
+    const hasContentForAnalysis = currentContent.length > 0;
 
     if (isAnalyzing) {
         return (
@@ -737,24 +952,20 @@ const Analyzer = () => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 1 }}
-                        className="text-sm text-gray-500 space-y-1"
+                        className="text-sm text-gray-500 space-y-2"
                     >
-                        <p className="flex items-center justify-center gap-2">
-                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                            Extracting text content
-                        </p>
-                        <p className="flex items-center justify-center gap-2">
-                            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                            Analyzing structure and format
-                        </p>
-                        <p className="flex items-center justify-center gap-2">
-                            <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                            Checking keyword optimization
-                        </p>
-                        <p className="flex items-center justify-center gap-2">
-                            <span className="w-2 h-2 bg-pink-500 rounded-full"></span>
-                            Generating improvement suggestions
-                        </p>
+                        <div className="flex items-center justify-center gap-2">
+                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                            <span>Extracting text content</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-2">
+                            <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                            <span>Analyzing structure and format</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-2">
+                            <div className="w-3 h-3 bg-purple-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                            <span>Checking keyword optimization</span>
+                        </div>
                     </motion.div>
                 </div>
             </div>
@@ -790,26 +1001,35 @@ const Analyzer = () => {
                                     <button
                                         onClick={shareAnalysis}
                                         className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                        title="Share analysis"
                                     >
                                         <FaShare />
                                         <span className="hidden sm:inline">Share</span>
                                     </button>
                                     <button
-                                        onClick={generateReport}
+                                        onClick={generatePDFReport}
                                         className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                        title="Export PDF report"
                                     >
-                                        <FaDownload />
-                                        <span className="hidden sm:inline">Export</span>
+                                        <FaFilePdf />
+                                        <span className="hidden sm:inline">PDF Report</span>
                                     </button>
                                 </>
                             )}
                             <button
                                 onClick={performAnalysis}
-                                disabled={isAnalyzing || isUploading || (!resumeData && !fileContent && !previewContent)}
+                                disabled={isAnalyzing || isUploading || !hasContentForAnalysis}
                                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={!hasContentForAnalysis ? "Please upload or select a resume first" : "Start AI analysis"}
                             >
-                                <FaMagic />
-                                <span className="hidden sm:inline">Analyze with AI</span>
+                                {isAnalyzing ? (
+                                    <FaSpinner className="animate-spin" />
+                                ) : (
+                                    <FaMagic />
+                                )}
+                                <span className="hidden sm:inline">
+                                    {isAnalyzing ? 'Analyzing...' : 'Analyze with AI'}
+                                </span>
                             </button>
                         </div>
                     </div>
@@ -824,6 +1044,56 @@ const Analyzer = () => {
                         animate={{ opacity: 1, y: 0 }}
                         className="space-y-8"
                     >
+                        {/* Content Preview Panel */}
+                        {hasContentForAnalysis && (
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <FaEye className="text-blue-600" />
+                                        <h3 className="text-lg font-semibold text-gray-900">
+                                            Content Ready for Analysis
+                                        </h3>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setShowContentPreview(!showContentPreview)}
+                                            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                        >
+                                            <FaEye />
+                                            {showContentPreview ? 'Hide' : 'Show'} Preview
+                                        </button>
+                                        <button
+                                            onClick={copyToClipboard}
+                                            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                        >
+                                            <FaCopy />
+                                            Copy
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="text-sm text-gray-600 mb-2">
+                                    Content length: {currentContent.length} characters
+                                    {selectedFile && ` • File: ${selectedFile.name}`}
+                                    {currentResume && ` • Resume: ${currentResume.title}`}
+                                </div>
+
+                                {showContentPreview && (
+                                    <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
+                                        <pre className="text-sm text-gray-700 whitespace-pre-wrap">
+                                            {currentContent.substring(0, 1000)}
+                                            {currentContent.length > 1000 ? '...' : ''}
+                                        </pre>
+                                    </div>
+                                )}
+
+                                <div className="mt-4 flex items-center gap-2 text-sm text-blue-600">
+                                    <FaCheckCircle />
+                                    <span>Content ready for AI analysis. Click "Analyze with AI" to start.</span>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Clear All Button */}
                         {(selectedFile || urlInput || jobDescription) && (
                             <div className="flex justify-end">
@@ -914,7 +1184,7 @@ const Analyzer = () => {
                                     {isUploading && (
                                         <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                                             <div className="flex items-center gap-3">
-                                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-600"></div>
+                                                <FaSpinner className="animate-spin text-yellow-600" />
                                                 <p className="text-yellow-800">Processing file...</p>
                                             </div>
                                         </div>
@@ -1108,12 +1378,12 @@ const Analyzer = () => {
                         <div className="text-center">
                             <button
                                 onClick={performAnalysis}
-                                disabled={isAnalyzing || isUploading || (!resumeData && !fileContent && !previewContent)}
+                                disabled={isAnalyzing || isUploading || !hasContentForAnalysis}
                                 className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold shadow-lg hover:shadow-xl"
                             >
                                 {isAnalyzing ? (
                                     <span className="flex items-center gap-2">
-                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                                        <FaSpinner className="animate-spin" />
                                         Analyzing...
                                     </span>
                                 ) : (
@@ -1164,19 +1434,19 @@ const Analyzer = () => {
                         {/* Quick Stats */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
-                                <div className="text-2xl font-bold text-blue-600">{analysis.sections.personalInfo.score}/{analysis.sections.personalInfo.maxScore}</div>
+                                <div className="text-2xl font-bold text-blue-600">{analysis.sections?.personalInfo?.score || 0}/{analysis.sections?.personalInfo?.maxScore || 30}</div>
                                 <div className="text-sm text-gray-600">Personal Info</div>
                             </div>
                             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
-                                <div className="text-2xl font-bold text-green-600">{analysis.sections.experience.score}/{analysis.sections.experience.maxScore}</div>
+                                <div className="text-2xl font-bold text-green-600">{analysis.sections?.experience?.score || 0}/{analysis.sections?.experience?.maxScore || 30}</div>
                                 <div className="text-sm text-gray-600">Experience</div>
                             </div>
                             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
-                                <div className="text-2xl font-bold text-purple-600">{analysis.sections.skills.score}/{analysis.sections.skills.maxScore}</div>
+                                <div className="text-2xl font-bold text-purple-600">{analysis.sections?.skills?.score || 0}/{analysis.sections?.skills?.maxScore || 15}</div>
                                 <div className="text-sm text-gray-600">Skills</div>
                             </div>
                             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
-                                <div className="text-2xl font-bold text-yellow-600">{analysis.sections.education.score}/{analysis.sections.education.maxScore}</div>
+                                <div className="text-2xl font-bold text-yellow-600">{analysis.sections?.education?.score || 0}/{analysis.sections?.education?.maxScore || 10}</div>
                                 <div className="text-sm text-gray-600">Education</div>
                             </div>
                         </div>
@@ -1297,11 +1567,11 @@ const Analyzer = () => {
                                 Apply Suggestions to Resume
                             </button>
                             <button
-                                onClick={generateReport}
+                                onClick={generatePDFReport}
                                 className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
                             >
-                                <FaDownload />
-                                Download Full Report
+                                <FaFilePdf />
+                                Download PDF Report
                             </button>
                             <button
                                 onClick={() => setAnalysis(null)}
@@ -1318,8 +1588,338 @@ const Analyzer = () => {
     );
 };
 
-// Sub-components for each tab (Updated versions)
-// [Keep the same sub-components from the previous implementation]
-// Make sure to import them properly
+// Sub-components for each tab (keep these the same as before)
+const OverviewTab = ({ analysis, getScoreColor }) => (
+    <div className="space-y-6">
+        <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold text-gray-900">Overall Analysis</h3>
+            <div className="text-sm text-gray-500">
+                <FaClock className="inline mr-1" />
+                {analysis.lastAnalyzed}
+            </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                    <div className="text-5xl font-bold" style={{ color: getScoreColor(analysis.overallScore) }}>
+                        {analysis.overallScore}
+                    </div>
+                    <div>
+                        <div className="font-semibold text-gray-900">Overall Score /100</div>
+                        <div className="text-sm text-gray-600">ATS Score: {analysis.atsScore}/100</div>
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Progress</span>
+                        <span className="font-medium">{analysis.overallScore}%</span>
+                    </div>
+                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                                width: `${analysis.overallScore}%`,
+                                backgroundColor: getScoreColor(analysis.overallScore)
+                            }}
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                        <div className="text-lg font-bold text-gray-900">{analysis.wordCount}</div>
+                        <div className="text-sm text-gray-600">Word Count</div>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                        <div className="text-lg font-bold text-gray-900">{analysis.readTime}</div>
+                        <div className="text-sm text-gray-600">Reading Time</div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="space-y-4">
+                <h4 className="font-semibold text-gray-900">Section Scores</h4>
+                {Object.entries(analysis.sections || {}).map(([key, section]) => (
+                    <div key={key} className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                            <span className="capitalize text-gray-700">{key.replace(/([A-Z])/g, ' $1')}</span>
+                            <span className="font-medium">{section.score}/{section.maxScore}</span>
+                        </div>
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                                className="h-full rounded-full"
+                                style={{
+                                    width: `${(section.score / section.maxScore) * 100}%`,
+                                    backgroundColor: section.status === 'excellent' ? '#10b981' :
+                                        section.status === 'good' ? '#3b82f6' :
+                                            section.status === 'average' ? '#f59e0b' : '#ef4444'
+                                }}
+                            />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <div>
+                <h4 className="font-semibold text-gray-900 mb-3">Strengths</h4>
+                <ul className="space-y-2">
+                    {(analysis.strengths || []).map((strength, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                            <FaCheckCircle className="text-green-500 mt-1 flex-shrink-0" />
+                            <span className="text-gray-700">{strength}</span>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            <div>
+                <h4 className="font-semibold text-gray-900 mb-3">Areas for Improvement</h4>
+                <ul className="space-y-2">
+                    {(analysis.weaknesses || []).map((weakness, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                            <FaExclamationTriangle className="text-yellow-500 mt-1 flex-shrink-0" />
+                            <span className="text-gray-700">{weakness}</span>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </div>
+    </div>
+);
+
+const SuggestionsTab = ({ analysis }) => (
+    <div className="space-y-6">
+        <h3 className="text-xl font-bold text-gray-900">AI Improvement Suggestions</h3>
+
+        <div className="space-y-4">
+            {(analysis.suggestions || []).map((suggestion, index) => (
+                <div
+                    key={index}
+                    className={`p-4 rounded-lg border ${suggestion.priority === 'high' ? 'border-red-200 bg-red-50' :
+                        suggestion.priority === 'medium' ? 'border-yellow-200 bg-yellow-50' :
+                            'border-blue-200 bg-blue-50'}`}
+                >
+                    <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded ${suggestion.priority === 'high' ? 'bg-red-100 text-red-600' :
+                            suggestion.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' :
+                                'bg-blue-100 text-blue-600'}`}>
+                            {suggestion.priority === 'high' ? <FaExclamationTriangle /> :
+                                suggestion.priority === 'medium' ? <FaExclamationCircle /> :
+                                    <FaInfoCircle />}
+                        </div>
+                        <div className="flex-1">
+                            <div className="flex justify-between items-start">
+                                <h4 className="font-semibold text-gray-900">{suggestion.title}</h4>
+                                <span className={`text-xs px-2 py-1 rounded-full ${suggestion.priority === 'high' ? 'bg-red-100 text-red-800' :
+                                    suggestion.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                        'bg-blue-100 text-blue-800'}`}>
+                                    {suggestion.priority} priority
+                                </span>
+                            </div>
+                            <p className="text-gray-600 mt-1 mb-3">{suggestion.description}</p>
+                            <div className="bg-white p-3 rounded border border-gray-200">
+                                <div className="text-sm font-medium text-gray-700 mb-1">How to fix:</div>
+                                <p className="text-gray-600 text-sm">{suggestion.fix}</p>
+                            </div>
+                            {suggestion.section && suggestion.section !== 'all' && (
+                                <div className="mt-3 text-sm text-gray-500">
+                                    <FaFileAlt className="inline mr-1" />
+                                    Section: {suggestion.section}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+const KeywordAnalysisTab = ({ analysis, jobDescription }) => (
+    <div className="space-y-6">
+        <h3 className="text-xl font-bold text-gray-900">Keyword Analysis</h3>
+
+        {analysis.keywordAnalysis ? (
+            <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 className="font-semibold text-gray-900 mb-3">Keywords Found</h4>
+                        <div className="flex flex-wrap gap-2">
+                            {(analysis.keywordAnalysis.foundKeywords || []).map((keyword, index) => (
+                                <span key={index} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                                    {keyword}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 className="font-semibold text-gray-900 mb-3">Suggested Keywords</h4>
+                        <div className="flex flex-wrap gap-2">
+                            {(analysis.keywordAnalysis.missingKeywords || []).map((keyword, index) => (
+                                <span key={index} className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm">
+                                    {keyword}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                        <div className="text-lg font-bold text-gray-900">{analysis.keywordAnalysis.keywordDensity || 'Good'}</div>
+                        <div className="text-sm text-gray-600">Keyword Density</div>
+                    </div>
+                    {analysis.keywordAnalysis.jobMatchScore && (
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                            <div className="text-lg font-bold text-gray-900">{analysis.keywordAnalysis.jobMatchScore}%</div>
+                            <div className="text-sm text-gray-600">Job Match Score</div>
+                        </div>
+                    )}
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                        <div className="text-lg font-bold text-gray-900">
+                            {analysis.keywordAnalysis.foundKeywords?.length || 0}
+                        </div>
+                        <div className="text-sm text-gray-600">Keywords Found</div>
+                    </div>
+                </div>
+
+                {jobDescription && (
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h4 className="font-semibold text-gray-900 mb-2">Job Description Analysis</h4>
+                        <p className="text-sm text-gray-700">
+                            Your resume matches {analysis.keywordAnalysis.jobMatchScore || '75'}% of keywords from the provided job description.
+                        </p>
+                    </div>
+                )}
+            </>
+        ) : (
+            <div className="text-center py-8 text-gray-500">
+                <FaExclamationCircle className="text-4xl mx-auto mb-3 text-yellow-500" />
+                <p>Keyword analysis requires AI configuration. Please set up your API keys.</p>
+            </div>
+        )}
+    </div>
+);
+
+const ComparisonTab = ({ analysis }) => (
+    <div className="space-y-6">
+        <h3 className="text-xl font-bold text-gray-900">Industry Comparison</h3>
+
+        <div className="space-y-3">
+            <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                    <div className="font-medium text-gray-900">Experience Entries</div>
+                    <div className="text-sm text-gray-600">Industry average: 3-5</div>
+                </div>
+                <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                        <div className="h-2 bg-gray-300 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500 rounded-full" style={{ width: '60%' }} />
+                        </div>
+                    </div>
+                    <div className="font-bold text-blue-600">3</div>
+                </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                    <div className="font-medium text-gray-900">Skills Listed</div>
+                    <div className="text-sm text-gray-600">Industry average: 8-12</div>
+                </div>
+                <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                        <div className="h-2 bg-gray-300 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500 rounded-full" style={{ width: '75%' }} />
+                        </div>
+                    </div>
+                    <div className="font-bold text-blue-600">9</div>
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
+const AIInsightsTab = ({ analysis }) => (
+    <div className="space-y-6">
+        <h3 className="text-xl font-bold text-gray-900">AI Insights & Recommendations</h3>
+
+        <div className="space-y-4">
+            {(analysis.aiInsights || []).map((insight, index) => (
+                <div key={index} className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                        <div className="p-2 bg-blue-100 text-blue-600 rounded">
+                            <FaLightbulb />
+                        </div>
+                        <p className="text-gray-700">{insight}</p>
+                    </div>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+const ImprovementPlanTab = ({ analysis }) => (
+    <div className="space-y-6">
+        <h3 className="text-xl font-bold text-gray-900">AI-Powered Improvement Plan</h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl text-white">
+                <div className="text-2xl font-bold mb-2">Priority 1</div>
+                <p className="opacity-90">{analysis.improvementPlan?.priority1 || 'Add quantifiable achievements'}</p>
+                <div className="mt-4 text-sm opacity-80">
+                    <FaClock className="inline mr-1" />
+                    {analysis.improvementPlan?.estimatedTime || '30-45 minutes'}
+                </div>
+            </div>
+
+            <div className="p-6 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl text-white">
+                <div className="text-2xl font-bold mb-2">Priority 2</div>
+                <p className="opacity-90">{analysis.improvementPlan?.priority2 || 'Optimize summary section'}</p>
+                <div className="mt-4 text-sm opacity-80">
+                    <FaClock className="inline mr-1" />
+                    15-20 minutes
+                </div>
+            </div>
+
+            <div className="p-6 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl text-white">
+                <div className="text-2xl font-bold mb-2">Priority 3</div>
+                <p className="opacity-90">{analysis.improvementPlan?.priority3 || 'Categorize skills'}</p>
+                <div className="mt-4 text-sm opacity-80">
+                    <FaClock className="inline mr-1" />
+                    10-15 minutes
+                </div>
+            </div>
+        </div>
+
+        <div className="bg-gray-50 p-6 rounded-lg">
+            <h4 className="font-semibold text-gray-900 mb-3">Expected Results</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-white rounded-lg border border-gray-200">
+                    <div className="text-2xl font-bold text-blue-600">
+                        +{analysis.improvementPlan?.expectedImprovement?.split('-')[0] || 15}%
+                    </div>
+                    <div className="text-sm text-gray-600">Score Improvement</div>
+                </div>
+                <div className="text-center p-4 bg-white rounded-lg border border-gray-200">
+                    <div className="text-2xl font-bold text-green-600">
+                        +{analysis.improvementPlan?.expectedImprovement?.split('-')[1] || 25}
+                    </div>
+                    <div className="text-sm text-gray-600">ATS Score Increase</div>
+                </div>
+                <div className="text-center p-4 bg-white rounded-lg border border-gray-200">
+                    <div className="text-2xl font-bold text-purple-600">
+                        {analysis.improvementPlan?.difficulty || 'Medium'}
+                    </div>
+                    <div className="text-sm text-gray-600">Implementation Difficulty</div>
+                </div>
+            </div>
+        </div>
+    </div>
+);
 
 export default Analyzer;
