@@ -1,513 +1,444 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+// src/pages/BuilderHome.jsx
+import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-    FaArrowLeft,
-    FaPalette,
+    FaPlus,
+    FaUpload,
+    FaFilePdf,
+    FaFileWord,
     FaFileAlt,
+    FaLink,
+    FaCloudUploadAlt,
+    FaArrowRight,
     FaRocket,
-    FaBriefcase,
-    FaPaintBrush,
-    FaUser,
-    FaCheck,
-    FaEye,
-    FaDownload,
-    FaSave,
+    FaSync,
     FaMagic,
-    FaLightbulb,
-    FaStar,
-    FaClock,
-    FaCrown,
-    FaShieldAlt,
-    FaMobileAlt,
-    FaDesktop
+    FaChevronRight,
+    FaTimes,
+    FaCheck
 } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
-import { useResume } from '../context/ResumeContext';
 import toast from 'react-hot-toast';
 
 const BuilderHome = () => {
-    const { user } = useAuth();
-    const { createResume, loading: resumeLoading } = useResume();
     const navigate = useNavigate();
-    const { id } = useParams(); // For editing existing resumes
+    const fileInputRef = useRef(null);
+    const urlInputRef = useRef(null);
 
-    const [step, setStep] = useState(1);
-    const [selectedTemplate, setSelectedTemplate] = useState(null);
-    const [resumeTitle, setResumeTitle] = useState('');
-    const [useAI, setUseAI] = useState(false);
+    const [uploadMethod, setUploadMethod] = useState('browse'); // 'browse' or 'url'
+    const [selectedFiles, setSelectedFiles] = useState([]);
+    const [isDragging, setIsDragging] = useState(false);
+    const [url, setUrl] = useState('');
+    const [uploading, setUploading] = useState(false);
 
-    const templates = [
-        {
-            id: 'modern',
-            name: 'Modern',
-            icon: <FaRocket />,
-            color: 'from-blue-500 to-cyan-500',
-            description: 'Clean, contemporary design perfect for tech and creative industries',
-            category: 'Popular',
-            features: ['ATS Friendly', 'Modern Layout', 'Color Customizable'],
-            preview: 'bg-gradient-to-br from-blue-400 to-cyan-300',
-            stats: { rating: 4.8, users: '12k+' }
-        },
-        {
-            id: 'professional',
-            name: 'Professional',
-            icon: <FaBriefcase />,
-            color: 'from-indigo-500 to-purple-500',
-            description: 'Traditional format preferred by corporate recruiters',
-            category: 'Corporate',
-            features: ['Traditional', 'Corporate Ready', 'Formal Layout'],
-            preview: 'bg-gradient-to-br from-indigo-400 to-purple-300',
-            stats: { rating: 4.6, users: '8k+' }
-        },
-        {
-            id: 'creative',
-            name: 'Creative',
-            icon: <FaPaintBrush />,
-            color: 'from-pink-500 to-rose-500',
-            description: 'For designers, artists, and creative professionals',
-            category: 'Creative',
-            features: ['Visual Focus', 'Portfolio Style', 'Unique Layout'],
-            preview: 'bg-gradient-to-br from-pink-400 to-rose-300',
-            stats: { rating: 4.7, users: '6k+' }
-        },
-        {
-            id: 'classic',
-            name: 'Classic',
-            icon: <FaFileAlt />,
-            color: 'from-emerald-500 to-teal-500',
-            description: 'Timeless design that works for all industries',
-            category: 'All-Purpose',
-            features: ['Clean Layout', 'Easy to Read', 'Universal Appeal'],
-            preview: 'bg-gradient-to-br from-emerald-400 to-teal-300',
-            stats: { rating: 4.5, users: '10k+' }
-        },
-        {
-            id: 'minimal',
-            name: 'Minimal',
-            icon: <FaUser />,
-            color: 'from-gray-600 to-gray-800',
-            description: 'Simple and clean for maximum readability',
-            category: 'Minimalist',
-            features: ['Ultra Clean', 'Focus on Content', 'Fast Loading'],
-            preview: 'bg-gradient-to-br from-gray-400 to-gray-600',
-            stats: { rating: 4.4, users: '5k+' }
-        },
-        {
-            id: 'executive',
-            name: 'Executive',
-            icon: <FaCrown />,
-            color: 'from-amber-500 to-orange-500',
-            description: 'Premium template for senior-level professionals',
-            category: 'Premium',
-            features: ['Premium Design', 'Leadership Focus', 'Detailed Sections'],
-            preview: 'bg-gradient-to-br from-amber-400 to-orange-300',
-            stats: { rating: 4.9, users: '3k+' }
+    const handleNewResume = () => {
+        navigate('/builder');
+    };
+
+    const handleFileSelect = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (e) => {
+        const files = Array.from(e.target.files);
+        const validFiles = files.filter(file => {
+            const validTypes = [
+                'application/pdf',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'text/plain',
+                'text/html'
+            ];
+            const validExtensions = ['.pdf', '.doc', '.docx', '.txt', '.rtf'];
+            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+
+            return validTypes.includes(file.type) || validExtensions.includes(fileExtension);
+        });
+
+        if (validFiles.length === 0) {
+            toast.error('Please select valid files (PDF, DOC, DOCX, TXT, RTF)');
+            return;
         }
-    ];
 
-    const aiFeatures = [
-        'Auto-generate professional summaries',
-        'Optimize keywords for ATS systems',
-        'Suggest action verbs and achievements',
-        'Format validation and suggestions',
-        'Industry-specific recommendations'
-    ];
+        setSelectedFiles(prev => [...prev, ...validFiles]);
+        toast.success(`${validFiles.length} file(s) selected`);
+    };
 
-    const handleTemplateSelect = (template) => {
-        setSelectedTemplate(template);
-        if (!resumeTitle) {
-            setResumeTitle(`${user?.name || user?.firstName || 'My'} ${template.name} Resume`);
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setIsDragging(false);
+
+        const files = Array.from(e.dataTransfer.files);
+        const validFiles = files.filter(file => {
+            const validTypes = [
+                'application/pdf',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'text/plain',
+                'text/html'
+            ];
+            const validExtensions = ['.pdf', '.doc', '.docx', '.txt', '.rtf'];
+            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+
+            return validTypes.includes(file.type) || validExtensions.includes(fileExtension);
+        });
+
+        if (validFiles.length > 0) {
+            setSelectedFiles(prev => [...prev, ...validFiles]);
+            toast.success(`${validFiles.length} file(s) dropped successfully`);
+        } else {
+            toast.error('Please drop valid files (PDF, DOC, DOCX, TXT, RTF)');
         }
     };
 
-    const handleStartBuilding = async () => {
-        if (!selectedTemplate) {
-            toast.error('Please select a template to continue');
+    const removeFile = (index) => {
+        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleUrlUpload = () => {
+        if (!url.trim()) {
+            toast.error('Please enter a valid URL');
             return;
         }
 
-        if (!resumeTitle.trim()) {
-            toast.error('Please enter a resume title');
+        // Validate URL
+        const urlPattern = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
+        if (!urlPattern.test(url)) {
+            toast.error('Please enter a valid URL');
             return;
         }
 
-        try {
-            // Create a new resume with the selected template
-            const newResume = await createResume({
-                title: resumeTitle,
-                template: selectedTemplate.id,
-                useAI: useAI
+        setUploading(true);
+        toast.success('Processing URL...');
+
+        // Simulate upload/processing
+        setTimeout(() => {
+            setUploading(false);
+            navigate('/builder', {
+                state: {
+                    source: 'url',
+                    url: url,
+                    processed: true
+                }
             });
-
-            toast.success('Resume created successfully!');
-
-            // Navigate to the resume editor
-            navigate(`/builder/${newResume.id}`);
-        } catch (error) {
-            console.error('Error creating resume:', error);
-            toast.error(error.message || 'Failed to create resume');
-        }
+        }, 1500);
     };
 
-    const handleBack = () => {
-        navigate('/dashboard');
+    const handleUpload = () => {
+        if (selectedFiles.length === 0) {
+            toast.error('Please select files to upload');
+            return;
+        }
+
+        setUploading(true);
+        toast.success('Processing files...');
+
+        // Simulate upload/processing
+        setTimeout(() => {
+            setUploading(false);
+            navigate('/builder', {
+                state: {
+                    source: 'files',
+                    files: selectedFiles,
+                    processed: true
+                }
+            });
+        }, 2000);
     };
 
-    // If editing an existing resume, load it
-    useEffect(() => {
-        if (id) {
-            // You would fetch the existing resume here
-            // For now, we'll just show the builder
-            setStep(2);
+    const getFileIcon = (fileName) => {
+        const extension = fileName.split('.').pop().toLowerCase();
+        switch (extension) {
+            case 'pdf': return <FaFilePdf className="text-red-500 text-xl" />;
+            case 'doc':
+            case 'docx': return <FaFileWord className="text-blue-500 text-xl" />;
+            case 'txt':
+            case 'rtf': return <FaFileAlt className="text-gray-500 text-xl" />;
+            default: return <FaFileAlt className="text-gray-500 text-xl" />;
         }
-    }, [id]);
+    };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+        <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50">
             {/* Header */}
-            <header className="bg-white shadow-sm border-b">
+            <header className="bg-white shadow-sm">
                 <div className="container mx-auto px-4 py-6">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <button
-                                onClick={handleBack}
-                                className="p-2 hover:bg-gray-100 rounded-lg transition"
-                            >
-                                <FaArrowLeft className="text-gray-600" />
-                            </button>
-                            <div>
-                                <h1 className="text-2xl font-bold text-gray-900">
-                                    {id ? 'Edit Resume' : 'Build New Resume'}
-                                </h1>
-                                <p className="text-gray-600">
-                                    {step === 1 ? 'Choose a template' : step === 2 ? 'Customize your resume' : 'Preview & Download'}
-                                </p>
-                            </div>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900">Resume Builder</h1>
+                            <p className="text-gray-600">Create your professional resume</p>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
-                                <FaUser className="text-blue-500" />
-                                <span>{user?.name || user?.email || 'User'}</span>
-                            </div>
-                            <Link
-                                to="/dashboard"
-                                className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-                            >
-                                Back to Dashboard
-                            </Link>
-                        </div>
+                        <button
+                            onClick={() => navigate('/dashboard')}
+                            className="px-4 py-2 text-gray-600 hover:text-gray-900 transition"
+                        >
+                            Back to Dashboard
+                        </button>
                     </div>
                 </div>
             </header>
 
             <main className="container mx-auto px-4 py-8">
-                {/* Progress Steps */}
-                <div className="max-w-4xl mx-auto mb-12">
-                    <div className="flex justify-between items-center relative">
-                        {/* Progress line */}
-                        <div className="absolute top-4 left-0 right-0 h-1 bg-gray-200 -z-10"></div>
-                        <div
-                            className="absolute top-4 left-0 h-1 bg-blue-600 -z-10 transition-all duration-500"
-                            style={{ width: step === 1 ? '25%' : step === 2 ? '75%' : '100%' }}
-                        ></div>
+                <div className="max-w-4xl mx-auto">
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-center mb-12"
+                    >
+                        <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                            How would you like to create your resume?
+                        </h2>
+                        <p className="text-gray-600 text-lg">
+                            Choose your starting point below
+                        </p>
+                    </motion.div>
 
-                        {/* Steps */}
-                        {[
-                            { number: 1, label: 'Template', icon: <FaPalette /> },
-                            { number: 2, label: 'Content', icon: <FaFileAlt /> },
-                            { number: 3, label: 'Design', icon: <FaPaintBrush /> },
-                            { number: 4, label: 'Download', icon: <FaDownload /> }
-                        ].map((stepItem) => (
-                            <div key={stepItem.number} className="flex flex-col items-center">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${step >= stepItem.number
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-white border-2 border-gray-300 text-gray-400'
-                                    }`}>
-                                    {step >= stepItem.number ? stepItem.number : stepItem.icon}
-                                </div>
-                                <span className={`mt-2 text-sm font-medium ${step >= stepItem.number ? 'text-blue-600' : 'text-gray-500'
-                                    }`}>
-                                    {stepItem.label}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Main Content */}
-                <div className="max-w-6xl mx-auto">
-                    {/* Step 1: Template Selection */}
-                    {step === 1 && (
+                    {/* Options Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+                        {/* New Resume Card */}
                         <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-white rounded-2xl shadow-lg border p-8"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.1 }}
+                            className="bg-white rounded-2xl shadow-xl border-2 border-blue-100 overflow-hidden hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] group cursor-pointer"
+                            onClick={handleNewResume}
                         >
-                            <div className="text-center mb-8">
-                                <h2 className="text-3xl font-bold text-gray-900 mb-3">
-                                    Choose Your Template
-                                </h2>
-                                <p className="text-gray-600 max-w-2xl mx-auto">
-                                    Select a professionally designed template. You can always change the design later.
+                            <div className="p-8">
+                                <div className="p-4 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl inline-block mb-6 group-hover:scale-110 transition-transform duration-300">
+                                    <FaPlus className="text-white text-3xl" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                                    Start Fresh
+                                </h3>
+                                <p className="text-gray-600 mb-6">
+                                    Build a new resume from scratch with our smart templates
                                 </p>
-                            </div>
-
-                            {/* AI Assistant Toggle */}
-                            <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-                                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-blue-100 rounded-full">
-                                            <FaMagic className="text-blue-600 text-xl" />
-                                        </div>
-                                        <div>
-                                            <h3 className="font-semibold text-gray-900">AI Assistant</h3>
-                                            <p className="text-sm text-gray-600">
-                                                Get AI-powered suggestions for your resume content
-                                            </p>
-                                        </div>
+                                <div className="space-y-3">
+                                    <div className="flex items-center text-sm text-gray-600">
+                                        <FaCheck className="text-green-500 mr-2" />
+                                        <span>AI-powered suggestions</span>
                                     </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            className="sr-only peer"
-                                            checked={useAI}
-                                            onChange={(e) => setUseAI(e.target.value)}
-                                        />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                        <span className="ml-3 text-sm font-medium text-gray-900">
-                                            {useAI ? 'AI Enabled' : 'Enable AI'}
-                                        </span>
-                                    </label>
+                                    <div className="flex items-center text-sm text-gray-600">
+                                        <FaCheck className="text-green-500 mr-2" />
+                                        <span>Professional templates</span>
+                                    </div>
+                                    <div className="flex items-center text-sm text-gray-600">
+                                        <FaCheck className="text-green-500 mr-2" />
+                                        <span>Real-time preview</span>
+                                    </div>
                                 </div>
-
-                                {useAI && (
-                                    <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: 'auto' }}
-                                        className="mt-6 pt-6 border-t border-blue-200"
-                                    >
-                                        <h4 className="font-medium text-gray-900 mb-3">AI Features Included:</h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                            {aiFeatures.map((feature, index) => (
-                                                <div key={index} className="flex items-center gap-2 text-sm text-gray-600">
-                                                    <FaCheck className="text-green-500 text-xs" />
-                                                    <span>{feature}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </div>
-
-                            {/* Template Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                                {templates.map((template) => (
-                                    <motion.div
-                                        key={template.id}
-                                        whileHover={{ y: -5 }}
-                                        className={`bg-white rounded-xl border-2 ${selectedTemplate?.id === template.id
-                                            ? 'border-blue-500 ring-2 ring-blue-100'
-                                            : 'border-gray-200 hover:border-blue-300'
-                                            } overflow-hidden cursor-pointer transition-all`}
-                                        onClick={() => handleTemplateSelect(template)}
-                                    >
-                                        {/* Template Preview */}
-                                        <div className="relative h-40">
-                                            <div className={`${template.preview} h-full`}>
-                                                {/* Mock resume content */}
-                                                <div className="absolute inset-0 p-4">
-                                                    <div className="bg-white/90 rounded-lg p-3 h-full">
-                                                        <div className="flex items-center gap-2 mb-3">
-                                                            <div className="w-8 h-8 rounded-full bg-gray-300"></div>
-                                                            <div className="flex-1">
-                                                                <div className="h-2 bg-gray-300 rounded w-3/4 mb-1"></div>
-                                                                <div className="h-2 bg-gray-200 rounded w-1/2"></div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <div className="h-2 bg-gray-300 rounded"></div>
-                                                            <div className="h-2 bg-gray-300 rounded"></div>
-                                                            <div className="h-2 bg-gray-200 rounded w-5/6"></div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {selectedTemplate?.id === template.id && (
-                                                <div className="absolute top-3 right-3">
-                                                    <div className="bg-blue-600 text-white p-1 rounded-full">
-                                                        <FaCheck className="text-xs" />
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Template Info */}
-                                        <div className="p-4">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`p-2 rounded-lg ${template.color.split(' ')[0].replace('from-', 'bg-')}`}>
-                                                        {template.icon}
-                                                    </span>
-                                                    <h3 className="font-semibold text-gray-900">{template.name}</h3>
-                                                </div>
-                                                <span className={`px-2 py-1 text-xs rounded-full ${template.category === 'Premium'
-                                                    ? 'bg-amber-100 text-amber-800'
-                                                    : 'bg-gray-100 text-gray-800'
-                                                    }`}>
-                                                    {template.category}
-                                                </span>
-                                            </div>
-                                            <p className="text-sm text-gray-600 mb-3">{template.description}</p>
-                                            <div className="flex items-center justify-between text-sm">
-                                                <div className="flex items-center gap-2">
-                                                    <FaStar className="text-yellow-500" />
-                                                    <span className="font-medium">{template.stats.rating}</span>
-                                                    <span className="text-gray-500">({template.stats.users})</span>
-                                                </div>
-                                                <div className="flex items-center gap-1 text-gray-500">
-                                                    <FaDesktop />
-                                                    <FaMobileAlt />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </motion.div>
-                                ))}
-                            </div>
-
-                            {/* Resume Title Input */}
-                            <div className="max-w-md mx-auto mb-8">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Resume Title
-                                </label>
-                                <input
-                                    type="text"
-                                    value={resumeTitle}
-                                    onChange={(e) => setResumeTitle(e.target.value)}
-                                    placeholder="e.g., Software Engineer Resume 2024"
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                />
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                                <button
-                                    onClick={handleStartBuilding}
-                                    disabled={!selectedTemplate || resumeLoading}
-                                    className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition font-semibold flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {resumeLoading ? (
-                                        <>
-                                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                                            Creating...
-                                        </>
-                                    ) : (
-                                        <>
-                                            Start Building
-                                            <FaArrowRight />
-                                        </>
-                                    )}
-                                </button>
-                                <button
-                                    onClick={handleBack}
-                                    className="px-8 py-4 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-
-                            {/* Quick Tips */}
-                            <div className="mt-8 pt-8 border-t">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <FaLightbulb className="text-yellow-500 text-xl" />
-                                    <h4 className="font-semibold text-gray-900">Quick Tips</h4>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div className="p-4 bg-blue-50 rounded-lg">
-                                        <h5 className="font-medium text-gray-900 mb-2">Modern Template</h5>
-                                        <p className="text-sm text-gray-600">
-                                            Best for tech roles and creative positions. Features clean layout with modern design elements.
-                                        </p>
-                                    </div>
-                                    <div className="p-4 bg-green-50 rounded-lg">
-                                        <h5 className="font-medium text-gray-900 mb-2">Professional Template</h5>
-                                        <p className="text-sm text-gray-600">
-                                            Preferred by corporate recruiters. Traditional format with formal structure.
-                                        </p>
-                                    </div>
-                                    <div className="p-4 bg-purple-50 rounded-lg">
-                                        <h5 className="font-medium text-gray-900 mb-2">AI Assistant</h5>
-                                        <p className="text-sm text-gray-600">
-                                            Enable AI to get content suggestions, ATS optimization, and formatting help.
-                                        </p>
-                                    </div>
+                                <div className="mt-8 pt-6 border-t">
+                                    <button className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition flex items-center justify-center gap-2 group-hover:gap-3 duration-300">
+                                        <span>Create New Resume</span>
+                                        <FaArrowRight />
+                                    </button>
                                 </div>
                             </div>
                         </motion.div>
-                    )}
+
+                        {/* Upload Resume Card */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.2 }}
+                            className="bg-white rounded-2xl shadow-xl border-2 border-green-100 overflow-hidden"
+                        >
+                            <div className="p-8">
+                                <div className="p-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl inline-block mb-6">
+                                    <FaUpload className="text-white text-3xl" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                                    Upload & Enhance
+                                </h3>
+                                <p className="text-gray-600 mb-6">
+                                    Upload your existing resume and let AI enhance it
+                                </p>
+
+                                {/* Upload Method Tabs */}
+                                <div className="flex border-b mb-6">
+                                    <button
+                                        className={`flex-1 py-3 text-center font-medium ${uploadMethod === 'browse' ? 'text-green-600 border-b-2 border-green-600' : 'text-gray-500'}`}
+                                        onClick={() => setUploadMethod('browse')}
+                                    >
+                                        Browse Files
+                                    </button>
+                                    <button
+                                        className={`flex-1 py-3 text-center font-medium ${uploadMethod === 'url' ? 'text-green-600 border-b-2 border-green-600' : 'text-gray-500'}`}
+                                        onClick={() => setUploadMethod('url')}
+                                    >
+                                        Enter URL
+                                    </button>
+                                </div>
+
+                                {/* Browse Files Section */}
+                                {uploadMethod === 'browse' && (
+                                    <div>
+                                        <div
+                                            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${isDragging ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-green-400 hover:bg-green-50'}`}
+                                            onClick={handleFileSelect}
+                                            onDragOver={handleDragOver}
+                                            onDragLeave={handleDragLeave}
+                                            onDrop={handleDrop}
+                                        >
+                                            <input
+                                                type="file"
+                                                ref={fileInputRef}
+                                                onChange={handleFileChange}
+                                                className="hidden"
+                                                multiple
+                                                accept=".pdf,.doc,.docx,.txt,.rtf"
+                                            />
+                                            <FaCloudUploadAlt className="text-4xl text-gray-400 mx-auto mb-4" />
+                                            <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                                                {isDragging ? 'Drop files here' : 'Drag & drop files here'}
+                                            </h4>
+                                            <p className="text-gray-600 mb-4">
+                                                or click to browse files
+                                            </p>
+                                            <p className="text-sm text-gray-500">
+                                                Supports: PDF, DOC, DOCX, TXT, RTF
+                                            </p>
+                                        </div>
+
+                                        {/* Selected Files */}
+                                        {selectedFiles.length > 0 && (
+                                            <div className="mt-6">
+                                                <h4 className="font-semibold text-gray-900 mb-3">
+                                                    Selected Files ({selectedFiles.length})
+                                                </h4>
+                                                <div className="space-y-2 max-h-48 overflow-y-auto">
+                                                    {selectedFiles.map((file, index) => (
+                                                        <div
+                                                            key={index}
+                                                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                {getFileIcon(file.name)}
+                                                                <div>
+                                                                    <p className="font-medium text-gray-900">
+                                                                        {file.name}
+                                                                    </p>
+                                                                    <p className="text-sm text-gray-500">
+                                                                        {(file.size / 1024).toFixed(2)} KB
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    removeFile(index);
+                                                                }}
+                                                                className="p-1 text-gray-400 hover:text-red-500"
+                                                            >
+                                                                <FaTimes />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* URL Section */}
+                                {uploadMethod === 'url' && (
+                                    <div>
+                                        <div className="mb-4">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Enter resume URL
+                                            </label>
+                                            <div className="flex gap-2">
+                                                <div className="flex-1">
+                                                    <input
+                                                        type="url"
+                                                        ref={urlInputRef}
+                                                        value={url}
+                                                        onChange={(e) => setUrl(e.target.value)}
+                                                        placeholder="https://example.com/your-resume.pdf"
+                                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                                    />
+                                                </div>
+                                                <button
+                                                    onClick={handleUrlUpload}
+                                                    disabled={!url.trim() || uploading}
+                                                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                                                >
+                                                    {uploading ? 'Processing...' : 'Fetch'}
+                                                </button>
+                                            </div>
+                                            <p className="text-sm text-gray-500 mt-2">
+                                                Enter URL of your resume (PDF, DOC, DOCX formats supported)
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="mt-6 pt-6 border-t">
+                                    <button
+                                        onClick={uploadMethod === 'browse' ? handleUpload : handleUrlUpload}
+                                        disabled={(uploadMethod === 'browse' && selectedFiles.length === 0) ||
+                                            (uploadMethod === 'url' && !url.trim()) ||
+                                            uploading}
+                                        className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                                    >
+                                        <FaMagic />
+                                        {uploading ? 'Processing...' : 'Enhance with AI'}
+                                        <FaChevronRight />
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+
+                    {/* Features Section */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-8 text-white"
+                    >
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div className="text-center">
+                                <div className="p-3 bg-white/20 rounded-full inline-block mb-4">
+                                    <FaRocket className="text-2xl" />
+                                </div>
+                                <h4 className="text-xl font-bold mb-2">AI-Powered</h4>
+                                <p className="text-indigo-100">
+                                    Smart suggestions and optimization using AI
+                                </p>
+                            </div>
+                            <div className="text-center">
+                                <div className="p-3 bg-white/20 rounded-full inline-block mb-4">
+                                    <FaSync className="text-2xl" />
+                                </div>
+                                <h4 className="text-xl font-bold mb-2">Easy Conversion</h4>
+                                <p className="text-indigo-100">
+                                    Convert any format to professional resume
+                                </p>
+                            </div>
+                            <div className="text-center">
+                                <div className="p-3 bg-white/20 rounded-full inline-block mb-4">
+                                    <FaMagic className="text-2xl" />
+                                </div>
+                                <h4 className="text-xl font-bold mb-2">Instant Enhancement</h4>
+                                <p className="text-indigo-100">
+                                    Improve your existing resume instantly
+                                </p>
+                            </div>
+                        </div>
+                    </motion.div>
                 </div>
             </main>
-
-            {/* Footer */}
-            <footer className="mt-12 py-8 border-t bg-white">
-                <div className="container mx-auto px-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        <div>
-                            <h4 className="font-semibold text-gray-900 mb-4">Need Help?</h4>
-                            <ul className="space-y-2 text-sm text-gray-600">
-                                <li>
-                                    <Link to="/help/templates" className="hover:text-blue-600 transition">
-                                        Template Guide
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link to="/help/ai" className="hover:text-blue-600 transition">
-                                        Using AI Assistant
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link to="/help/examples" className="hover:text-blue-600 transition">
-                                        Resume Examples
-                                    </Link>
-                                </li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 className="font-semibold text-gray-900 mb-4">Features</h4>
-                            <ul className="space-y-2 text-sm text-gray-600">
-                                <li className="flex items-center gap-2">
-                                    <FaShieldAlt className="text-green-500" />
-                                    <span>ATS Friendly</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <FaMobileAlt className="text-blue-500" />
-                                    <span>Mobile Responsive</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <FaDownload className="text-purple-500" />
-                                    <span>Multiple Formats</span>
-                                </li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 className="font-semibold text-gray-900 mb-4">Support</h4>
-                            <p className="text-sm text-gray-600 mb-3">
-                                Having trouble? Contact our support team for assistance.
-                            </p>
-                            <Link
-                                to="/contact"
-                                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
-                            >
-                                Contact Support
-                                <FaArrowRight className="text-xs" />
-                            </Link>
-                        </div>
-                    </div>
-                    <div className="mt-8 pt-8 border-t text-center text-sm text-gray-500">
-                        <p>© {new Date().getFullYear()} AI Resume Builder. All templates are professionally designed and ATS optimized.</p>
-                    </div>
-                </div>
-            </footer>
         </div>
     );
 };
