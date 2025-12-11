@@ -1,3 +1,4 @@
+// src/pages/Login.jsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -6,17 +7,6 @@ import { FcGoogle } from 'react-icons/fc';
 import { FaFacebook, FaEye, FaEyeSlash, FaEnvelope, FaLock } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
-// Hidden admin credentials (not visible in UI)
-const HIDDEN_ADMIN_CREDENTIALS = {
-    username: 'resume100@test.com', // Also works as email
-    password: 'resumetest123', // Strong admin password
-    name: 'AI Resume Administrator',
-    role: 'admin'
-};
-
-// Regular expressions for validation
-const EMAIL_REGEX = /\S+@\S+\.\S+/;
-
 const Login = () => {
     const [formData, setFormData] = useState({
         email: '',
@@ -24,224 +14,18 @@ const Login = () => {
     });
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [socialLoading, setSocialLoading] = useState({ google: false, facebook: false });
-    const [rememberMe, setRememberMe] = useState(false);
-    const [isAdminAttempt, setIsAdminAttempt] = useState(false);
 
-    const { login, socialLogin, demoLogin, isAuthenticated, user } = useAuth();
+    const { login, isAuthenticated, user, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Compute redirect target
-    const getRedirectTarget = () => {
-        const searchParams = new URLSearchParams(location.search);
-        const redirectQuery = searchParams.get('redirect');
-        return location.state?.from?.pathname || redirectQuery || '/dashboard';
-    };
-
-    const [from, setFrom] = useState(getRedirectTarget());
-
     // Redirect if already authenticated
     useEffect(() => {
-        if (isAuthenticated) {
-            // Check user role and redirect accordingly
-            if (user?.role === 'admin') {
-                navigate('/admin/dashboard', { replace: true });
-            } else {
-                navigate(from, { replace: true });
-            }
+        if (isAuthenticated && !authLoading) {
+            navigate('/dashboard', { replace: true });
         }
-    }, [isAuthenticated, user, from, navigate]);
+    }, [isAuthenticated, authLoading, navigate]);
 
-    // Check if input matches admin credentials (hidden check)
-    useEffect(() => {
-        const email = formData.email.trim().toLowerCase();
-        const isAdminEmail = email === HIDDEN_ADMIN_CREDENTIALS.username.toLowerCase();
-        setIsAdminAttempt(isAdminEmail);
-    }, [formData.email]);
-
-    // ==================== GOOGLE AUTH SETUP ====================
-    useEffect(() => {
-        const loadGoogleSDK = () => {
-            if (window.google) return;
-
-            const script = document.createElement('script');
-            script.src = 'https://accounts.google.com/gsi/client';
-            script.async = true;
-            script.defer = true;
-            script.onload = initializeGoogleAuth;
-            document.head.appendChild(script);
-        };
-
-        loadGoogleSDK();
-
-        return () => {
-            const script = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-            if (script) {
-                document.head.removeChild(script);
-            }
-        };
-    }, []);
-
-    const initializeGoogleAuth = () => {
-        if (!window.google) return;
-
-        try {
-            window.google.accounts.id.initialize({
-                client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID_HERE',
-                callback: handleGoogleResponse,
-                auto_select: false,
-            });
-            console.log('✅ Google SDK initialized');
-        } catch (error) {
-            console.error('❌ Failed to initialize Google Auth:', error);
-        }
-    };
-
-    const handleGoogleResponse = async (response) => {
-        setSocialLoading(prev => ({ ...prev, google: true }));
-
-        try {
-            const socialData = {
-                token: response.credential,
-                provider: 'google'
-            };
-
-            const result = await socialLogin('google', socialData);
-            if (result.success) {
-                toast.success('🎉 Successfully logged in with Google!');
-                navigate(from, { replace: true });
-            } else {
-                toast.error(result.message || 'Google login failed');
-            }
-        } catch (error) {
-            console.error('❌ Google login error:', error);
-            toast.error('Google login failed. Please try again.');
-        } finally {
-            setSocialLoading(prev => ({ ...prev, google: false }));
-        }
-    };
-
-    const handleGoogleLogin = () => {
-        if (window.google) {
-            try {
-                window.google.accounts.id.prompt((notification) => {
-                    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                        const container = document.getElementById('googleButtonContainer');
-                        if (container) {
-                            window.google.accounts.id.renderButton(container, {
-                                theme: 'outline',
-                                size: 'large',
-                                width: '100%',
-                                text: 'continue_with'
-                            });
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error('Google prompt error:', error);
-                toast.error('Google sign-in is not available. Please try again.');
-            }
-        } else {
-            toast.error('Google sign-in is loading. Please try again in a moment.');
-        }
-    };
-
-    // ==================== FACEBOOK AUTH SETUP ====================
-    useEffect(() => {
-        const loadFacebookSDK = () => {
-            if (window.FB) return;
-
-            const script = document.createElement('script');
-            script.async = true;
-            script.defer = true;
-            script.crossOrigin = 'anonymous';
-            script.src = 'https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0&appId=' +
-                (import.meta.env.VITE_FACEBOOK_APP_ID || 'YOUR_FACEBOOK_APP_ID_HERE');
-
-            script.onload = initializeFacebookAuth;
-            document.head.appendChild(script);
-        };
-
-        loadFacebookSDK();
-
-        return () => {
-            const script = document.querySelector('script[src*="facebook"]');
-            if (script) {
-                document.head.removeChild(script);
-            }
-        };
-    }, []);
-
-    const initializeFacebookAuth = () => {
-        if (!window.FB) return;
-
-        try {
-            window.FB.init({
-                appId: import.meta.env.VITE_FACEBOOK_APP_ID || 'YOUR_FACEBOOK_APP_ID_HERE',
-                xfbml: true,
-                version: 'v18.0'
-            });
-            console.log('✅ Facebook SDK initialized');
-        } catch (error) {
-            console.error('❌ Failed to initialize Facebook Auth:', error);
-        }
-    };
-
-    const handleFacebookLogin = async () => {
-        setSocialLoading(prev => ({ ...prev, facebook: true }));
-
-        try {
-            if (!window.FB) {
-                toast.error('Facebook SDK is not loaded. Please try again.');
-                setSocialLoading(prev => ({ ...prev, facebook: false }));
-                return;
-            }
-
-            window.FB.login(async (response) => {
-                if (response.authResponse) {
-                    const accessToken = response.authResponse.accessToken;
-
-                    window.FB.api('/me', { fields: 'id,name,email,picture' }, async (userInfo) => {
-                        const socialData = {
-                            token: accessToken,
-                            provider: 'facebook',
-                            userData: {
-                                id: userInfo.id,
-                                name: userInfo.name,
-                                email: userInfo.email,
-                                picture: userInfo.picture?.data?.url
-                            }
-                        };
-
-                        try {
-                            const result = await socialLogin('facebook', socialData);
-                            if (result.success) {
-                                toast.success('🎉 Successfully logged in with Facebook!');
-                                navigate(from, { replace: true });
-                            } else {
-                                toast.error(result.message || 'Facebook login failed');
-                            }
-                        } catch (error) {
-                            console.error('❌ Facebook login error:', error);
-                            toast.error('Facebook login failed. Please try again.');
-                        } finally {
-                            setSocialLoading(prev => ({ ...prev, facebook: false }));
-                        }
-                    });
-                } else {
-                    console.log('User cancelled Facebook login or did not fully authorize.');
-                    setSocialLoading(prev => ({ ...prev, facebook: false }));
-                }
-            }, { scope: 'public_profile,email' });
-        } catch (error) {
-            console.error('❌ Facebook login error:', error);
-            toast.error('Facebook login failed. Please try again.');
-            setSocialLoading(prev => ({ ...prev, facebook: false }));
-        }
-    };
-
-    // ==================== EMAIL/PASSWORD HANDLERS ====================
     const handleChange = (e) => {
         setFormData(prev => ({
             ...prev,
@@ -258,81 +42,14 @@ const Login = () => {
             return;
         }
 
-        // Email validation for regular users
-        if (!isAdminAttempt && !EMAIL_REGEX.test(formData.email)) {
-            toast.error('Please enter a valid email address');
-            return;
-        }
-
         setIsLoading(true);
 
-        // Check for hidden admin login FIRST
-        const email = formData.email.trim().toLowerCase();
-        const password = formData.password.trim();
-
-        if (isAdminAttempt && email === HIDDEN_ADMIN_CREDENTIALS.username.toLowerCase()) {
-            // Validate admin password
-            if (password === HIDDEN_ADMIN_CREDENTIALS.password) {
-                // Simulate API call for admin authentication
-                setTimeout(() => {
-                    // Create admin user object
-                    const adminUser = {
-                        id: 'admin-' + Date.now(),
-                        email: HIDDEN_ADMIN_CREDENTIALS.username,
-                        name: HIDDEN_ADMIN_CREDENTIALS.name,
-                        role: 'admin',
-                        permissions: ['all'],
-                        createdAt: new Date().toISOString(),
-                        lastLogin: new Date().toISOString()
-                    };
-
-                    // Store admin session separately from regular users
-                    localStorage.setItem('adminToken', 'admin-jwt-' + Date.now());
-                    localStorage.setItem('adminUser', JSON.stringify(adminUser));
-                    localStorage.setItem('userRole', 'admin');
-                    localStorage.setItem('isAuthenticated', 'true');
-
-                    toast.success('🔐 Welcome Administrator! Redirecting to admin dashboard...');
-
-                    // Redirect to admin dashboard
-                    navigate('/admin/dashboard', { replace: true });
-
-                    setIsLoading(false);
-                }, 1000);
-                return;
-            } else {
-                // Wrong admin password - show generic error
-                toast.error('Invalid credentials. Please try again.');
-                setIsLoading(false);
-                return;
-            }
-        }
-
-        // Regular user login
         try {
             const result = await login(formData.email, formData.password);
 
             if (result.success) {
-                // Prevent regular users from using admin email
-                if (result.user?.email?.toLowerCase() === HIDDEN_ADMIN_CREDENTIALS.username.toLowerCase()) {
-                    // Clear the session
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
-                    localStorage.removeItem('isAuthenticated');
-
-                    toast.error('This email is reserved for administrators. Please use a different email for regular registration.');
-                    setIsLoading(false);
-                    return;
-                }
-
                 toast.success('🎉 Welcome back!');
-
-                // Check if user is admin from backend response
-                if (result.user?.role === 'admin') {
-                    navigate('/admin/dashboard', { replace: true });
-                } else {
-                    navigate('/dashboard', { replace: true });
-                }
+                navigate('/dashboard', { replace: true });
             } else {
                 toast.error(result.message || 'Login failed');
             }
@@ -348,26 +65,42 @@ const Login = () => {
     const handleDemoLogin = async () => {
         setIsLoading(true);
         try {
-            toast.loading('Attempting demo login...', { duration: 2000 });
+            toast.loading('Logging in with demo account...', { duration: 1500 });
 
-            const result = await demoLogin();
+            // Use demo credentials
+            const demoResult = await login('demo@example.com', 'demo123');
 
-            if (result.success) {
-                toast.success('🚀 Welcome to Demo Account! Redirecting to dashboard...');
-                setTimeout(() => navigate('/dashboard', { replace: true }), 500);
+            if (demoResult.success) {
+                toast.success('🚀 Welcome to Demo Account!');
+                navigate('/dashboard', { replace: true });
             } else {
-                toast.error(result.message || '❌ Demo account not available. Please check your connection.');
-                console.log('Demo login failed:', result.message);
+                toast.error('Demo login failed. Please try regular login.');
             }
         } catch (error) {
             console.error('❌ Demo login error:', error);
-            toast.error('Demo login failed. Please check your connection and try again.');
+            toast.error('Demo login failed. Please try again.');
         } finally {
             setIsLoading(false);
         }
     };
 
-    // ==================== ANIMATION VARIANTS ====================
+    // Handle Google Login (simplified)
+    const handleGoogleLogin = () => {
+        toast.loading('Google login is being set up...', { duration: 2000 });
+        setTimeout(() => {
+            toast.error('Google login is not configured yet. Please use email login or demo account.');
+        }, 2000);
+    };
+
+    // Handle Facebook Login (simplified)
+    const handleFacebookLogin = () => {
+        toast.loading('Facebook login is being set up...', { duration: 2000 });
+        setTimeout(() => {
+            toast.error('Facebook login is not configured yet. Please use email login or demo account.');
+        }, 2000);
+    };
+
+    // Animation variants
     const containerVariants = {
         hidden: { opacity: 0 },
         visible: {
@@ -390,7 +123,17 @@ const Login = () => {
         }
     };
 
-    // ==================== RENDER ====================
+    if (authLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
+                <div className="text-center">
+                    <div className="h-16 w-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-600 text-lg font-medium">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
             <motion.div
@@ -545,8 +288,6 @@ const Login = () => {
                                     id="remember-me"
                                     name="remember-me"
                                     type="checkbox"
-                                    checked={rememberMe}
-                                    onChange={(e) => setRememberMe(e.target.checked)}
                                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                     disabled={isLoading}
                                 />
@@ -590,45 +331,24 @@ const Login = () => {
 
                     {/* Social Login */}
                     <motion.div className="space-y-3" variants={itemVariants}>
-                        {/* Google Button Container */}
-                        <div id="googleButtonContainer" className="w-full flex justify-center" />
-
-                        {/* Google Manual Button (fallback) */}
+                        {/* Google Button */}
                         <button
                             onClick={handleGoogleLogin}
-                            disabled={socialLoading.google || isLoading}
+                            disabled={isLoading}
                             className="w-full flex items-center justify-center space-x-3 py-3 px-4 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                         >
-                            {socialLoading.google ? (
-                                <div className="flex items-center space-x-2">
-                                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                                    <span>Connecting...</span>
-                                </div>
-                            ) : (
-                                <>
-                                    <FcGoogle className="text-xl" />
-                                    <span>Continue with Google</span>
-                                </>
-                            )}
+                            <FcGoogle className="text-xl" />
+                            <span>Continue with Google</span>
                         </button>
 
                         {/* Facebook Button */}
                         <button
                             onClick={handleFacebookLogin}
-                            disabled={socialLoading.facebook || isLoading}
+                            disabled={isLoading}
                             className="w-full flex items-center justify-center space-x-3 py-3 px-4 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                         >
-                            {socialLoading.facebook ? (
-                                <div className="flex items-center space-x-2">
-                                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                                    <span>Connecting...</span>
-                                </div>
-                            ) : (
-                                <>
-                                    <FaFacebook className="text-xl text-blue-600" />
-                                    <span>Continue with Facebook</span>
-                                </>
-                            )}
+                            <FaFacebook className="text-xl text-blue-600" />
+                            <span>Continue with Facebook</span>
                         </button>
                     </motion.div>
 

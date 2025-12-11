@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import api from '../api/axiosConfig';
+import api from '../services/axiosConfig.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   FaUser, FaEnvelope, FaCamera, FaSave, FaLock, FaShieldAlt,

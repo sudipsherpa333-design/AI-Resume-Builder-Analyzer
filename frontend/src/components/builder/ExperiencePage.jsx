@@ -1,359 +1,123 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { FaTimes } from 'react-icons/fa';
 
-const ExperiencePage = ({ resumeData, onInputChange, onAddNew, onRemove, isStepValid }) => {
-    const experience = Array.isArray(resumeData.experience) ? resumeData.experience : [];
+const ExperiencePage = ({ resumeData, onInputChange, errors, setErrors }) => {
+    const [experiences, setExperiences] = useState(resumeData?.experience || []);
 
-    const handleChange = (id, field, value) => {
-        onInputChange('experience', field, value, id);
+    const addExperience = () => {
+        const newExp = {
+            jobTitle: '',
+            company: '',
+            startDate: '',
+            endDate: '',
+            current: false,
+            description: ''
+        };
+        const updated = [...experiences, newExp];
+        setExperiences(updated);
+        onInputChange('experience', updated);
     };
 
-    const addNewExperience = () => {
-        onAddNew('experience');
+    const updateExperience = (index, field, value) => {
+        const updated = [...experiences];
+        updated[index] = { ...updated[index], [field]: value };
+        setExperiences(updated);
+        onInputChange('experience', updated);
     };
 
-    const removeExperience = (id) => {
-        if (experience.length > 1) {
-            onRemove('experience', id);
-        }
+    const removeExperience = (index) => {
+        const updated = experiences.filter((_, i) => i !== index);
+        setExperiences(updated);
+        onInputChange('experience', updated);
     };
 
     return (
-        <div className="experience-page">
-            <div className="header">
-                <h2 className="title">Work Experience</h2>
-                <p className="subtitle">List your relevant work experience</p>
-            </div>
-
-            <div className="experience-list">
-                {experience.map((exp, index) => (
-                    <div key={exp.id} className="experience-card">
-                        <div className="card-header">
-                            <h3 className="card-title">
-                                Experience #{index + 1}
-                                {exp.jobTitle && exp.company && <span className="checkmark"> ✓</span>}
-                            </h3>
-                            {experience.length > 1 && (
-                                <button
-                                    onClick={() => removeExperience(exp.id)}
-                                    className="remove-button"
-                                >
-                                    Remove
-                                </button>
-                            )}
+        <div className="p-6">
+            <h3 className="text-2xl font-bold text-gray-900 mb-6">Work Experience</h3>
+            {experiences.map((exp, index) => (
+                <div key={index} className="mb-6 p-4 border border-gray-200 rounded-lg">
+                    <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-semibold text-gray-900">Experience #{index + 1}</h4>
+                        {index > 0 && (
+                            <button
+                                onClick={() => removeExperience(index)}
+                                className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1"
+                            >
+                                <FaTimes /> Remove
+                            </button>
+                        )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
+                            <input
+                                type="text"
+                                value={exp.jobTitle || ''}
+                                onChange={(e) => updateExperience(index, 'jobTitle', e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="Senior Software Engineer"
+                            />
                         </div>
-
-                        <div className="form">
-                            <div className="form-row">
-                                <div className="input-group">
-                                    <label className="label">Job Title *</label>
-                                    <input
-                                        type="text"
-                                        value={exp.jobTitle || ''}
-                                        onChange={(e) => handleChange(exp.id, 'jobTitle', e.target.value)}
-                                        className="input"
-                                        placeholder="Senior Software Engineer"
-                                    />
-                                </div>
-                                <div className="input-group">
-                                    <label className="label">Company *</label>
-                                    <input
-                                        type="text"
-                                        value={exp.company || ''}
-                                        onChange={(e) => handleChange(exp.id, 'company', e.target.value)}
-                                        className="input"
-                                        placeholder="Tech Company Inc"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="form-row">
-                                <div className="input-group">
-                                    <label className="label">Location</label>
-                                    <input
-                                        type="text"
-                                        value={exp.location || ''}
-                                        onChange={(e) => handleChange(exp.id, 'location', e.target.value)}
-                                        className="input"
-                                        placeholder="San Francisco, CA"
-                                    />
-                                </div>
-                                <div className="input-group">
-                                    <label className="checkbox-label">
-                                        <input
-                                            type="checkbox"
-                                            checked={exp.current || false}
-                                            onChange={(e) => handleChange(exp.id, 'current', e.target.checked)}
-                                            className="checkbox"
-                                        />
-                                        I currently work here
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div className="form-row">
-                                <div className="input-group">
-                                    <label className="label">Start Date *</label>
-                                    <input
-                                        type="month"
-                                        value={exp.startDate || ''}
-                                        onChange={(e) => handleChange(exp.id, 'startDate', e.target.value)}
-                                        className="input"
-                                    />
-                                </div>
-                                <div className="input-group">
-                                    <label className="label">
-                                        {exp.current ? 'Start Date' : 'End Date *'}
-                                    </label>
-                                    <input
-                                        type="month"
-                                        value={exp.endDate || ''}
-                                        onChange={(e) => handleChange(exp.id, 'endDate', e.target.value)}
-                                        className="input"
-                                        disabled={exp.current}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="input-group">
-                                <label className="label">Job Description</label>
-                                <textarea
-                                    value={exp.description || ''}
-                                    onChange={(e) => handleChange(exp.id, 'description', e.target.value)}
-                                    className="textarea"
-                                    placeholder="• Led development of scalable web applications using React and Node.js
-• Managed team of 5 developers
-• Improved application performance by 40%
-• Implemented CI/CD pipelines"
-                                    rows={6}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Company</label>
+                            <input
+                                type="text"
+                                value={exp.company || ''}
+                                onChange={(e) => updateExperience(index, 'company', e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="Tech Corp"
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                            <input
+                                type="month"
+                                value={exp.startDate || ''}
+                                onChange={(e) => updateExperience(index, 'startDate', e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                            <div className="flex items-center gap-4">
+                                <input
+                                    type="month"
+                                    value={exp.current ? '' : exp.endDate || ''}
+                                    onChange={(e) => updateExperience(index, 'endDate', e.target.value)}
+                                    disabled={exp.current}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
                                 />
-                                <div className="textarea-hint">
-                                    Use bullet points for better readability
-                                </div>
+                                <label className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={exp.current || false}
+                                        onChange={(e) => updateExperience(index, 'current', e.target.checked)}
+                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                    />
+                                    <span className="text-sm text-gray-700">Currently working here</span>
+                                </label>
                             </div>
                         </div>
                     </div>
-                ))}
-            </div>
-
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                        <textarea
+                            value={exp.description || ''}
+                            onChange={(e) => updateExperience(index, 'description', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24"
+                            placeholder="Describe your responsibilities and achievements..."
+                        />
+                    </div>
+                </div>
+            ))}
             <button
-                onClick={addNewExperience}
-                className="add-button"
+                onClick={addExperience}
+                className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition flex items-center justify-center gap-2 text-gray-600 hover:text-blue-600"
             >
-                + Add Another Experience
+                <span className="text-xl">+</span> Add Experience
             </button>
-
-            <div className="validation-section">
-                {isStepValid ? (
-                    <div className="valid-status">
-                        ✓ At least one experience added - Ready to continue
-                    </div>
-                ) : (
-                    <div className="invalid-status">
-                        ⚠ Please add at least one work experience with job title and company
-                    </div>
-                )}
-            </div>
-
-            <style jsx>{`
-                .experience-page {
-                    padding: 0;
-                    max-width: 100%;
-                }
-
-                .header {
-                    text-align: center;
-                    margin-bottom: 2rem;
-                }
-
-                .title {
-                    font-size: 2rem;
-                    font-weight: 700;
-                    color: #000;
-                    margin-bottom: 0.5rem;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                }
-
-                .subtitle {
-                    font-size: 1rem;
-                    color: #666;
-                    font-weight: 400;
-                }
-
-                .experience-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1.5rem;
-                    margin-bottom: 1.5rem;
-                }
-
-                .experience-card {
-                    background: #f8fafc;
-                    padding: 1.5rem;
-                    border-radius: 0.75rem;
-                    border: 1px solid #e5e7eb;
-                }
-
-                .card-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 1.25rem;
-                }
-
-                .card-title {
-                    font-size: 1.125rem;
-                    font-weight: 600;
-                    color: #000;
-                    margin: 0;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                }
-
-                .checkmark {
-                    color: #10b981;
-                    font-weight: bold;
-                }
-
-                .remove-button {
-                    padding: 0.5rem 1rem;
-                    background: #dc2626;
-                    color: white;
-                    border: none;
-                    border-radius: 0.375rem;
-                    font-size: 0.875rem;
-                    cursor: pointer;
-                    transition: background 0.3s ease;
-                }
-
-                .remove-button:hover {
-                    background: #b91c1c;
-                }
-
-                .form {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1.25rem;
-                }
-
-                .form-row {
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 1rem;
-                }
-
-                .input-group {
-                    display: flex;
-                    flex-direction: column;
-                }
-
-                .label {
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    color: #000;
-                    margin-bottom: 0.5rem;
-                }
-
-                .checkbox-label {
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    color: #000;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    margin-top: 1.75rem;
-                }
-
-                .checkbox {
-                    margin: 0;
-                }
-
-                .input, .textarea {
-                    padding: 0.75rem 1rem;
-                    border: 2px solid #e5e7eb;
-                    border-radius: 0.5rem;
-                    font-size: 1rem;
-                    transition: all 0.3s ease;
-                    background: white;
-                    outline: none;
-                    color: #000;
-                    font-family: inherit;
-                }
-
-                .input:focus, .textarea:focus {
-                    border-color: #3b82f6;
-                    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-                }
-
-                .textarea {
-                    resize: vertical;
-                    min-height: 120px;
-                    line-height: 1.6;
-                }
-
-                .textarea-hint {
-                    font-size: 0.75rem;
-                    color: #666;
-                    margin-top: 0.25rem;
-                    font-style: italic;
-                }
-
-                .add-button {
-                    padding: 0.75rem 1.5rem;
-                    background: #3b82f6;
-                    color: white;
-                    border: none;
-                    border-radius: 0.5rem;
-                    font-size: 1rem;
-                    font-weight: 600;
-                    cursor: pointer;
-                    margin-bottom: 1.5rem;
-                    width: 100%;
-                    transition: background 0.3s ease;
-                }
-
-                .add-button:hover {
-                    background: #2563eb;
-                }
-
-                .validation-section {
-                    padding: 1rem;
-                    background: #f8fafc;
-                    border-radius: 0.5rem;
-                    border: 1px solid #e5e7eb;
-                    text-align: center;
-                }
-
-                .valid-status {
-                    color: #065f46;
-                    font-size: 0.875rem;
-                    font-weight: 500;
-                }
-
-                .invalid-status {
-                    color: #dc2626;
-                    font-size: 0.875rem;
-                    font-weight: 500;
-                }
-
-                @media (max-width: 768px) {
-                    .form-row {
-                        grid-template-columns: 1fr;
-                    }
-                    
-                    .title {
-                        font-size: 1.5rem;
-                    }
-                    
-                    .card-header {
-                        flex-direction: column;
-                        gap: 1rem;
-                        align-items: flex-start;
-                    }
-                }
-            `}</style>
         </div>
     );
 };

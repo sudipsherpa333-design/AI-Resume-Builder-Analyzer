@@ -1,9 +1,12 @@
+// src/components/Navbar.jsx - Remove props or use useAuth inside
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext'; // Add this import
 
 const Navbar = () => {
-    const { user, isAuthenticated, logout } = useAuth();
+    // Remove props and get auth directly from context
+    const { user, isAuthenticated, logout } = useAuth(); // Add this line
+
     const navigate = useNavigate();
     const location = useLocation();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -67,15 +70,6 @@ const Navbar = () => {
         return location.pathname === path;
     };
 
-    // FIXED: Handle logo click - go to dashboard if authenticated, home if not
-    const handleLogoClick = (e) => {
-        if (isAuthenticated && location.pathname !== '/dashboard') {
-            e.preventDefault();
-            navigate('/dashboard');
-        }
-        // If not authenticated, let it go to home page naturally
-    };
-
     // Navigation items for authenticated users
     const navItems = [
         {
@@ -104,7 +98,7 @@ const Navbar = () => {
         }
     ];
 
-    // Public navigation items (only shown when not authenticated)
+    // Public navigation items (shown when not authenticated)
     const publicNavItems = [
         {
             path: '/',
@@ -113,16 +107,25 @@ const Navbar = () => {
             requiresAuth: false
         },
         {
-            path: '/features',
+            path: '#features',
             label: 'Features',
             icon: '✨',
-            requiresAuth: false
+            requiresAuth: false,
+            isAnchor: true
         },
         {
-            path: '/pricing',
+            path: '#pricing',
             label: 'Pricing',
             icon: '💰',
-            requiresAuth: false
+            requiresAuth: false,
+            isAnchor: true
+        },
+        {
+            path: '#about',
+            label: 'About',
+            icon: 'ℹ️',
+            requiresAuth: false,
+            isAnchor: true
         }
     ];
 
@@ -136,601 +139,214 @@ const Navbar = () => {
 
     const currentNavItems = getNavItems();
 
-    // Styles
-    const styles = {
-        navbar: {
-            background: isAuthenticated ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white',
-            padding: '1rem 0',
-            position: 'sticky',
-            top: 0,
-            zIndex: 1000,
-            transition: 'all 0.3s ease',
-            boxShadow: isScrolled ? '0 4px 20px rgba(0,0,0,0.1)' : 'none',
-            backdropFilter: 'blur(10px)',
-        },
-        container: {
-            maxWidth: '1200px',
-            margin: '0 auto',
-            padding: '0 2rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-        },
-        // FIXED: Logo with conditional navigation
-        logo: {
-            color: isAuthenticated ? 'white' : '#667eea',
-            textDecoration: 'none',
-            fontSize: '1.5rem',
-            fontWeight: 'bold',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.3s ease',
-            cursor: 'pointer',
-        },
-        desktopNav: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '2rem',
-        },
-        navItems: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-        },
-        navItem: {
-            color: isAuthenticated ? 'white' : '#4a5568',
-            textDecoration: 'none',
-            padding: '0.6rem 1.2rem',
-            borderRadius: '8px',
-            transition: 'all 0.3s ease',
-            fontSize: '0.9rem',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            background: isAuthenticated ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-            border: isAuthenticated ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
-        },
-        activeNavItem: {
-            background: isAuthenticated ? 'rgba(255, 255, 255, 0.2)' : '#f7fafc',
-            border: isAuthenticated ? '1px solid rgba(255, 255, 255, 0.3)' : 'none',
-            color: isAuthenticated ? 'white' : '#667eea',
-            transform: 'translateY(-1px)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-        },
-        authButtons: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-        },
-        loginBtn: {
-            color: isAuthenticated ? 'white' : '#667eea',
-            textDecoration: 'none',
-            fontWeight: '500',
-            padding: '0.6rem 1.2rem',
-            borderRadius: '6px',
-            transition: 'all 0.3s ease',
-            border: `1px solid ${isAuthenticated ? 'rgba(255, 255, 255, 0.2)' : '#e2e8f0'}`,
-        },
-        registerBtn: {
-            background: isAuthenticated ? 'white' : '#667eea',
-            color: isAuthenticated ? '#667eea' : 'white',
-            textDecoration: 'none',
-            fontWeight: '600',
-            padding: '0.6rem 1.5rem',
-            borderRadius: '6px',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-        },
-        userSection: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-            position: 'relative',
-        },
-        profileButton: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            color: 'white',
-            padding: '0.5rem 1rem',
-            borderRadius: '8px',
-            background: 'rgba(255, 255, 255, 0.1)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            cursor: 'pointer',
-            transition: 'all 0.3s ease',
-            fontSize: '0.9rem',
-            fontWeight: '500',
-        },
-        userAvatar: {
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontWeight: 'bold',
-            fontSize: '0.9rem',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-        },
-        profileDropdown: {
-            position: 'absolute',
-            top: '100%',
-            right: 0,
-            marginTop: '0.5rem',
-            background: 'white',
-            borderRadius: '12px',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
-            border: '1px solid rgba(0,0,0,0.1)',
-            minWidth: '220px',
-            overflow: 'hidden',
-            zIndex: 1001,
-            opacity: isProfileDropdownOpen ? 1 : 0,
-            visibility: isProfileDropdownOpen ? 'visible' : 'hidden',
-            transform: isProfileDropdownOpen ? 'translateY(0)' : 'translateY(-10px)',
-            transition: 'all 0.3s ease',
-        },
-        dropdownHeader: {
-            padding: '1.25rem',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            borderBottom: '1px solid rgba(255,255,255,0.1)',
-        },
-        dropdownUserName: {
-            fontWeight: '600',
-            fontSize: '1rem',
-            marginBottom: '0.25rem',
-        },
-        dropdownUserEmail: {
-            fontSize: '0.85rem',
-            opacity: 0.9,
-        },
-        dropdownMenu: {
-            padding: '0.5rem 0',
-        },
-        dropdownItem: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            padding: '0.75rem 1.25rem',
-            color: '#333',
-            textDecoration: 'none',
-            transition: 'all 0.2s ease',
-            fontSize: '0.9rem',
-            fontWeight: '500',
-            border: 'none',
-            background: 'none',
-            width: '100%',
-            textAlign: 'left',
-            cursor: 'pointer',
-        },
-        dropdownDivider: {
-            height: '1px',
-            background: 'rgba(0,0,0,0.1)',
-            margin: '0.5rem 0',
-        },
-        mobileMenuButton: {
-            display: 'none',
-            background: isAuthenticated ? 'rgba(255, 255, 255, 0.1)' : 'rgba(102, 126, 234, 0.1)',
-            border: isAuthenticated ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(102, 126, 234, 0.2)',
-            color: isAuthenticated ? 'white' : '#667eea',
-            fontSize: '1.2rem',
-            cursor: 'pointer',
-            padding: '0.5rem',
-            borderRadius: '6px',
-            transition: 'all 0.3s ease',
-        },
-        mobileNav: {
-            position: 'fixed',
-            top: 0,
-            right: isMobileMenuOpen ? 0 : '-100%',
-            width: '300px',
-            height: '100vh',
-            background: isAuthenticated ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white',
-            padding: '6rem 2rem 2rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.75rem',
-            transition: 'right 0.3s ease',
-            zIndex: 1000,
-            boxShadow: '-5px 0 25px rgba(0,0,0,0.2)',
-            backdropFilter: 'blur(10px)',
-        },
-        mobileNavLink: {
-            color: isAuthenticated ? 'white' : '#4a5568',
-            textDecoration: 'none',
-            padding: '1rem 1.5rem',
-            borderRadius: '8px',
-            transition: 'all 0.3s ease',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-            background: isAuthenticated ? 'rgba(255, 255, 255, 0.1)' : 'rgba(102, 126, 234, 0.05)',
-            border: isAuthenticated ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(102, 126, 234, 0.1)',
-        },
-        mobileLogoutBtn: {
-            color: isAuthenticated ? 'white' : '#4a5568',
-            background: isAuthenticated ? 'rgba(255, 255, 255, 0.1)' : 'rgba(102, 126, 234, 0.05)',
-            border: isAuthenticated ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(102, 126, 234, 0.1)',
-            padding: '1rem 1.5rem',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            textAlign: 'left',
-            fontSize: '1rem',
-            transition: 'all 0.3s ease',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-        },
-        overlay: {
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: isMobileMenuOpen ? 'block' : 'none',
-            zIndex: 999,
-            backdropFilter: 'blur(2px)',
-        },
+    // Handle anchor links
+    const handleAnchorClick = (e, path) => {
+        e.preventDefault();
+        if (location.pathname !== '/') {
+            navigate('/');
+            // Scroll to section after navigation
+            setTimeout(() => {
+                const element = document.querySelector(path);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 100);
+        } else {
+            const element = document.querySelector(path);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+        closeMobileMenu();
     };
 
     return (
-        <nav style={styles.navbar}>
-            <div style={styles.container}>
-                {/* Logo - FIXED: Goes to Dashboard when authenticated */}
-                {isAuthenticated ? (
-                    // When authenticated, make it a button that goes to dashboard
-                    <div
-                        style={styles.logo}
-                        onClick={() => navigate('/dashboard')}
-                        onMouseEnter={(e) => {
-                            e.target.style.transform = 'translateY(-2px)';
-                            e.target.style.opacity = '0.9';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.target.style.transform = 'none';
-                            e.target.style.opacity = '1';
-                        }}
-                    >
-                        <span>📄</span>
-                        ResumeCraft
-                    </div>
-                ) : (
-                    // When not authenticated, normal link to home
+        <nav className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
+            style={{
+                background: isAuthenticated ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white',
+                boxShadow: isScrolled ? '0 4px 20px rgba(0,0,0,0.1)' : 'none',
+                backdropFilter: 'blur(10px)',
+            }}>
+            <div className="container mx-auto px-4">
+                <div className="flex items-center justify-between h-16">
+                    {/* Logo */}
                     <Link
-                        to="/"
-                        style={styles.logo}
-                        onMouseEnter={(e) => {
-                            e.target.style.transform = 'translateY(-2px)';
-                            e.target.style.opacity = '0.9';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.target.style.transform = 'none';
-                            e.target.style.opacity = '1';
-                        }}
+                        to={isAuthenticated ? '/dashboard' : '/'}
+                        className="flex items-center gap-2 text-xl font-bold"
+                        style={{ color: isAuthenticated ? 'white' : '#667eea' }}
                     >
                         <span>📄</span>
                         ResumeCraft
                     </Link>
-                )}
 
-                {/* Desktop Navigation */}
-                <div style={styles.desktopNav}>
-                    {isAuthenticated ? (
-                        <>
-                            {/* Navigation Items - Dashboard, Builder, Analyzer, Templates */}
-                            <div style={styles.navItems}>
-                                {currentNavItems.map((item) => (
-                                    <Link
-                                        key={item.path}
-                                        to={item.path}
-                                        style={{
-                                            ...styles.navItem,
-                                            ...(isActiveRoute(item.path) && styles.activeNavItem)
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!isActiveRoute(item.path)) {
-                                                e.target.style.background = 'rgba(255, 255, 255, 0.15)';
-                                                e.target.style.transform = 'translateY(-1px)';
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!isActiveRoute(item.path)) {
-                                                e.target.style.background = 'rgba(255, 255, 255, 0.1)';
-                                                e.target.style.transform = 'none';
-                                            }
-                                        }}
-                                    >
-                                        <span>{item.icon}</span>
-                                        {item.label}
-                                    </Link>
-                                ))}
-                            </div>
-
-                            {/* Profile Section */}
-                            <div style={styles.userSection} ref={profileDropdownRef}>
-                                <button
-                                    style={styles.profileButton}
-                                    onClick={toggleProfileDropdown}
-                                    onMouseEnter={(e) => {
-                                        e.target.style.background = 'rgba(255, 255, 255, 0.2)';
-                                        e.target.style.transform = 'translateY(-1px)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.target.style.background = 'rgba(255, 255, 255, 0.1)';
-                                        e.target.style.transform = 'none';
+                    {/* Desktop Navigation */}
+                    <div className="hidden md:flex items-center gap-6">
+                        {currentNavItems.map((item) => (
+                            item.isAnchor ? (
+                                <a
+                                    key={item.path}
+                                    href={item.path}
+                                    onClick={(e) => handleAnchorClick(e, item.path)}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${isActiveRoute(item.path) ? 'bg-opacity-20 bg-white' : 'hover:bg-opacity-10 hover:bg-white'}`}
+                                    style={{
+                                        color: isAuthenticated ? 'white' : '#4a5568',
+                                        backgroundColor: isActiveRoute(item.path) ? (isAuthenticated ? 'rgba(255,255,255,0.2)' : '#f7fafc') : 'transparent'
                                     }}
                                 >
-                                    <div style={styles.userAvatar}>
+                                    <span>{item.icon}</span>
+                                    {item.label}
+                                </a>
+                            ) : (
+                                <Link
+                                    key={item.path}
+                                    to={item.path}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${isActiveRoute(item.path) ? 'bg-opacity-20 bg-white' : 'hover:bg-opacity-10 hover:bg-white'}`}
+                                    style={{
+                                        color: isAuthenticated ? 'white' : '#4a5568',
+                                        backgroundColor: isActiveRoute(item.path) ? (isAuthenticated ? 'rgba(255,255,255,0.2)' : '#f7fafc') : 'transparent'
+                                    }}
+                                >
+                                    <span>{item.icon}</span>
+                                    {item.label}
+                                </Link>
+                            )
+                        ))}
+
+                        {isAuthenticated ? (
+                            <div className="relative" ref={profileDropdownRef}>
+                                <button
+                                    onClick={toggleProfileDropdown}
+                                    className="flex items-center gap-3 px-4 py-2 rounded-lg bg-white bg-opacity-10 hover:bg-opacity-20 transition-all"
+                                    style={{ color: 'white' }}
+                                >
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-purple-400 flex items-center justify-center text-white font-bold">
                                         {getInitials(user?.name)}
                                     </div>
-                                    <span>Hi, {user?.name ? user.name.split(' ')[0] : 'User'}</span>
-                                    <span style={{
-                                        transform: isProfileDropdownOpen ? 'rotate(180deg)' : 'rotate(0)',
-                                        transition: 'transform 0.3s ease',
-                                        fontSize: '0.8rem'
-                                    }}>
+                                    <span className="hidden lg:inline">Hi, {user?.name ? user.name.split(' ')[0] : 'User'}</span>
+                                    <span className={`transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`}>
                                         ▼
                                     </span>
                                 </button>
 
-                                {/* Profile Dropdown */}
-                                <div style={styles.profileDropdown}>
-                                    <div style={styles.dropdownHeader}>
-                                        <div style={styles.dropdownUserName}>
-                                            {user?.name || 'User'}
+                                {isProfileDropdownOpen && (
+                                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                                        <div className="p-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-t-lg">
+                                            <div className="font-semibold">{user?.name || 'User'}</div>
+                                            <div className="text-sm opacity-90">{user?.email || 'user@example.com'}</div>
                                         </div>
-                                        <div style={styles.dropdownUserEmail}>
-                                            {user?.email || 'user@example.com'}
+                                        <div className="py-2">
+                                            <Link to="/profile" className="block px-4 py-3 hover:bg-gray-50 flex items-center gap-2">
+                                                👤 Profile
+                                            </Link>
+                                            <Link to="/my-resumes" className="block px-4 py-3 hover:bg-gray-50 flex items-center gap-2">
+                                                📑 My Resumes
+                                            </Link>
+                                            <div className="border-t my-2"></div>
+                                            <button onClick={handleLogout} className="w-full text-left px-4 py-3 hover:bg-red-50 text-red-600 flex items-center gap-2">
+                                                🚪 Logout
+                                            </button>
                                         </div>
                                     </div>
-
-                                    <div style={styles.dropdownMenu}>
-                                        <Link
-                                            to="/profile"
-                                            style={styles.dropdownItem}
-                                            onClick={closeProfileDropdown}
-                                            onMouseEnter={(e) => e.target.style.background = 'rgba(0,0,0,0.05)'}
-                                            onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                        >
-                                            <span>👤</span> My Profile
-                                        </Link>
-
-                                        <Link
-                                            to="/my-resumes"
-                                            style={styles.dropdownItem}
-                                            onClick={closeProfileDropdown}
-                                            onMouseEnter={(e) => e.target.style.background = 'rgba(0,0,0,0.05)'}
-                                            onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                        >
-                                            <span>📑</span> My Resumes
-                                        </Link>
-
-                                        <div style={styles.dropdownDivider} />
-
-                                        <button
-                                            onClick={handleLogout}
-                                            style={styles.dropdownItem}
-                                            onMouseEnter={(e) => e.target.style.background = 'rgba(239, 68, 68, 0.1)'}
-                                            onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                        >
-                                            <span>🚪</span> Logout
-                                        </button>
-                                    </div>
-                                </div>
+                                )}
                             </div>
-                        </>
-                    ) : (
-                        <>
-                            {/* Public Navigation Items */}
-                            <div style={styles.navItems}>
-                                {currentNavItems.map((item) => (
-                                    <Link
-                                        key={item.path}
-                                        to={item.path}
-                                        style={{
-                                            ...styles.navItem,
-                                            ...(isActiveRoute(item.path) && styles.activeNavItem)
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!isActiveRoute(item.path)) {
-                                                e.target.style.background = 'rgba(102, 126, 234, 0.05)';
-                                                e.target.style.transform = 'translateY(-1px)';
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!isActiveRoute(item.path)) {
-                                                e.target.style.background = 'transparent';
-                                                e.target.style.transform = 'none';
-                                            }
-                                        }}
-                                    >
-                                        <span>{item.icon}</span>
-                                        {item.label}
-                                    </Link>
-                                ))}
-                            </div>
-
-                            {/* Auth Buttons */}
-                            <div style={styles.authButtons}>
-                                <Link
-                                    to="/login"
-                                    style={styles.loginBtn}
-                                    onMouseEnter={(e) => {
-                                        e.target.style.background = 'rgba(102, 126, 234, 0.05)';
-                                        e.target.style.transform = 'translateY(-1px)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.target.style.background = 'transparent';
-                                        e.target.style.transform = 'none';
-                                    }}
-                                >
+                        ) : (
+                            <div className="flex items-center gap-4">
+                                <Link to="/login" className="px-4 py-2 text-blue-600 hover:text-blue-700">
                                     Login
                                 </Link>
-                                <Link
-                                    to="/register"
-                                    style={styles.registerBtn}
-                                    onMouseEnter={(e) => {
-                                        e.target.style.transform = 'translateY(-2px)';
-                                        e.target.style.boxShadow = '0 4px 15px rgba(0,0,0,0.15)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.target.style.transform = 'none';
-                                        e.target.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-                                    }}
-                                >
+                                <Link to="/register" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all">
                                     Get Started
                                 </Link>
                             </div>
-                        </>
-                    )}
+                        )}
+                    </div>
 
                     {/* Mobile Menu Button */}
                     <button
-                        style={styles.mobileMenuButton}
                         onClick={toggleMobileMenu}
-                        onMouseEnter={(e) => e.target.style.background =
-                            isAuthenticated ? 'rgba(255, 255, 255, 0.2)' : 'rgba(102, 126, 234, 0.15)'
-                        }
-                        onMouseLeave={(e) => e.target.style.background =
-                            isAuthenticated ? 'rgba(255, 255, 255, 0.1)' : 'rgba(102, 126, 234, 0.05)'
-                        }
-                        aria-label="Toggle menu"
+                        className="md:hidden p-2 rounded-lg"
+                        style={{
+                            background: isAuthenticated ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)',
+                            color: isAuthenticated ? 'white' : '#667eea'
+                        }}
                     >
                         ☰
                     </button>
                 </div>
             </div>
 
-            {/* Mobile Navigation */}
-            <div style={styles.mobileNav}>
-                {isAuthenticated ? (
-                    <>
-                        {/* Mobile Profile Header */}
-                        <div style={{
-                            ...styles.profileButton,
-                            marginBottom: '1rem',
-                            background: 'rgba(255, 255, 255, 0.15)',
-                            flexDirection: 'column',
-                            alignItems: 'flex-start',
-                            gap: '0.5rem',
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                <div style={styles.userAvatar}>
-                                    {getInitials(user?.name)}
-                                </div>
-                                <div>
-                                    <div style={{ fontWeight: '600', fontSize: '1rem' }}>
-                                        Welcome back
-                                    </div>
-                                    <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>
-                                        {user?.name || 'User'}
-                                    </div>
-                                </div>
+            {/* Mobile Menu */}
+            <div className={`md:hidden fixed top-0 right-0 h-full w-64 bg-white transition-transform duration-300 ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'} shadow-2xl`}>
+                <div className="p-4 border-b">
+                    {isAuthenticated ? (
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-400 to-purple-400 flex items-center justify-center text-white font-bold">
+                                {getInitials(user?.name)}
+                            </div>
+                            <div>
+                                <div className="font-semibold">{user?.name || 'User'}</div>
+                                <div className="text-sm text-gray-600">{user?.email || 'user@example.com'}</div>
                             </div>
                         </div>
+                    ) : (
+                        <div className="font-bold text-blue-600">ResumeCraft</div>
+                    )}
+                </div>
 
-                        {/* Mobile Navigation Items */}
-                        {currentNavItems.map((item) => (
+                <div className="p-4 space-y-2">
+                    {currentNavItems.map((item) => (
+                        item.isAnchor ? (
+                            <a
+                                key={item.path}
+                                href={item.path}
+                                onClick={(e) => handleAnchorClick(e, item.path)}
+                                className={`block px-4 py-3 rounded-lg ${isActiveRoute(item.path) ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'}`}
+                            >
+                                <span className="mr-2">{item.icon}</span>
+                                {item.label}
+                            </a>
+                        ) : (
                             <Link
                                 key={item.path}
                                 to={item.path}
-                                style={styles.mobileNavLink}
                                 onClick={closeMobileMenu}
-                                onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
-                                onMouseLeave={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+                                className={`block px-4 py-3 rounded-lg ${isActiveRoute(item.path) ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'}`}
                             >
-                                <span>{item.icon}</span> {item.label}
+                                <span className="mr-2">{item.icon}</span>
+                                {item.label}
                             </Link>
-                        ))}
+                        )
+                    ))}
 
-                        <Link
-                            to="/profile"
-                            style={styles.mobileNavLink}
-                            onClick={closeMobileMenu}
-                            onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
-                            onMouseLeave={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
-                        >
-                            <span>👤</span> My Profile
-                        </Link>
-
-                        <Link
-                            to="/my-resumes"
-                            style={styles.mobileNavLink}
-                            onClick={closeMobileMenu}
-                            onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
-                            onMouseLeave={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
-                        >
-                            <span>📑</span> My Resumes
-                        </Link>
-
-                        <button
-                            onClick={handleLogout}
-                            style={styles.mobileLogoutBtn}
-                            onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
-                            onMouseLeave={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
-                        >
-                            <span>🚪</span> Logout
-                        </button>
-                    </>
-                ) : (
-                    <>
-                        {/* Mobile Navigation Items for Public */}
-                        {currentNavItems.map((item) => (
-                            <Link
-                                key={item.path}
-                                to={item.path}
-                                style={styles.mobileNavLink}
-                                onClick={closeMobileMenu}
-                                onMouseEnter={(e) => e.target.style.background = 'rgba(102, 126, 234, 0.1)'}
-                                onMouseLeave={(e) => e.target.style.background = 'rgba(102, 126, 234, 0.05)'}
-                            >
-                                <span>{item.icon}</span> {item.label}
+                    {isAuthenticated ? (
+                        <>
+                            <Link to="/profile" onClick={closeMobileMenu} className="block px-4 py-3 hover:bg-gray-50">
+                                👤 My Profile
                             </Link>
-                        ))}
-
-                        <Link
-                            to="/login"
-                            style={styles.mobileNavLink}
-                            onClick={closeMobileMenu}
-                            onMouseEnter={(e) => e.target.style.background = 'rgba(102, 126, 234, 0.1)'}
-                            onMouseLeave={(e) => e.target.style.background = 'rgba(102, 126, 234, 0.05)'}
-                        >
-                            <span>🔑</span> Login
-                        </Link>
-
-                        <Link
-                            to="/register"
-                            style={{
-                                ...styles.mobileNavLink,
-                                background: '#667eea',
-                                color: 'white',
-                                fontWeight: '600',
-                                justifyContent: 'center',
-                                marginTop: '1rem',
-                            }}
-                            onClick={closeMobileMenu}
-                            onMouseEnter={(e) => {
-                                e.target.style.transform = 'translateY(-2px)';
-                                e.target.style.boxShadow = '0 4px 15px rgba(0,0,0,0.15)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.target.style.transform = 'none';
-                                e.target.style.boxShadow = 'none';
-                            }}
-                        >
-                            <span>🚀</span> Get Started
-                        </Link>
-                    </>
-                )}
+                            <Link to="/my-resumes" onClick={closeMobileMenu} className="block px-4 py-3 hover:bg-gray-50">
+                                📑 My Resumes
+                            </Link>
+                            <button onClick={handleLogout} className="w-full text-left px-4 py-3 text-red-600 hover:bg-red-50">
+                                🚪 Logout
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <Link to="/login" onClick={closeMobileMenu} className="block px-4 py-3 hover:bg-gray-50">
+                                🔑 Login
+                            </Link>
+                            <Link to="/register" onClick={closeMobileMenu} className="block px-4 py-3 bg-blue-600 text-white rounded-lg text-center">
+                                🚀 Get Started
+                            </Link>
+                        </>
+                    )}
+                </div>
             </div>
 
-            {/* Overlay for mobile menu */}
-            <div style={styles.overlay} onClick={closeMobileMenu} />
+            {/* Overlay */}
+            {isMobileMenuOpen && (
+                <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40" onClick={closeMobileMenu}></div>
+            )}
         </nav>
     );
 };

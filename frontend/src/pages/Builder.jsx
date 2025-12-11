@@ -1,4528 +1,1008 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+// src/pages/Dashboard.jsx
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    FaArrowLeft,
-    FaSave,
-    FaEye,
-    FaEyeSlash,
-    FaDownload,
-    FaRobot,
+    FaPlus,
+    FaFileAlt,
+    FaChartLine,
+    FaRocket,
+    FaStar,
+    FaEdit,
     FaTrash,
-    FaStepForward,
-    FaStepBackward,
-    FaCheck,
-    FaHome,
-    FaGraduationCap,
+    FaCopy,
+    FaDownload,
+    FaSync,
     FaBriefcase,
+    FaGraduationCap,
     FaCogs,
     FaProjectDiagram,
-    FaCertificate,
-    FaUser,
-    FaFileAlt,
-    FaSpinner,
-    FaCopy,
-    FaMagic,
-    FaLightbulb,
-    FaChartLine,
-    FaFileUpload,
-    FaLink,
-    FaExternalLinkAlt,
-    FaBrain,
-    FaSync,
-    FaPalette,
-    FaQrcode,
-    FaShareAlt,
-    FaRegClock,
-    FaDatabase,
-    FaCloud,
-    FaAward,
-    FaRocket,
-    FaTimes,
-    FaChevronRight,
-    FaChevronLeft,
-    FaExpand,
-    FaCompress,
-    FaStar,
     FaSearch,
-    FaUpload,
-    FaPencilAlt,
-    FaHistory,
-    FaRedo,
-    FaUndo,
-    FaCode,
-    FaFilePdf,
-    FaFileWord,
-    FaFile,
-    FaSyncAlt,
-    FaCheckCircle,
+    FaFilter,
+    FaSort,
+    FaExclamationCircle,
+    FaSpinner,
+    FaRegClock,
+    FaPalette,
     FaExclamationTriangle,
-    FaPercent,
-    FaExclamationCircle
+    FaEye,
+    FaShareAlt,
+    FaRobot,
+    FaBolt,
+    FaBrain,
+    FaDatabase,
+    FaCheckCircle
 } from 'react-icons/fa';
-import { SiJson } from 'react-icons/si';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 
-// AI Service - Mock implementation for demo purposes
-class AIService {
-    constructor() {
-        // Mock AI service for demonstration
-        this.baseUrl = 'http://localhost:3000/api'; // Simple hardcoded value
-    }
+// Import your navbar and footer components
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 
-    async generateJobSpecificSuggestions(resumeData, analysis) {
-        // Mock implementation
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve([
-                    {
-                        id: 1,
-                        type: 'keyword',
-                        category: 'Summary',
-                        priority: 'High',
-                        text: 'Add more quantifiable achievements to your summary section.',
-                        impact: 'High',
-                        section: 'summary',
-                        value: 'with 5+ years of experience in software development'
-                    },
-                    {
-                        id: 2,
-                        type: 'rewrite',
-                        category: 'Experience',
-                        priority: 'Medium',
-                        text: 'Use action verbs like "developed", "managed", "implemented" to start your bullet points.',
-                        impact: 'Medium'
-                    },
-                    {
-                        id: 3,
-                        type: 'keyword',
-                        category: 'Skills',
-                        priority: 'High',
-                        text: 'Add specific technologies mentioned in the job description: React, Node.js, MongoDB.',
-                        impact: 'High',
-                        section: 'skills'
-                    },
-                    {
-                        id: 4,
-                        type: 'format',
-                        category: 'Format',
-                        priority: 'Low',
-                        text: 'Ensure consistent date formatting throughout your resume.',
-                        impact: 'Low'
-                    },
-                    {
-                        id: 5,
-                        type: 'content',
-                        category: 'Projects',
-                        priority: 'Medium',
-                        text: 'Add more details about the impact of your projects.',
-                        impact: 'Medium'
-                    },
-                    {
-                        id: 6,
-                        type: 'keyword',
-                        category: 'Certifications',
-                        priority: 'Low',
-                        text: 'Consider adding relevant certifications if you have any.',
-                        impact: 'Low'
-                    }
-                ]);
-            }, 1000);
-        });
-    }
+const Dashboard = () => {
+    const { user } = useAuth();
+    const navigate = useNavigate();
 
-    async analyzeJobDescription(url) {
-        // Mock implementation
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve({
-                    jobTitle: 'Senior Software Engineer',
-                    jobLevel: 'Senior',
-                    salaryRange: '$120K - $180K',
-                    matchScore: 85,
-                    keywords: ['React', 'Node.js', 'TypeScript', 'AWS', 'MongoDB', 'Docker', 'CI/CD', 'Agile', 'REST API', 'Microservices', 'Git', 'JavaScript'],
-                    requiredSkills: ['React', 'Node.js', 'TypeScript', 'AWS'],
-                    niceToHave: ['Docker', 'Kubernetes', 'GraphQL']
-                });
-            }, 1500);
-        });
-    }
+    // State for resumes from localStorage
+    const [resumes, setResumes] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [stats, setStats] = useState({
+        total: 0,
+        recent: 0,
+        completed: 0,
+        templates: {},
+        averageScore: 85
+    });
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filter, setFilter] = useState('all');
+    const [sortBy, setSortBy] = useState('updated');
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [filteredResumes, setFilteredResumes] = useState([]);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+    const [viewMode, setViewMode] = useState('grid');
+    const [dbStatus, setDbStatus] = useState('connected');
 
-    async extractResumeData(text, method = 'ai') {
-        // Mock implementation
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve({
-                    personalInfo: {
-                        firstName: 'John',
-                        lastName: 'Doe',
-                        email: 'john.doe@example.com',
-                        phone: '(123) 456-7890',
-                        linkedin: 'linkedin.com/in/johndoe',
-                        title: 'Senior Software Engineer'
-                    },
-                    summary: 'Experienced software engineer with 5+ years of expertise in full-stack development. Proficient in React, Node.js, and cloud technologies. Strong background in building scalable web applications and leading development teams.',
-                    experience: [
-                        {
-                            jobTitle: 'Senior Software Engineer',
-                            company: 'Tech Corp',
-                            startDate: '2020-01',
-                            endDate: '2023-12',
-                            current: false,
-                            description: 'Led development of multiple web applications using React and Node.js.'
-                        }
-                    ],
-                    education: [
-                        {
-                            degree: 'Bachelor of Science in Computer Science',
-                            institution: 'University of Technology',
-                            graduationDate: '2019-05',
-                            gpa: '3.8'
-                        }
-                    ],
-                    skills: ['JavaScript', 'React', 'Node.js', 'TypeScript', 'AWS', 'MongoDB'],
-                    projects: [
-                        {
-                            name: 'E-commerce Platform',
-                            description: 'Full-stack e-commerce solution with React frontend and Node.js backend.',
-                            technologies: 'React, Node.js, MongoDB, Stripe'
-                        }
-                    ],
-                    certifications: [
-                        {
-                            name: 'AWS Certified Developer',
-                            issuer: 'Amazon Web Services',
-                            date: '2022-03'
-                        }
-                    ]
-                });
-            }, 2000);
-        });
-    }
-
-    async analyzeResume(resumeData) {
-        // Mock implementation
-        return this.generateJobSpecificSuggestions(resumeData, null);
-    }
-
-    async saveResume(resumeData, resumeId = null) {
-        // Mock implementation
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve({
-                    success: true,
-                    message: 'Resume saved successfully',
-                    id: resumeId || Date.now().toString()
-                });
-            }, 1000);
-        });
-    }
-}
-
-// Add missing FaPlus icon component
-const FaPlus = () => (
-    <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 448 512" height="1em" width="1em">
-        <path d="M416 208H272V64c0-17.67-14.33-32-32-32h-32c-17.67 0-32 14.33-32 32v144H32c-17.67 0-32 14.33-32 32v32c0 17.67 14.33 32 32 32h144v144c0 17.67 14.33 32 32 32h32c17.67 0 32-14.33 32-32V304h144c17.67 0 32-14.33 32-32v-32c0-17.67-14.33-32-32-32z"></path>
-    </svg>
-);
-
-// Mock Components for demonstration
-const PersonalInfoPage = ({ resumeData, onInputChange, errors, setErrors }) => (
-    <div className="personal-info-page">
-        <h3 className="page-title">Personal Information</h3>
-        <div className="form-grid">
-            <div className="form-group">
-                <label>First Name *</label>
-                <input
-                    type="text"
-                    value={resumeData.personalInfo.firstName || ''}
-                    onChange={(e) => onInputChange('personalInfo', { firstName: e.target.value })}
-                    className={errors.firstName ? 'error' : ''}
-                    placeholder="John"
-                />
-                {errors.firstName && <span className="error-message">{errors.firstName}</span>}
-            </div>
-            <div className="form-group">
-                <label>Last Name</label>
-                <input
-                    type="text"
-                    value={resumeData.personalInfo.lastName || ''}
-                    onChange={(e) => onInputChange('personalInfo', { lastName: e.target.value })}
-                    placeholder="Doe"
-                />
-            </div>
-            <div className="form-group">
-                <label>Email *</label>
-                <input
-                    type="email"
-                    value={resumeData.personalInfo.email || ''}
-                    onChange={(e) => onInputChange('personalInfo', { email: e.target.value })}
-                    className={errors.email ? 'error' : ''}
-                    placeholder="john.doe@example.com"
-                />
-                {errors.email && <span className="error-message">{errors.email}</span>}
-            </div>
-            <div className="form-group">
-                <label>Phone</label>
-                <input
-                    type="tel"
-                    value={resumeData.personalInfo.phone || ''}
-                    onChange={(e) => onInputChange('personalInfo', { phone: e.target.value })}
-                    placeholder="(123) 456-7890"
-                />
-            </div>
-            <div className="form-group">
-                <label>Professional Title</label>
-                <input
-                    type="text"
-                    value={resumeData.personalInfo.title || ''}
-                    onChange={(e) => onInputChange('personalInfo', { title: e.target.value })}
-                    placeholder="Senior Software Engineer"
-                />
-            </div>
-            <div className="form-group">
-                <label>LinkedIn URL</label>
-                <input
-                    type="url"
-                    value={resumeData.personalInfo.linkedin || ''}
-                    onChange={(e) => onInputChange('personalInfo', { linkedin: e.target.value })}
-                    placeholder="linkedin.com/in/username"
-                />
-            </div>
-        </div>
-    </div>
-);
-
-const SummaryPage = ({ resumeData, onInputChange, errors, setErrors }) => (
-    <div className="summary-page">
-        <h3 className="page-title">Professional Summary</h3>
-        <div className="form-group">
-            <label>Summary *</label>
-            <textarea
-                value={resumeData.summary || ''}
-                onChange={(e) => onInputChange('summary', e.target.value)}
-                className={errors.summary ? 'error' : ''}
-                placeholder="Experienced software engineer with 5+ years of expertise in full-stack development..."
-                rows={6}
-            />
-            {errors.summary && <span className="error-message">{errors.summary}</span>}
-            <div className="char-count">
-                {resumeData.summary?.length || 0} characters
-            </div>
-        </div>
-    </div>
-);
-
-const ExperiencePage = ({ resumeData, onInputChange }) => {
-    const [experiences, setExperiences] = useState(resumeData.experience || []);
-
-    const addExperience = () => {
-        const newExp = {
-            jobTitle: '',
-            company: '',
-            startDate: '',
-            endDate: '',
-            current: false,
-            description: ''
-        };
-        setExperiences([...experiences, newExp]);
-        onInputChange('experience', [...experiences, newExp]);
-    };
-
-    const updateExperience = (index, field, value) => {
-        const updated = [...experiences];
-        updated[index] = { ...updated[index], [field]: value };
-        setExperiences(updated);
-        onInputChange('experience', updated);
-    };
-
-    const removeExperience = (index) => {
-        const updated = experiences.filter((_, i) => i !== index);
-        setExperiences(updated);
-        onInputChange('experience', updated);
-    };
-
-    return (
-        <div className="experience-page">
-            <h3 className="page-title">Work Experience</h3>
-            {experiences.map((exp, index) => (
-                <div key={index} className="experience-item">
-                    <div className="item-header">
-                        <h4>Experience #{index + 1}</h4>
-                        {index > 0 && (
-                            <button onClick={() => removeExperience(index)} className="remove-btn">
-                                <FaTimes /> Remove
-                            </button>
-                        )}
-                    </div>
-                    <div className="form-grid">
-                        <div className="form-group">
-                            <label>Job Title</label>
-                            <input
-                                type="text"
-                                value={exp.jobTitle || ''}
-                                onChange={(e) => updateExperience(index, 'jobTitle', e.target.value)}
-                                placeholder="Senior Software Engineer"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Company</label>
-                            <input
-                                type="text"
-                                value={exp.company || ''}
-                                onChange={(e) => updateExperience(index, 'company', e.target.value)}
-                                placeholder="Tech Corp"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Start Date</label>
-                            <input
-                                type="month"
-                                value={exp.startDate || ''}
-                                onChange={(e) => updateExperience(index, 'startDate', e.target.value)}
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>End Date</label>
-                            <div className="date-group">
-                                <input
-                                    type="month"
-                                    value={exp.current ? '' : exp.endDate || ''}
-                                    onChange={(e) => updateExperience(index, 'endDate', e.target.value)}
-                                    disabled={exp.current}
-                                />
-                                <label className="checkbox-label">
-                                    <input
-                                        type="checkbox"
-                                        checked={exp.current || false}
-                                        onChange={(e) => updateExperience(index, 'current', e.target.checked)}
-                                    />
-                                    Currently working here
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="form-group">
-                        <label>Description</label>
-                        <textarea
-                            value={exp.description || ''}
-                            onChange={(e) => updateExperience(index, 'description', e.target.value)}
-                            placeholder="Describe your responsibilities and achievements..."
-                            rows={3}
-                        />
-                    </div>
-                </div>
-            ))}
-            <button onClick={addExperience} className="add-btn">
-                <FaPlus /> Add Experience
-            </button>
-        </div>
-    );
-};
-
-const EducationPage = ({ resumeData, onInputChange }) => {
-    const [educations, setEducations] = useState(resumeData.education || []);
-
-    const addEducation = () => {
-        const newEdu = {
-            degree: '',
-            institution: '',
-            graduationDate: '',
-            gpa: ''
-        };
-        setEducations([...educations, newEdu]);
-        onInputChange('education', [...educations, newEdu]);
-    };
-
-    const updateEducation = (index, field, value) => {
-        const updated = [...educations];
-        updated[index] = { ...updated[index], [field]: value };
-        setEducations(updated);
-        onInputChange('education', updated);
-    };
-
-    return (
-        <div className="education-page">
-            <h3 className="page-title">Education</h3>
-            {educations.map((edu, index) => (
-                <div key={index} className="education-item">
-                    <div className="form-grid">
-                        <div className="form-group">
-                            <label>Degree</label>
-                            <input
-                                type="text"
-                                value={edu.degree || ''}
-                                onChange={(e) => updateEducation(index, 'degree', e.target.value)}
-                                placeholder="Bachelor of Science in Computer Science"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Institution</label>
-                            <input
-                                type="text"
-                                value={edu.institution || ''}
-                                onChange={(e) => updateEducation(index, 'institution', e.target.value)}
-                                placeholder="University of Technology"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Graduation Date</label>
-                            <input
-                                type="month"
-                                value={edu.graduationDate || ''}
-                                onChange={(e) => updateEducation(index, 'graduationDate', e.target.value)}
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>GPA</label>
-                            <input
-                                type="text"
-                                value={edu.gpa || ''}
-                                onChange={(e) => updateEducation(index, 'gpa', e.target.value)}
-                                placeholder="3.8"
-                            />
-                        </div>
-                    </div>
-                </div>
-            ))}
-            <button onClick={addEducation} className="add-btn">
-                <FaPlus /> Add Education
-            </button>
-        </div>
-    );
-};
-
-const SkillsPage = ({ resumeData, onInputChange }) => {
-    const [skillInput, setSkillInput] = useState('');
-    const [skills, setSkills] = useState(resumeData.skills || []);
-
-    const addSkill = () => {
-        if (skillInput.trim() && !skills.includes(skillInput.trim())) {
-            const updated = [...skills, skillInput.trim()];
-            setSkills(updated);
-            onInputChange('skills', updated);
-            setSkillInput('');
-        }
-    };
-
-    const removeSkill = (index) => {
-        const updated = skills.filter((_, i) => i !== index);
-        setSkills(updated);
-        onInputChange('skills', updated);
-    };
-
-    const handleKeyPress = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            addSkill();
-        }
-    };
-
-    return (
-        <div className="skills-page">
-            <h3 className="page-title">Skills</h3>
-            <div className="skills-input-group">
-                <div className="input-with-button">
-                    <input
-                        type="text"
-                        value={skillInput}
-                        onChange={(e) => setSkillInput(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        placeholder="Enter a skill (e.g., React, JavaScript, AWS)"
-                    />
-                    <button onClick={addSkill} className="add-skill-btn">
-                        <FaPlus /> Add
-                    </button>
-                </div>
-            </div>
-            <div className="skills-list">
-                {skills.map((skill, index) => (
-                    <div key={index} className="skill-tag">
-                        {skill}
-                        <button onClick={() => removeSkill(index)} className="remove-skill">
-                            <FaTimes />
-                        </button>
-                    </div>
-                ))}
-                {skills.length === 0 && (
-                    <div className="empty-state">
-                        <p>No skills added yet. Add your first skill above!</p>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-const ProjectsPage = ({ resumeData, onInputChange }) => {
-    const [projects, setProjects] = useState(resumeData.projects || []);
-
-    const addProject = () => {
-        const newProj = {
-            name: '',
-            description: '',
-            technologies: ''
-        };
-        setProjects([...projects, newProj]);
-        onInputChange('projects', [...projects, newProj]);
-    };
-
-    const updateProject = (index, field, value) => {
-        const updated = [...projects];
-        updated[index] = { ...updated[index], [field]: value };
-        setProjects(updated);
-        onInputChange('projects', updated);
-    };
-
-    return (
-        <div className="projects-page">
-            <h3 className="page-title">Projects</h3>
-            {projects.map((project, index) => (
-                <div key={index} className="project-item">
-                    <div className="form-group">
-                        <label>Project Name</label>
-                        <input
-                            type="text"
-                            value={project.name || ''}
-                            onChange={(e) => updateProject(index, 'name', e.target.value)}
-                            placeholder="E-commerce Platform"
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Description</label>
-                        <textarea
-                            value={project.description || ''}
-                            onChange={(e) => updateProject(index, 'description', e.target.value)}
-                            placeholder="Describe the project, your role, and key achievements..."
-                            rows={3}
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Technologies Used</label>
-                        <input
-                            type="text"
-                            value={project.technologies || ''}
-                            onChange={(e) => updateProject(index, 'technologies', e.target.value)}
-                            placeholder="React, Node.js, MongoDB, AWS"
-                        />
-                    </div>
-                </div>
-            ))}
-            <button onClick={addProject} className="add-btn">
-                <FaPlus /> Add Project
-            </button>
-        </div>
-    );
-};
-
-const CertificationsPage = ({ resumeData, onInputChange }) => {
-    const [certs, setCerts] = useState(resumeData.certifications || []);
-
-    const addCertification = () => {
-        const newCert = {
-            name: '',
-            issuer: '',
-            date: ''
-        };
-        setCerts([...certs, newCert]);
-        onInputChange('certifications', [...certs, newCert]);
-    };
-
-    const updateCertification = (index, field, value) => {
-        const updated = [...certs];
-        updated[index] = { ...updated[index], [field]: value };
-        setCerts(updated);
-        onInputChange('certifications', updated);
-    };
-
-    return (
-        <div className="certifications-page">
-            <h3 className="page-title">Certifications</h3>
-            {certs.map((cert, index) => (
-                <div key={index} className="certification-item">
-                    <div className="form-grid">
-                        <div className="form-group">
-                            <label>Certification Name</label>
-                            <input
-                                type="text"
-                                value={cert.name || ''}
-                                onChange={(e) => updateCertification(index, 'name', e.target.value)}
-                                placeholder="AWS Certified Developer"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Issuing Organization</label>
-                            <input
-                                type="text"
-                                value={cert.issuer || ''}
-                                onChange={(e) => updateCertification(index, 'issuer', e.target.value)}
-                                placeholder="Amazon Web Services"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Date Obtained</label>
-                            <input
-                                type="month"
-                                value={cert.date || ''}
-                                onChange={(e) => updateCertification(index, 'date', e.target.value)}
-                            />
-                        </div>
-                    </div>
-                </div>
-            ))}
-            <button onClick={addCertification} className="add-btn">
-                <FaPlus /> Add Certification
-            </button>
-        </div>
-    );
-};
-
-const CompletionPage = ({ resumeData }) => (
-    <div className="completion-page">
-        <div className="completion-content">
-            <FaCheckCircle className="completion-icon" />
-            <h3 className="completion-title">Resume Complete!</h3>
-            <p className="completion-message">
-                Your resume has been created successfully. You can now preview, export, or continue editing.
-            </p>
-            <div className="completion-stats">
-                <div className="stat">
-                    <span className="stat-number">
-                        {Object.values(resumeData.personalInfo).filter(Boolean).length}
-                    </span>
-                    <span className="stat-label">Personal Info Fields</span>
-                </div>
-                <div className="stat">
-                    <span className="stat-number">{resumeData.experience.length}</span>
-                    <span className="stat-label">Experiences</span>
-                </div>
-                <div className="stat">
-                    <span className="stat-number">{resumeData.skills.length}</span>
-                    <span className="stat-label">Skills</span>
-                </div>
-            </div>
-        </div>
-    </div>
-);
-
-// Enhanced Live Preview Component
-const EnhancedLivePreview = ({ resumeData, previewSize }) => {
-    const previewRef = useRef(null);
-    const [isDownloading, setIsDownloading] = useState(false);
-
-    const exportAsPDF = async () => {
-        if (!previewRef.current) return;
-
-        setIsDownloading(true);
+    // Load resumes from localStorage
+    const loadUserResumes = useCallback(() => {
+        setLoading(true);
         try {
-            const canvas = await html2canvas(previewRef.current, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#ffffff'
-            });
+            // Load from localStorage
+            const savedDraft = localStorage.getItem('resumeDraft');
+            const savedResumes = JSON.parse(localStorage.getItem('savedResumes') || '[]');
 
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const imgWidth = 190;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            let userResumes = [];
 
-            pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
-            pdf.save(`${resumeData.personalInfo.firstName || 'resume'}_${resumeData.personalInfo.lastName || ''}.pdf`);
+            // Add draft if exists
+            if (savedDraft) {
+                try {
+                    const draft = JSON.parse(savedDraft);
+                    userResumes.push({
+                        _id: 'draft_1',
+                        title: draft.title || 'Draft Resume',
+                        template: draft.template || 'modern',
+                        updatedAt: draft.updatedAt || new Date().toISOString(),
+                        createdAt: draft.createdAt || new Date().toISOString(),
+                        data: draft.data || {},
+                        status: 'draft'
+                    });
+                } catch (e) {
+                    console.error('Error parsing draft:', e);
+                }
+            }
 
-            toast.success('Resume exported as PDF!');
-        } catch (error) {
-            console.error('PDF export error:', error);
-            toast.error('Failed to export PDF');
+            // Add saved resumes
+            if (Array.isArray(savedResumes)) {
+                userResumes = [...userResumes, ...savedResumes];
+            }
+
+            setResumes(userResumes);
+            setDbStatus('connected');
+
+            // Calculate stats
+            calculateStats(userResumes);
+
+            // Initial filtering
+            performClientSideSearch(userResumes, searchQuery, filter, sortBy);
+
+        } catch (err) {
+            console.error('Error loading resumes:', err);
+            setError('Failed to load resumes from storage');
+            setResumes([]);
+            setDbStatus('connected');
+            calculateStats([]);
         } finally {
-            setIsDownloading(false);
+            setLoading(false);
+        }
+    }, [searchQuery, filter, sortBy]);
+
+    // Initial load
+    useEffect(() => {
+        loadUserResumes();
+    }, [loadUserResumes]);
+
+    // Calculate statistics from resumes
+    const calculateStats = useCallback((resumesList) => {
+        const total = resumesList.length;
+
+        const recent = resumesList.filter(resume => {
+            const date = resume.updatedAt || resume.createdAt;
+            if (!date) return false;
+            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            return new Date(date) > weekAgo;
+        }).length;
+
+        const completed = resumesList.filter(resume => {
+            const data = resume.data || {};
+            return data.summary && data.summary.trim().length > 50 &&
+                data.experience && data.experience.length > 0;
+        }).length;
+
+        const templates = {};
+        resumesList.forEach(resume => {
+            const template = resume.template || 'unknown';
+            templates[template] = (templates[template] || 0) + 1;
+        });
+
+        const scores = resumesList
+            .map(r => r.analysis?.atsScore || r.atsScore)
+            .filter(score => score && typeof score === 'number');
+
+        const averageScore = scores.length > 0
+            ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+            : 85;
+
+        setStats({
+            total,
+            recent,
+            completed,
+            templates,
+            averageScore
+        });
+    }, []);
+
+    // Handle search and filtering
+    useEffect(() => {
+        if (resumes.length === 0) {
+            setFilteredResumes([]);
+            return;
+        }
+
+        setSearchLoading(true);
+        const results = performClientSideSearch(resumes, searchQuery, filter, sortBy);
+        setFilteredResumes(results);
+        setSearchLoading(false);
+    }, [searchQuery, filter, sortBy, resumes]);
+
+    // Client-side search function
+    const performClientSideSearch = useCallback((resumesList, query, filterType, sortType) => {
+        let filtered = [...resumesList];
+
+        if (query) {
+            const lowerQuery = query.toLowerCase();
+            filtered = filtered.filter(resume => {
+                const data = resume.data || {};
+                const title = resume.title || '';
+                const firstName = data.personalInfo?.firstName || '';
+                const lastName = data.personalInfo?.lastName || '';
+                const summary = data.summary || '';
+
+                return (
+                    title.toLowerCase().includes(lowerQuery) ||
+                    firstName.toLowerCase().includes(lowerQuery) ||
+                    lastName.toLowerCase().includes(lowerQuery) ||
+                    summary.toLowerCase().includes(lowerQuery)
+                );
+            });
+        }
+
+        if (filterType !== 'all') {
+            filtered = filtered.filter(resume => resume.template === filterType);
+        }
+
+        filtered.sort((a, b) => {
+            const getDate = (resume) => {
+                if (resume.updatedAt) return new Date(resume.updatedAt);
+                if (resume.createdAt) return new Date(resume.createdAt);
+                return new Date(0);
+            };
+
+            switch (sortType) {
+                case 'title':
+                    return (a.title || '').localeCompare(b.title || '');
+                case 'created':
+                    const dateA = a.createdAt;
+                    const dateB = b.createdAt;
+                    return new Date(dateB || 0) - new Date(dateA || 0);
+                case 'progress':
+                    const progressA = calculateProgress(a);
+                    const progressB = calculateProgress(b);
+                    return progressB - progressA;
+                case 'score':
+                    const scoreA = a.analysis?.atsScore || a.atsScore || 0;
+                    const scoreB = b.analysis?.atsScore || b.atsScore || 0;
+                    return scoreB - scoreA;
+                case 'updated':
+                default:
+                    return getDate(b) - getDate(a);
+            }
+        });
+
+        return filtered;
+    }, []);
+
+    // Calculate progress for a resume
+    const calculateProgress = (resume) => {
+        const data = resume.data || {};
+        let completed = 0;
+        let total = 7;
+
+        if (data.personalInfo?.firstName && data.personalInfo?.email) completed++;
+        if (data.summary && data.summary.trim().length > 50) completed++;
+        if (data.experience && data.experience.length > 0) completed++;
+        if (data.education && data.education.length > 0) completed++;
+        if (data.skills && data.skills.length > 0) completed++;
+        if (data.projects && data.projects.length > 0) completed++;
+        if (data.certifications && data.certifications.length > 0) completed++;
+
+        return Math.round((completed / total) * 100);
+    };
+
+    // Event Handlers
+    const handleBuildResume = () => {
+        navigate('/builder');
+    };
+
+    const handleDeleteResume = async (id, title) => {
+        try {
+            const savedResumes = JSON.parse(localStorage.getItem('savedResumes') || '[]');
+            const updatedResumes = savedResumes.filter(resume => resume._id !== id);
+            localStorage.setItem('savedResumes', JSON.stringify(updatedResumes));
+
+            setResumes(prev => prev.filter(resume => resume._id !== id));
+            toast.success('Resume deleted successfully');
+            setShowDeleteConfirm(null);
+
+        } catch (err) {
+            console.error('Error deleting resume:', err);
+            toast.error('Failed to delete resume');
         }
     };
 
-    const exportAsImage = async () => {
-        if (!previewRef.current) return;
-
-        setIsDownloading(true);
+    const handleDuplicateResume = async (id, title) => {
         try {
-            const canvas = await html2canvas(previewRef.current, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#ffffff'
-            });
+            const resumeToDuplicate = resumes.find(r => r._id === id);
+            if (!resumeToDuplicate) {
+                toast.error('Resume not found');
+                return;
+            }
 
+            const duplicate = {
+                ...resumeToDuplicate,
+                _id: `resume_${Date.now()}`,
+                title: `${title} (Copy)`,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            const savedResumes = JSON.parse(localStorage.getItem('savedResumes') || '[]');
+            savedResumes.push(duplicate);
+            localStorage.setItem('savedResumes', JSON.stringify(savedResumes));
+
+            setResumes(prev => [duplicate, ...prev]);
+            toast.success('Resume duplicated successfully');
+
+        } catch (err) {
+            console.error('Error duplicating resume:', err);
+            toast.error('Failed to duplicate resume');
+        }
+    };
+
+    const handleExportResume = async (id, title) => {
+        try {
+            const resume = resumes.find(r => r._id === id);
+            if (!resume) {
+                toast.error('Resume not found');
+                return;
+            }
+
+            const dataStr = JSON.stringify(resume, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = window.URL.createObjectURL(dataBlob);
             const link = document.createElement('a');
-            link.download = `${resumeData.personalInfo.firstName || 'resume'}_${resumeData.personalInfo.lastName || ''}.png`;
-            link.href = canvas.toDataURL('image/png');
+            link.href = url;
+            link.download = `${title || 'resume'}.json`;
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
 
-            toast.success('Resume exported as PNG!');
-        } catch (error) {
-            console.error('Image export error:', error);
-            toast.error('Failed to export image');
-        } finally {
-            setIsDownloading(false);
+            toast.success('Resume exported successfully!');
+        } catch (err) {
+            console.error('Error exporting resume:', err);
+            toast.error('Failed to export resume');
         }
     };
 
-    const getPreviewStyle = () => {
-        switch (previewSize) {
-            case 'small': return { transform: 'scale(0.7)', transformOrigin: 'top left' };
-            case 'large': return { transform: 'scale(1.1)', transformOrigin: 'top left' };
-            default: return { transform: 'scale(0.85)', transformOrigin: 'top left' };
+    const handleRefresh = () => {
+        loadUserResumes();
+        toast.success('Refreshed resumes');
+    };
+
+    const handlePreviewResume = (resume) => {
+        navigate(`/preview/${resume._id}`);
+    };
+
+    const handleShareResume = (resume) => {
+        const shareUrl = `${window.location.origin}/preview/${resume._id}`;
+        navigator.clipboard.writeText(shareUrl)
+            .then(() => toast.success('Share link copied to clipboard!'))
+            .catch(() => toast.error('Failed to copy link'));
+    };
+
+    const handleAIAnalyze = (resume) => {
+        navigate(`/analyzer?resumeId=${resume._id}`);
+    };
+
+    // Helper Functions
+    const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return 'N/A';
+
+            const now = new Date();
+            const diffTime = Math.abs(now - date);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays === 0) return 'Today';
+            if (diffDays === 1) return 'Yesterday';
+            if (diffDays < 7) return `${diffDays} days ago`;
+            if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+            });
+        } catch {
+            return 'N/A';
         }
     };
 
-    return (
-        <div className="enhanced-live-preview">
-            <div className="preview-toolbar">
-                <div className="toolbar-left">
-                    <h4>
-                        <FaEye /> Live Preview
-                        <span className="live-badge">
-                            <span className="pulse"></span>
-                            LIVE
-                        </span>
-                    </h4>
-                </div>
-                <div className="toolbar-right">
-                    <button
-                        onClick={exportAsImage}
-                        disabled={isDownloading}
-                        className="export-btn"
-                        title="Export as Image"
-                    >
-                        <FaDownload /> PNG
-                    </button>
-                    <button
-                        onClick={exportAsPDF}
-                        disabled={isDownloading}
-                        className="export-btn pdf"
-                        title="Export as PDF"
-                    >
-                        <FaFilePdf /> PDF
-                    </button>
-                    {isDownloading && <FaSpinner className="spinner" />}
-                </div>
-            </div>
+    const getTemplateIcon = (template) => {
+        switch (template) {
+            case 'modern': return <FaRocket className="text-blue-500" />;
+            case 'classic': return <FaFileAlt className="text-amber-500" />;
+            case 'creative': return <FaPalette className="text-purple-500" />;
+            case 'professional': return <FaBriefcase className="text-emerald-500" />;
+            case 'minimal': return <FaFileAlt className="text-gray-500" />;
+            default: return <FaFileAlt className="text-gray-500" />;
+        }
+    };
 
-            <div className="preview-content-wrapper">
-                <div
-                    ref={previewRef}
-                    className="preview-content"
-                    style={getPreviewStyle()}
-                >
-                    {/* Resume Template */}
-                    <div className="resume-template modern">
-                        {/* Header */}
-                        <div className="resume-header">
-                            <div className="header-left">
-                                <h1 className="name">
-                                    {resumeData.personalInfo.firstName || 'First'} {resumeData.personalInfo.lastName || 'Last'}
-                                </h1>
-                                <p className="title">
-                                    {resumeData.personalInfo.title || 'Professional Title'}
-                                </p>
-                            </div>
-                            <div className="header-right">
-                                <div className="contact-info">
-                                    {resumeData.personalInfo.email && (
-                                        <div className="contact-item">
-                                            <span className="label">Email:</span>
-                                            <span>{resumeData.personalInfo.email}</span>
-                                        </div>
-                                    )}
-                                    {resumeData.personalInfo.phone && (
-                                        <div className="contact-item">
-                                            <span className="label">Phone:</span>
-                                            <span>{resumeData.personalInfo.phone}</span>
-                                        </div>
-                                    )}
-                                    {resumeData.personalInfo.linkedin && (
-                                        <div className="contact-item">
-                                            <span className="label">LinkedIn:</span>
-                                            <span>{resumeData.personalInfo.linkedin}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+    const getTemplateColor = (template) => {
+        switch (template) {
+            case 'modern': return 'bg-blue-100 text-blue-600';
+            case 'classic': return 'bg-amber-100 text-amber-600';
+            case 'creative': return 'bg-purple-100 text-purple-600';
+            case 'professional': return 'bg-emerald-100 text-emerald-600';
+            case 'minimal': return 'bg-gray-100 text-gray-600';
+            default: return 'bg-gray-100 text-gray-600';
+        }
+    };
 
-                        {/* Summary */}
-                        {resumeData.summary && (
-                            <div className="section">
-                                <h2 className="section-title">Professional Summary</h2>
-                                <div className="section-content">
-                                    <p>{resumeData.summary}</p>
-                                </div>
-                            </div>
-                        )}
+    const getScoreColor = (score) => {
+        if (!score) return 'text-gray-500';
+        if (score >= 90) return 'text-emerald-500';
+        if (score >= 80) return 'text-green-500';
+        if (score >= 70) return 'text-yellow-500';
+        if (score >= 60) return 'text-orange-500';
+        return 'text-red-500';
+    };
 
-                        {/* Experience */}
-                        {resumeData.experience.length > 0 && (
-                            <div className="section">
-                                <h2 className="section-title">Work Experience</h2>
-                                <div className="section-content">
-                                    {resumeData.experience.map((exp, idx) => (
-                                        <div key={idx} className="experience-item">
-                                            <div className="experience-header">
-                                                <h3>{exp.jobTitle || 'Job Title'}</h3>
-                                                <span className="company">{exp.company || 'Company'}</span>
-                                                <span className="date">
-                                                    {exp.startDate || 'Start'} - {exp.current ? 'Present' : exp.endDate || 'End'}
-                                                </span>
-                                            </div>
-                                            {exp.description && (
-                                                <p className="experience-description">{exp.description}</p>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+    const getScoreBg = (score) => {
+        if (!score) return 'bg-gray-100';
+        if (score >= 90) return 'bg-emerald-500';
+        if (score >= 80) return 'bg-green-500';
+        if (score >= 70) return 'bg-yellow-500';
+        if (score >= 60) return 'bg-orange-500';
+        return 'bg-red-500';
+    };
 
-                        {/* Education */}
-                        {resumeData.education.length > 0 && (
-                            <div className="section">
-                                <h2 className="section-title">Education</h2>
-                                <div className="section-content">
-                                    {resumeData.education.map((edu, idx) => (
-                                        <div key={idx} className="education-item">
-                                            <div className="education-header">
-                                                <h3>{edu.degree || 'Degree'}</h3>
-                                                <span className="institution">{edu.institution || 'Institution'}</span>
-                                                <span className="date">{edu.graduationDate || 'Graduation Date'}</span>
-                                            </div>
-                                            {edu.gpa && <span className="gpa">GPA: {edu.gpa}</span>}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Skills */}
-                        {resumeData.skills.length > 0 && (
-                            <div className="section">
-                                <h2 className="section-title">Skills</h2>
-                                <div className="section-content">
-                                    <div className="skills-grid">
-                                        {resumeData.skills.map((skill, idx) => (
-                                            <span key={idx} className="skill-tag">{skill}</span>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Projects */}
-                        {resumeData.projects.length > 0 && (
-                            <div className="section">
-                                <h2 className="section-title">Projects</h2>
-                                <div className="section-content">
-                                    {resumeData.projects.map((project, idx) => (
-                                        <div key={idx} className="project-item">
-                                            <h3>{project.name || 'Project Name'}</h3>
-                                            <p>{project.description || 'Project description'}</p>
-                                            {project.technologies && (
-                                                <div className="project-tech">
-                                                    {project.technologies.split(',').map((tech, i) => (
-                                                        <span key={i} className="tech-tag">{tech.trim()}</span>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Certifications */}
-                        {resumeData.certifications.length > 0 && (
-                            <div className="section">
-                                <h2 className="section-title">Certifications</h2>
-                                <div className="section-content">
-                                    {resumeData.certifications.map((cert, idx) => (
-                                        <div key={idx} className="certification-item">
-                                            <h3>{cert.name || 'Certification Name'}</h3>
-                                            <span className="issuer">{cert.issuer || 'Issuing Organization'}</span>
-                                            {cert.date && <span className="date">{cert.date}</span>}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            <div className="preview-footer">
-                <div className="preview-info">
-                    <span className="info-item">
-                        <FaFileAlt /> {Object.keys(resumeData.personalInfo).length} fields filled
-                    </span>
-                    <span className="info-item">
-                        <FaSyncAlt /> Auto-refresh
-                    </span>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// Enhanced AI Panel
-const EnhancedAIPanel = ({
-    suggestions,
-    jobAnalysis,
-    isLoading,
-    onApplySuggestion,
-    onClose,
-    activeSection
-}) => {
-    const [activeTab, setActiveTab] = useState('suggestions');
-    const [selectedSuggestion, setSelectedSuggestion] = useState(null);
-
-    if (isLoading) {
+    // Loading State
+    if (loading) {
         return (
-            <div className="enhanced-ai-panel loading">
-                <div className="loading-content">
-                    <div className="brain-animation">
-                        <FaBrain className="brain-icon" />
-                        <div className="brain-pulse"></div>
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="relative">
+                        <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            className="w-20 h-20 border-4 border-indigo-200 border-t-indigo-600 rounded-full mx-auto"
+                        />
+                        <FaDatabase className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-2xl text-indigo-600" />
                     </div>
-                    <p>AI is analyzing your resume...</p>
-                    <div className="loading-details">
-                        <span>Extracting insights</span>
-                        <span>Generating suggestions</span>
-                        <span>Optimizing content</span>
-                    </div>
+                    <p className="mt-6 text-slate-600 font-medium">Loading your resumes...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="enhanced-ai-panel">
-            <div className="panel-header">
-                <div className="header-left">
-                    <div className="ai-status-indicator">
-                        <div className="status-dot active"></div>
-                    </div>
-                    <div className="header-info">
-                        <h3>AI Resume Assistant</h3>
-                        <span className="ai-model">Powered by GPT-4</span>
-                    </div>
-                </div>
-                <button onClick={onClose} className="close-btn" title="Close AI Panel">
-                    <FaTimes />
-                </button>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+            {/* Use your Navbar component */}
+            <Navbar />
+
+            {/* Animated Background */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
+                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-1000" />
             </div>
 
-            <div className="panel-tabs">
-                <button
-                    className={`tab ${activeTab === 'suggestions' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('suggestions')}
+            <main className="container mx-auto px-4 py-6 relative z-10 mt-16"> {/* Added mt-16 for navbar */}
+                {/* Stats Cards */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
                 >
-                    <FaLightbulb /> Suggestions
-                </button>
-                <button
-                    className={`tab ${activeTab === 'analysis' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('analysis')}
-                >
-                    <FaChartLine /> Analysis
-                </button>
-                {jobAnalysis && (
-                    <button
-                        className={`tab ${activeTab === 'jobmatch' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('jobmatch')}
-                    >
-                        <FaSearch /> Job Match
-                    </button>
-                )}
-            </div>
-
-            <div className="panel-content">
-                {activeTab === 'suggestions' && (
-                    <div className="suggestions-container">
-                        <div className="section-header">
-                            <h4>AI Suggestions</h4>
-                            <span className="suggestion-count">
-                                {suggestions.length} suggestions
-                            </span>
-                        </div>
-
-                        <div className="suggestions-grid">
-                            {suggestions.slice(0, 6).map((suggestion, idx) => (
-                                <motion.div
-                                    key={idx}
-                                    className="suggestion-card"
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: idx * 0.1 }}
-                                    onClick={() => setSelectedSuggestion(suggestion)}
-                                >
-                                    <div className="suggestion-card-header">
-                                        <div className="priority-indicator">
-                                            <FaStar className={`priority-icon ${suggestion.priority?.toLowerCase()}`} />
-                                            <span className="priority-text">
-                                                {suggestion.priority || 'Medium'}
-                                            </span>
-                                        </div>
-                                        <span className="category-badge">
-                                            {suggestion.category}
-                                        </span>
+                    {[
+                        {
+                            title: "Total Resumes",
+                            value: stats.total,
+                            change: `${Math.round((stats.recent / Math.max(stats.total, 1)) * 100)}% active`,
+                            icon: <FaFileAlt className="text-2xl" />,
+                            color: "from-blue-500 to-cyan-500",
+                            bg: "bg-gradient-to-br from-blue-50 to-cyan-50",
+                            description: "Saved locally"
+                        },
+                        {
+                            title: "Completed",
+                            value: stats.completed,
+                            change: `${Math.round((stats.completed / Math.max(stats.total, 1)) * 100)}% complete`,
+                            icon: <FaChartLine className="text-2xl" />,
+                            color: "from-emerald-500 to-green-500",
+                            bg: "bg-gradient-to-br from-emerald-50 to-green-50",
+                            description: "Ready to use"
+                        },
+                        {
+                            title: "Avg. Score",
+                            value: `${stats.averageScore}%`,
+                            change: "+5% from last week",
+                            icon: <FaStar className="text-2xl" />,
+                            color: "from-amber-500 to-orange-500",
+                            bg: "bg-gradient-to-br from-amber-50 to-orange-50",
+                            description: "ATS optimization"
+                        },
+                        {
+                            title: "Recent Activity",
+                            value: stats.recent,
+                            change: "Last 7 days",
+                            icon: <FaBolt className="text-2xl" />,
+                            color: "from-purple-500 to-pink-500",
+                            bg: "bg-gradient-to-br from-purple-50 to-pink-50",
+                            description: "Updated resumes"
+                        }
+                    ].map((stat, index) => (
+                        <motion.div
+                            key={index}
+                            whileHover={{ y: -5 }}
+                            className={`${stat.bg} rounded-2xl p-6 border border-white shadow-sm hover:shadow-lg transition-all duration-300`}
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <div className={`p-3 rounded-xl bg-gradient-to-r ${stat.color} bg-opacity-10`}>
+                                    <div className={`text-gradient bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`}>
+                                        {stat.icon}
                                     </div>
+                                </div>
+                                <span className="text-xs font-medium text-slate-600 bg-white px-2 py-1 rounded-full">
+                                    {stat.change}
+                                </span>
+                            </div>
+                            <h3 className="text-3xl font-bold text-slate-900 mb-1">{stat.value}</h3>
+                            <p className="text-slate-900 font-medium mb-1">{stat.title}</p>
+                            <p className="text-slate-600 text-sm">{stat.description}</p>
+                        </motion.div>
+                    ))}
+                </motion.div>
 
-                                    <div className="suggestion-card-body">
-                                        <p className="suggestion-text">{suggestion.text}</p>
+                {/* Quick Actions */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="mb-8"
+                >
+                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-6 shadow-lg">
+                        <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+                            <div className="flex-1">
+                                <h2 className="text-2xl font-bold text-white mb-2">Manage Your Resumes</h2>
+                                <p className="text-indigo-100 mb-6">
+                                    {stats.total > 0
+                                        ? `You have ${stats.total} saved resumes. Create new ones or enhance existing ones.`
+                                        : 'Start building your professional resume collection.'}
+                                </p>
+                                <div className="flex flex-wrap gap-3">
+                                    <button
+                                        onClick={handleBuildResume}
+                                        className="px-6 py-3 bg-white text-indigo-600 rounded-xl hover:bg-indigo-50 transition font-semibold flex items-center gap-2"
+                                    >
+                                        <FaPlus />
+                                        {stats.total === 0 ? 'Create First Resume' : 'Create New Resume'}
+                                    </button>
 
-                                        {suggestion.impact && (
-                                            <div className="impact-meter">
-                                                <div className="impact-label">Impact</div>
-                                                <div className="impact-bar">
-                                                    <div
-                                                        className="impact-fill"
-                                                        style={{ width: `${suggestion.impact === 'High' ? '80%' : suggestion.impact === 'Medium' ? '60%' : '40%'}` }}
-                                                    ></div>
-                                                </div>
-                                            </div>
+                                    {stats.total > 0 && (
+                                        <>
+                                            <button
+                                                onClick={() => navigate('/analyzer')}
+                                                className="px-6 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition font-semibold flex items-center gap-2"
+                                            >
+                                                <FaRobot />
+                                                AI Analyze All
+                                            </button>
+
+                                            <button
+                                                onClick={() => navigate('/templates')}
+                                                className="px-6 py-3 bg-transparent border-2 border-white text-white rounded-xl hover:bg-white/10 transition font-semibold flex items-center gap-2"
+                                            >
+                                                <FaPalette />
+                                                Browse Templates
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="hidden lg:block">
+                                <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
+                                    <FaDatabase className="text-4xl text-white" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+
+                {/* Search and Filter Bar - Only show if we have resumes */}
+                {stats.total > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="mb-8"
+                    >
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+                            <div className="flex flex-col lg:flex-row gap-4">
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search your resumes by title, name, or keywords..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-slate-50"
+                                        />
+                                        {searchLoading && (
+                                            <FaSpinner className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 animate-spin" />
                                         )}
                                     </div>
+                                </div>
 
-                                    <div className="suggestion-card-footer">
+                                <div className="flex flex-wrap gap-3">
+                                    <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-1">
                                         <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onApplySuggestion(suggestion);
-                                            }}
-                                            className="apply-suggestion-btn"
+                                            onClick={() => setViewMode('grid')}
+                                            className={`px-4 py-2 rounded-lg transition ${viewMode === 'grid' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-600'}`}
                                         >
-                                            <FaCheckCircle /> Apply
+                                            Grid
+                                        </button>
+                                        <button
+                                            onClick={() => setViewMode('list')}
+                                            className={`px-4 py-2 rounded-lg transition ${viewMode === 'list' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-600'}`}
+                                        >
+                                            List
                                         </button>
                                     </div>
-                                </motion.div>
-                            ))}
-                        </div>
 
-                        {selectedSuggestion && (
-                            <div className="suggestion-detail-modal">
-                                <div className="modal-content">
-                                    <div className="modal-header">
-                                        <h4>Apply Suggestion</h4>
-                                        <button onClick={() => setSelectedSuggestion(null)}>
-                                            <FaTimes />
-                                        </button>
+                                    <div className="relative">
+                                        <select
+                                            value={filter}
+                                            onChange={(e) => setFilter(e.target.value)}
+                                            className="appearance-none pl-10 pr-8 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white cursor-pointer min-w-[160px]"
+                                        >
+                                            <option value="all">All Templates</option>
+                                            <option value="modern">Modern</option>
+                                            <option value="classic">Classic</option>
+                                            <option value="creative">Creative</option>
+                                            <option value="professional">Professional</option>
+                                            <option value="minimal">Minimal</option>
+                                        </select>
+                                        <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                                     </div>
-                                    <div className="modal-body">
-                                        <p><strong>Category:</strong> {selectedSuggestion.category}</p>
-                                        <p><strong>Priority:</strong> {selectedSuggestion.priority}</p>
-                                        <p><strong>Suggestion:</strong> {selectedSuggestion.text}</p>
-                                        <p><strong>Impact:</strong> {selectedSuggestion.impact}</p>
 
-                                        <div className="action-buttons">
-                                            <button className="btn-primary">
-                                                <FaMagic /> Apply & Rewrite
-                                            </button>
-                                            <button className="btn-secondary">
-                                                <FaSyncAlt /> Preview Changes
-                                            </button>
-                                        </div>
+                                    <div className="relative">
+                                        <select
+                                            value={sortBy}
+                                            onChange={(e) => setSortBy(e.target.value)}
+                                            className="appearance-none pl-10 pr-8 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white cursor-pointer min-w-[160px]"
+                                        >
+                                            <option value="updated">Recently Updated</option>
+                                            <option value="created">Date Created</option>
+                                            <option value="title">Title (A-Z)</option>
+                                            <option value="progress">Progress</option>
+                                            <option value="score">ATS Score</option>
+                                        </select>
+                                        <FaSort className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                                     </div>
                                 </div>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    </motion.div>
                 )}
 
-                {activeTab === 'analysis' && (
-                    <div className="analysis-container">
-                        <div className="analysis-card">
-                            <h4>Resume Score</h4>
-                            <div className="score-display">
-                                <div className="score-circle">
-                                    <span className="score-value">78</span>
-                                    <span className="score-max">/100</span>
-                                </div>
-                                <div className="score-breakdown">
-                                    <div className="score-item">
-                                        <span className="score-label">Content</span>
-                                        <div className="score-bar">
-                                            <div className="bar-fill" style={{ width: '85%' }}></div>
-                                        </div>
-                                        <span className="score-percent">85%</span>
-                                    </div>
-                                    <div className="score-item">
-                                        <span className="score-label">Format</span>
-                                        <div className="score-bar">
-                                            <div className="bar-fill" style={{ width: '90%' }}></div>
-                                        </div>
-                                        <span className="score-percent">90%</span>
-                                    </div>
-                                    <div className="score-item">
-                                        <span className="score-label">Keywords</span>
-                                        <div className="score-bar">
-                                            <div className="bar-fill" style={{ width: '70%' }}></div>
-                                        </div>
-                                        <span className="score-percent">70%</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="improvement-areas">
-                            <h4>Areas for Improvement</h4>
-                            <ul className="improvement-list">
-                                <li>
-                                    <FaExclamationTriangle className="warning-icon" />
-                                    Add more quantifiable achievements
-                                </li>
-                                <li>
-                                    <FaExclamationTriangle className="warning-icon" />
-                                    Include industry-specific keywords
-                                </li>
-                                <li>
-                                    <FaExclamationTriangle className="warning-icon" />
-                                    Expand technical skills section
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'jobmatch' && jobAnalysis && (
-                    <div className="jobmatch-container">
-                        <div className="match-header">
-                            <h4>Job Match Analysis</h4>
-                            <div className="match-score">
-                                <div className="score-display-large">
-                                    <span className="score-value">{jobAnalysis.matchScore || 85}</span>
-                                    <span className="score-label">Match</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="job-details">
-                            <div className="detail-item">
-                                <span className="detail-label">Job Title</span>
-                                <span className="detail-value">{jobAnalysis.jobTitle || 'Software Engineer'}</span>
-                            </div>
-                            <div className="detail-item">
-                                <span className="detail-label">Level</span>
-                                <span className="detail-value">{jobAnalysis.jobLevel || 'Senior'}</span>
-                            </div>
-                            <div className="detail-item">
-                                <span className="detail-label">Salary Range</span>
-                                <span className="detail-value">{jobAnalysis.salaryRange || '$120K - $180K'}</span>
-                            </div>
-                        </div>
-
-                        <div className="keyword-analysis">
-                            <h5>Required Keywords</h5>
-                            <div className="keyword-cloud">
-                                {jobAnalysis.keywords?.slice(0, 12).map((keyword, idx) => (
-                                    <span key={idx} className={`keyword-tag ${idx < 4 ? 'primary' : idx < 8 ? 'secondary' : 'tertiary'}`}>
-                                        {keyword}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="match-breakdown">
-                            <h5>Match Breakdown</h5>
-                            <div className="breakdown-grid">
-                                <div className="breakdown-item">
-                                    <span className="breakdown-label">Skills</span>
-                                    <div className="breakdown-bar">
-                                        <div className="bar-fill" style={{ width: '75%' }}></div>
-                                    </div>
-                                    <span className="breakdown-percent">75%</span>
-                                </div>
-                                <div className="breakdown-item">
-                                    <span className="breakdown-label">Experience</span>
-                                    <div className="breakdown-bar">
-                                        <div className="bar-fill" style={{ width: '85%' }}></div>
-                                    </div>
-                                    <span className="breakdown-percent">85%</span>
-                                </div>
-                                <div className="breakdown-item">
-                                    <span className="breakdown-label">Education</span>
-                                    <div className="breakdown-bar">
-                                        <div className="bar-fill" style={{ width: '90%' }}></div>
-                                    </div>
-                                    <span className="breakdown-percent">90%</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <div className="panel-footer">
-                <button className="refresh-suggestions">
-                    <FaSync /> Refresh Suggestions
-                </button>
-            </div>
-        </div>
-    );
-};
-
-// Job URL Modal
-const JobURLModal = ({ isOpen, onClose, onAnalyze }) => {
-    const [jobUrl, setJobUrl] = useState('');
-    const [urlType, setUrlType] = useState('linkedin');
-    const [isLoading, setIsLoading] = useState(false);
-
-    const handleSubmit = async () => {
-        if (!jobUrl.trim()) {
-            toast.error('Please enter a job description URL');
-            return;
-        }
-
-        setIsLoading(true);
-        await onAnalyze(jobUrl, urlType);
-        setIsLoading(false);
-        onClose();
-    };
-
-    const handlePaste = async () => {
-        try {
-            const text = await navigator.clipboard.readText();
-            setJobUrl(text);
-            toast.success('URL pasted!');
-        } catch (err) {
-            toast.error('Unable to paste from clipboard');
-        }
-    };
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="modal-overlay">
-            <motion.div
-                className="modal-content job-url-modal"
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-            >
-                <div className="modal-header">
-                    <h3>
-                        <FaLink /> Analyze Job Description
-                    </h3>
-                    <button onClick={onClose} className="close-btn">
-                        <FaTimes />
-                    </button>
-                </div>
-
-                <div className="modal-body">
-                    <div className="url-type-selector">
-                        <h4>Select Platform</h4>
-                        <div className="platform-grid">
-                            <button
-                                className={`platform-card ${urlType === 'linkedin' ? 'active' : ''}`}
-                                onClick={() => setUrlType('linkedin')}
+                {/* Resume Grid/List */}
+                <AnimatePresence mode="wait">
+                    {stats.total > 0 ? (
+                        filteredResumes.length > 0 ? (
+                            <motion.div
+                                key={viewMode}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className={viewMode === 'grid' ?
+                                    "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" :
+                                    "space-y-4"
+                                }
                             >
-                                <div className="platform-icon linkedin">
-                                    <FaLink />
-                                </div>
-                                <span>LinkedIn</span>
-                            </button>
-                            <button
-                                className={`platform-card ${urlType === 'indeed' ? 'active' : ''}`}
-                                onClick={() => setUrlType('indeed')}
-                            >
-                                <div className="platform-icon indeed">
-                                    <FaBriefcase />
-                                </div>
-                                <span>Indeed</span>
-                            </button>
-                            <button
-                                className={`platform-card ${urlType === 'glassdoor' ? 'active' : ''}`}
-                                onClick={() => setUrlType('glassdoor')}
-                            >
-                                <div className="platform-icon glassdoor">
-                                    <FaSearch />
-                                </div>
-                                <span>Glassdoor</span>
-                            </button>
-                            <button
-                                className={`platform-card ${urlType === 'custom' ? 'active' : ''}`}
-                                onClick={() => setUrlType('custom')}
-                            >
-                                <div className="platform-icon custom">
-                                    <FaExternalLinkAlt />
-                                </div>
-                                <span>Custom URL</span>
-                            </button>
-                        </div>
-                    </div>
+                                {filteredResumes.map((resume, index) => {
+                                    const data = resume.data || {};
+                                    const progress = calculateProgress(resume);
+                                    const updatedAt = resume.updatedAt;
+                                    const template = resume.template || 'modern';
+                                    const title = resume.title || 'Untitled Resume';
+                                    const score = resume.analysis?.atsScore || resume.atsScore || Math.floor(Math.random() * 30) + 70;
+                                    const resumeId = resume._id || resume.id || `resume_${index}`;
 
-                    <div className="url-input-section">
-                        <div className="input-group">
-                            <div className="input-header">
-                                <label>Job Description URL</label>
-                                <button onClick={handlePaste} className="paste-btn">
-                                    <FaCopy /> Paste URL
-                                </button>
-                            </div>
-                            <div className="input-wrapper">
-                                <FaExternalLinkAlt className="input-icon" />
-                                <input
-                                    type="url"
-                                    value={jobUrl}
-                                    onChange={(e) => setJobUrl(e.target.value)}
-                                    placeholder="https://www.linkedin.com/jobs/view/..."
-                                    className="url-input"
-                                />
-                            </div>
-                        </div>
-                    </div>
+                                    return viewMode === 'grid' ? (
+                                        <motion.div
+                                            key={resumeId}
+                                            initial={{ scale: 0.95, opacity: 0 }}
+                                            animate={{ scale: 1, opacity: 1 }}
+                                            whileHover={{ scale: 1.03 }}
+                                            className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden group cursor-pointer"
+                                            onClick={() => navigate(`/builder/${resumeId}`)}
+                                        >
+                                            <div className="p-6">
+                                                {/* Header */}
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`p-2 rounded-lg ${getTemplateColor(template)}`}>
+                                                            {getTemplateIcon(template)}
+                                                        </div>
+                                                        <div className="overflow-hidden">
+                                                            <h3 className="font-semibold text-slate-900 group-hover:text-indigo-600 transition truncate">
+                                                                {title}
+                                                            </h3>
+                                                            <p className="text-sm text-slate-500">
+                                                                {formatDate(updatedAt)}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-1">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleAIAnalyze(resume);
+                                                            }}
+                                                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                                            title="AI Analyze"
+                                                        >
+                                                            <FaBrain />
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handlePreviewResume(resume);
+                                                            }}
+                                                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                                            title="Preview"
+                                                        >
+                                                            <FaEye />
+                                                        </button>
+                                                    </div>
+                                                </div>
 
-                    <div className="analysis-preview">
-                        <h4>AI Analysis Includes:</h4>
-                        <div className="features-grid">
-                            <div className="feature-card">
-                                <FaSearch className="feature-icon" />
-                                <span>Keyword Extraction</span>
-                            </div>
-                            <div className="feature-card">
-                                <FaPercent className="feature-icon" />
-                                <span>Match Score</span>
-                            </div>
-                            <div className="feature-card">
-                                <FaChartLine className="feature-icon" />
-                                <span>Salary Analysis</span>
-                            </div>
-                            <div className="feature-card">
-                                <FaLightbulb className="feature-icon" />
-                                <span>Optimization Tips</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                                                {/* Score Badge */}
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className={`px-3 py-1 rounded-full ${getScoreBg(score)} bg-opacity-10`}>
+                                                        <span className={`text-sm font-semibold ${getScoreColor(score)}`}>
+                                                            ATS Score: {score}%
+                                                        </span>
+                                                    </div>
+                                                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${getTemplateColor(template)}`}>
+                                                        {template.charAt(0).toUpperCase() + template.slice(1)}
+                                                    </span>
+                                                </div>
 
-                <div className="modal-footer">
-                    <button onClick={onClose} className="btn-secondary">
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSubmit}
-                        disabled={isLoading || !jobUrl.trim()}
-                        className="btn-primary"
-                    >
-                        {isLoading ? (
-                            <>
-                                <FaSpinner className="spinner" /> Analyzing...
-                            </>
+                                                {/* Progress Bar */}
+                                                <div className="mb-6">
+                                                    <div className="flex justify-between text-xs text-slate-600 mb-2">
+                                                        <span>Completion</span>
+                                                        <span>{progress}%</span>
+                                                    </div>
+                                                    <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                                                        <motion.div
+                                                            initial={{ width: 0 }}
+                                                            animate={{ width: `${progress}%` }}
+                                                            transition={{ duration: 1, delay: index * 0.1 }}
+                                                            className={`h-full rounded-full ${progress >= 80 ? 'bg-emerald-500' :
+                                                                progress >= 60 ? 'bg-blue-500' :
+                                                                    progress >= 40 ? 'bg-yellow-500' :
+                                                                        'bg-red-500'}`}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Stats Grid */}
+                                                <div className="grid grid-cols-2 gap-3 mb-6">
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <FaBriefcase className="text-blue-500" />
+                                                        <span className="text-slate-700 font-medium">{data.experience?.length || 0}</span>
+                                                        <span className="text-slate-500">Exp</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <FaGraduationCap className="text-emerald-500" />
+                                                        <span className="text-slate-700 font-medium">{data.education?.length || 0}</span>
+                                                        <span className="text-slate-500">Edu</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <FaCogs className="text-purple-500" />
+                                                        <span className="text-slate-700 font-medium">{data.skills?.length || 0}</span>
+                                                        <span className="text-slate-500">Skills</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <FaProjectDiagram className="text-amber-500" />
+                                                        <span className="text-slate-700 font-medium">{data.projects?.length || 0}</span>
+                                                        <span className="text-slate-500">Projects</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Action Buttons */}
+                                                <div className="flex gap-2 pt-4 border-t border-slate-100">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/builder/${resumeId}`);
+                                                        }}
+                                                        className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium flex items-center justify-center gap-2"
+                                                    >
+                                                        <FaEdit />
+                                                        Edit in Builder
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleShareResume(resume);
+                                                        }}
+                                                        className="p-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition"
+                                                        title="Share"
+                                                    >
+                                                        <FaShareAlt className="text-slate-600" />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDuplicateResume(resumeId, title);
+                                                        }}
+                                                        className="p-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition"
+                                                        title="Duplicate"
+                                                    >
+                                                        <FaCopy className="text-slate-600" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ) : (
+                                        // List View
+                                        <motion.div
+                                            key={resumeId}
+                                            initial={{ opacity: 0, x: -20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: index * 0.05 }}
+                                            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 group hover:shadow-md transition-shadow cursor-pointer"
+                                            onClick={() => navigate(`/builder/${resumeId}`)}
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className={`p-3 rounded-xl ${getTemplateColor(template)}`}>
+                                                    {getTemplateIcon(template)}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <div>
+                                                            <h3 className="font-semibold text-slate-900 truncate group-hover:text-indigo-600">
+                                                                {title}
+                                                            </h3>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${getTemplateColor(template)}`}>
+                                                                {template}
+                                                            </span>
+                                                            <span className={`text-sm font-medium ${getScoreColor(score)}`}>
+                                                                {score}%
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-4 text-sm text-slate-500 mb-2">
+                                                        <span className="flex items-center gap-1">
+                                                            <FaRegClock />
+                                                            {formatDate(updatedAt)}
+                                                        </span>
+                                                        <span>•</span>
+                                                        <span>{progress}% complete</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-6 text-sm">
+                                                        <span className="flex items-center gap-1">
+                                                            <FaBriefcase className="text-blue-500" />
+                                                            {data.experience?.length || 0} exp
+                                                        </span>
+                                                        <span className="flex items-center gap-1">
+                                                            <FaGraduationCap className="text-emerald-500" />
+                                                            {data.education?.length || 0} edu
+                                                        </span>
+                                                        <span className="flex items-center gap-1">
+                                                            <FaCogs className="text-purple-500" />
+                                                            {data.skills?.length || 0} skills
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleAIAnalyze(resume);
+                                                        }}
+                                                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                                        title="AI Analyze"
+                                                    >
+                                                        <FaBrain />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/builder/${resumeId}`);
+                                                        }}
+                                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </motion.div>
                         ) : (
-                            <>
-                                <FaBrain /> Analyze Job Description
-                            </>
-                        )}
-                    </button>
-                </div>
-            </motion.div>
-        </div>
-    );
-};
-
-// Resume Upload Modal
-const ResumeUploadModal = ({ isOpen, onClose, onUpload }) => {
-    const [file, setFile] = useState(null);
-    const [isUploading, setIsUploading] = useState(false);
-    const [dragOver, setDragOver] = useState(false);
-    const [extractionMethod, setExtractionMethod] = useState('ai');
-    const fileInputRef = useRef(null);
-
-    const handleFileChange = (e) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            validateAndSetFile(selectedFile);
-        }
-    };
-
-    const validateAndSetFile = (selectedFile) => {
-        const validTypes = [
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'text/plain'
-        ];
-
-        const maxSize = 10 * 1024 * 1024; // 10MB
-
-        if (!validTypes.includes(selectedFile.type)) {
-            toast.error('Please upload PDF, Word, or text files only');
-            return;
-        }
-
-        if (selectedFile.size > maxSize) {
-            toast.error('File size should be less than 10MB');
-            return;
-        }
-
-        setFile(selectedFile);
-    };
-
-    const handleDragOver = (e) => {
-        e.preventDefault();
-        setDragOver(true);
-    };
-
-    const handleDragLeave = () => {
-        setDragOver(false);
-    };
-
-    const handleDrop = (e) => {
-        e.preventDefault();
-        setDragOver(false);
-        const droppedFile = e.dataTransfer.files[0];
-        if (droppedFile) {
-            validateAndSetFile(droppedFile);
-        }
-    };
-
-    const handleUpload = async () => {
-        if (!file) {
-            toast.error('Please select a file to upload');
-            return;
-        }
-
-        setIsUploading(true);
-        try {
-            await onUpload(file, extractionMethod);
-            toast.success('Resume uploaded successfully!');
-        } catch (error) {
-            console.error('Upload error:', error);
-            toast.error('Failed to upload resume');
-        } finally {
-            setIsUploading(false);
-            onClose();
-        }
-    };
-
-    const getFileIcon = () => {
-        if (!file) return <FaUpload />;
-
-        if (file.type.includes('pdf')) return <FaFilePdf />;
-        if (file.type.includes('word') || file.type.includes('document')) return <FaFileWord />;
-        return <FaFile />;
-    };
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="modal-overlay">
-            <motion.div
-                className="modal-content upload-modal"
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-            >
-                <div className="modal-header">
-                    <h3>
-                        <FaFileUpload /> Upload Resume
-                    </h3>
-                    <button onClick={onClose} className="close-btn">
-                        <FaTimes />
-                    </button>
-                </div>
-
-                <div className="modal-body">
-                    <div className="upload-methods">
-                        <h4>Extraction Method</h4>
-                        <div className="method-options">
-                            <button
-                                className={`method-btn ${extractionMethod === 'ai' ? 'active' : ''}`}
-                                onClick={() => setExtractionMethod('ai')}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="text-center py-16"
                             >
-                                <div className="method-icon">
-                                    <FaRobot />
-                                </div>
-                                <div className="method-info">
-                                    <h5 style={{ color: '#000' }}>AI-Powered</h5>
-                                    <p style={{ color: '#666' }}>Advanced parsing with AI</p>
-                                </div>
-                            </button>
-                            <button
-                                className={`method-btn ${extractionMethod === 'basic' ? 'active' : ''}`}
-                                onClick={() => setExtractionMethod('basic')}
-                            >
-                                <div className="method-icon">
-                                    <FaFile />
-                                </div>
-                                <div className="method-info">
-                                    <h5 style={{ color: '#000' }}>Basic Extraction</h5>
-                                    <p style={{ color: '#666' }}>Simple text extraction</p>
-                                </div>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div
-                        className={`upload-zone ${dragOver ? 'drag-over' : ''}`}
-                        onClick={() => fileInputRef.current?.click()}
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                    >
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileChange}
-                            accept=".pdf,.doc,.docx,.txt"
-                            className="hidden"
-                        />
-
-                        {file ? (
-                            <div className="file-preview">
-                                <div className="file-icon-large">
-                                    {getFileIcon()}
-                                </div>
-                                <div className="file-details">
-                                    <h4 style={{ color: '#000' }}>{file.name}</h4>
-                                    <div className="file-meta">
-                                        <span style={{ color: '#666' }}>{(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                                        <span style={{ color: '#666' }}>•</span>
-                                        <span style={{ color: '#666' }}>{file.type.split('/')[1].toUpperCase()}</span>
+                                <div className="max-w-md mx-auto">
+                                    <div className="p-4 bg-slate-100 rounded-full inline-block mb-6">
+                                        <FaSearch className="text-3xl text-slate-400" />
                                     </div>
+                                    <h3 className="text-2xl font-bold text-slate-900 mb-3">
+                                        No matching resumes found
+                                    </h3>
+                                    <p className="text-slate-600 mb-8">
+                                        Try adjusting your search criteria or clear the filters
+                                    </p>
                                     <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setFile(null);
+                                        onClick={() => {
+                                            setSearchQuery('');
+                                            setFilter('all');
                                         }}
-                                        className="remove-file-btn"
+                                        className="px-8 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition font-semibold"
                                     >
-                                        Remove File
+                                        Clear Filters
+                                    </button>
+                                </div>
+                            </motion.div>
+                        )
+                    ) : (
+                        // Empty State - No resumes
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="text-center py-16"
+                        >
+                            <div className="max-w-md mx-auto">
+                                <div className="relative">
+                                    <motion.div
+                                        animate={{ rotate: 360 }}
+                                        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                                        className="w-32 h-32 border-4 border-indigo-100 rounded-full mx-auto"
+                                    />
+                                    <FaDatabase className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-4xl text-indigo-400" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-slate-900 mt-8 mb-3">
+                                    Your Resume Collection is Empty
+                                </h3>
+                                <p className="text-slate-600 mb-8">
+                                    Start building your professional resume collection.
+                                </p>
+                                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                    <button
+                                        onClick={handleBuildResume}
+                                        className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition font-semibold flex items-center gap-2 justify-center"
+                                    >
+                                        <FaPlus />
+                                        Create Your First Resume
+                                    </button>
+                                    <button
+                                        onClick={() => navigate('/templates')}
+                                        className="px-8 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition font-semibold"
+                                    >
+                                        <FaPalette className="inline mr-2" />
+                                        Browse Templates
                                     </button>
                                 </div>
                             </div>
-                        ) : (
-                            <>
-                                <div className="upload-placeholder">
-                                    <FaUpload className="upload-icon-large" style={{ color: '#666' }} />
-                                    <h4 style={{ color: '#000' }}>Drag & Drop Your Resume</h4>
-                                    <p style={{ color: '#666' }}>or click to browse files</p>
-                                    <div className="supported-formats">
-                                        <span className="format-badge">PDF</span>
-                                        <span className="format-badge">DOC</span>
-                                        <span className="format-badge">DOCX</span>
-                                        <span className="format-badge">TXT</span>
-                                    </div>
-                                    <p className="file-size-note" style={{ color: '#666' }}>Max file size: 10MB</p>
-                                </div>
-                            </>
-                        )}
-                    </div>
-
-                    <div className="upload-features">
-                        <h4 style={{ color: '#000' }}>What happens next?</h4>
-                        <div className="feature-steps">
-                            <div className="step">
-                                <div className="step-number">1</div>
-                                <div className="step-content">
-                                    <h5 style={{ color: '#000' }}>File Upload</h5>
-                                    <p style={{ color: '#666' }}>Your resume is securely uploaded</p>
-                                </div>
-                            </div>
-                            <div className="step">
-                                <div className="step-number">2</div>
-                                <div className="step-content">
-                                    <h5 style={{ color: '#000' }}>AI Analysis</h5>
-                                    <p style={{ color: '#666' }}>AI extracts and structures your data</p>
-                                </div>
-                            </div>
-                            <div className="step">
-                                <div className="step-number">3</div>
-                                <div className="step-content">
-                                    <h5 style={{ color: '#000' }}>Auto-Fill</h5>
-                                    <p style={{ color: '#666' }}>All fields are automatically populated</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="modal-footer">
-                    <button onClick={onClose} className="btn-secondary">
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleUpload}
-                        disabled={isUploading || !file}
-                        className="btn-primary"
-                        style={{ position: 'relative' }}
-                    >
-                        {isUploading ? (
-                            <>
-                                <FaSpinner className="spinner" style={{ animation: 'spin 1s linear infinite' }} />
-                                <span style={{ marginLeft: '8px' }}>Processing...</span>
-                            </>
-                        ) : (
-                            <>
-                                <FaBrain />
-                                <span style={{ marginLeft: '8px' }}>Extract & Auto-Fill</span>
-                            </>
-                        )}
-                    </button>
-                </div>
-            </motion.div>
-        </div>
-    );
-};
-
-// Main Builder Component
-const Builder = () => {
-    const location = useLocation();
-    const navigate = useNavigate();
-    const { resumeId } = useParams();
-
-    const [currentStep, setCurrentStep] = useState(1);
-    const [showPreview, setShowPreview] = useState(true);
-    const [showAIPanel, setShowAIPanel] = useState(true);
-    const [showJobModal, setShowJobModal] = useState(false);
-    const [showUploadModal, setShowUploadModal] = useState(false);
-    const [resumeData, setResumeData] = useState({
-        personalInfo: {},
-        summary: '',
-        experience: [],
-        education: [],
-        skills: [],
-        projects: [],
-        certifications: []
-    });
-    const [lastSaved, setLastSaved] = useState(null);
-    const [isSaving, setIsSaving] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [resumeTitle, setResumeTitle] = useState('My Resume');
-    const [aiSuggestions, setAiSuggestions] = useState([]);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [jobAnalysis, setJobAnalysis] = useState(null);
-    const [previewSize, setPreviewSize] = useState('medium');
-    const [resumeVersions, setResumeVersions] = useState([]);
-    const [activeSection, setActiveSection] = useState(null);
-    const [isExporting, setIsExporting] = useState(false);
-    const [errors, setErrors] = useState({});
-    const [saveError, setSaveError] = useState(null);
-
-    const aiService = useRef(new AIService());
-
-    useEffect(() => {
-        const loadResumeData = async () => {
-            setLoading(true);
-            try {
-                if (location.state) {
-                    const { resumeData: uploadedData, jobAnalysis: analysis } = location.state;
-                    if (uploadedData) {
-                        setResumeData(uploadedData);
-                        toast.success('Resume data loaded successfully!');
-                    }
-                    if (analysis) {
-                        setJobAnalysis(analysis);
-                        await generateAISuggestions(analysis);
-                    }
-                }
-
-                // Load from local storage
-                const savedDraft = localStorage.getItem('resumeDraft');
-                if (savedDraft) {
-                    setResumeData(JSON.parse(savedDraft));
-                    toast.success('Auto-saved draft restored');
-                }
-            } catch (error) {
-                console.error('Error loading resume data:', error);
-                toast.error('Failed to load resume data');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadResumeData();
-    }, [location.state]);
-
-    useEffect(() => {
-        const timeout = setTimeout(() => {
-            try {
-                localStorage.setItem('resumeDraft', JSON.stringify(resumeData));
-                setLastSaved(new Date().toLocaleTimeString());
-            } catch (error) {
-                console.error('Auto-save error:', error);
-            }
-        }, 1000);
-        return () => clearTimeout(timeout);
-    }, [resumeData]);
-
-    const validateStep = (step) => {
-        const newErrors = {};
-
-        switch (step) {
-            case 1: // Personal Info
-                if (!resumeData.personalInfo.firstName?.trim()) {
-                    newErrors.firstName = 'First name is required';
-                }
-                if (!resumeData.personalInfo.email?.trim()) {
-                    newErrors.email = 'Email is required';
-                } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resumeData.personalInfo.email)) {
-                    newErrors.email = 'Invalid email format';
-                }
-                break;
-            case 2: // Summary
-                if (!resumeData.summary?.trim()) {
-                    newErrors.summary = 'Professional summary is required';
-                } else if (resumeData.summary.length < 50) {
-                    newErrors.summary = 'Summary should be at least 50 characters';
-                }
-                break;
-            // Add validation for other steps
-        }
-
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
-
-    const generateAISuggestions = async (analysis) => {
-        setIsAnalyzing(true);
-        setErrors(prev => ({ ...prev, ai: null }));
-
-        try {
-            const suggestions = await aiService.current.generateJobSpecificSuggestions(resumeData, analysis);
-            setAiSuggestions(suggestions);
-            toast.success('AI suggestions generated successfully!');
-        } catch (error) {
-            console.error('AI error:', error);
-            setErrors(prev => ({ ...prev, ai: error.message }));
-            toast.error('Failed to generate AI suggestions');
-        } finally {
-            setIsAnalyzing(false);
-        }
-    };
-
-    const handleInputChange = (section, updates, index = null) => {
-        setResumeData(prev => {
-            const newData = { ...prev };
-            if (section === 'personalInfo') {
-                newData.personalInfo = { ...newData.personalInfo, ...updates };
-            } else if (section === 'summary') {
-                newData.summary = updates;
-            } else if (['experience', 'education', 'projects', 'certifications'].includes(section)) {
-                if (index !== null) {
-                    const newArray = [...newData[section]];
-                    newArray[index] = { ...newArray[index], ...updates };
-                    newData[section] = newArray;
-                }
-            } else if (section === 'skills') {
-                newData.skills = updates;
-            }
-            return newData;
-        });
-
-        // Clear errors for this section
-        if (section === 'personalInfo' && Object.keys(updates)[0]) {
-            setErrors(prev => ({ ...prev, [Object.keys(updates)[0]]: undefined }));
-        }
-    };
-
-    const analyzeJobDescription = async (url, type) => {
-        setIsAnalyzing(true);
-        setErrors(prev => ({ ...prev, jobAnalysis: null }));
-
-        const toastId = toast.loading('Analyzing job description...');
-
-        try {
-            const analysis = await aiService.current.analyzeJobDescription(url);
-            setJobAnalysis(analysis);
-
-            const suggestions = await aiService.current.generateJobSpecificSuggestions(resumeData, analysis);
-            setAiSuggestions(suggestions);
-
-            toast.success('Job analysis complete! AI suggestions loaded', { id: toastId });
-        } catch (error) {
-            console.error('Job analysis error:', error);
-            setErrors(prev => ({ ...prev, jobAnalysis: error.message }));
-            toast.error(`Analysis failed: ${error.message}`, { id: toastId });
-        } finally {
-            setIsAnalyzing(false);
-        }
-    };
-
-    const handleResumeUpload = async (file, method = 'ai') => {
-        setIsAnalyzing(true);
-        setErrors(prev => ({ ...prev, upload: null }));
-
-        const toastId = toast.loading('Extracting resume content...');
-
-        try {
-            const text = await readFileAsText(file);
-            const extractedData = await aiService.current.extractResumeData(text, method);
-
-            // Save current version
-            setResumeVersions(prev => [...prev, { data: resumeData, timestamp: new Date() }]);
-
-            setResumeData(extractedData);
-
-            // Generate suggestions for uploaded resume
-            const suggestions = await aiService.current.analyzeResume(extractedData);
-            setAiSuggestions(suggestions);
-
-            toast.success('Resume uploaded and analyzed successfully!', { id: toastId });
-        } catch (error) {
-            console.error('Resume upload error:', error);
-            setErrors(prev => ({ ...prev, upload: error.message }));
-            toast.error(`Upload failed: ${error.message}`, { id: toastId });
-        } finally {
-            setIsAnalyzing(false);
-        }
-    };
-
-    const readFileAsText = (file) => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = (e) => reject(new Error('Failed to read file'));
-            reader.readAsText(file);
-        });
-    };
-
-    const applyAISuggestion = async (suggestion) => {
-        try {
-            // Save current version
-            setResumeVersions(prev => [...prev, { data: resumeData, timestamp: new Date() }]);
-
-            // Apply suggestion logic based on type
-            switch (suggestion.type) {
-                case 'keyword':
-                    if (suggestion.section === 'summary') {
-                        setResumeData(prev => ({
-                            ...prev,
-                            summary: prev.summary + ' ' + suggestion.value
-                        }));
-                    }
-                    break;
-                case 'rewrite':
-                    // Rewrite logic
-                    break;
-                default:
-                    // Generic application
-                    break;
-            }
-
-            toast.success('Suggestion applied successfully!');
-        } catch (error) {
-            console.error('Failed to apply suggestion:', error);
-            toast.error('Failed to apply suggestion');
-            throw error;
-        }
-    };
-
-    const saveResume = async () => {
-        if (!validateStep(currentStep)) {
-            toast.error('Please fix validation errors before saving');
-            return;
-        }
-
-        setIsSaving(true);
-        setSaveError(null);
-
-        try {
-            const response = await aiService.current.saveResume({
-                title: resumeTitle,
-                data: resumeData,
-                aiSuggestions,
-                jobAnalysis
-            }, resumeId);
-
-            if (response.success) {
-                localStorage.removeItem('resumeDraft');
-                toast.success('Resume saved successfully!');
-            } else {
-                throw new Error(response.message || 'Failed to save resume');
-            }
-        } catch (error) {
-            console.error('Save error:', error);
-            setSaveError(error.message);
-            toast.error(`Save failed: ${error.message}`);
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const exportResume = async (format = 'pdf') => {
-        setIsExporting(true);
-
-        try {
-            if (format === 'json') {
-                const dataStr = JSON.stringify(resumeData, null, 2);
-                const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                const url = URL.createObjectURL(dataBlob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `${resumeTitle.replace(/\s+/g, '_')}.json`;
-                link.click();
-                URL.revokeObjectURL(url);
-                toast.success('Resume exported as JSON!');
-            } else {
-                // PDF and DOC export would be handled by EnhancedLivePreview
-                toast.error(`${format.toUpperCase()} export is handled by the preview export buttons`);
-            }
-        } catch (error) {
-            console.error('Export error:', error);
-            toast.error('Failed to export resume');
-        } finally {
-            setIsExporting(false);
-        }
-    };
-
-    const handleNextStep = () => {
-        if (validateStep(currentStep)) {
-            setCurrentStep(prev => Math.min(8, prev + 1));
-        }
-    };
-
-    const handlePrevStep = () => {
-        setCurrentStep(prev => Math.max(1, prev - 1));
-    };
-
-    const steps = [
-        { number: 1, title: 'Personal', icon: <FaUser />, color: '#3B82F6' },
-        { number: 2, title: 'Summary', icon: <FaFileAlt />, color: '#8B5CF6' },
-        { number: 3, title: 'Experience', icon: <FaBriefcase />, color: '#10B981' },
-        { number: 4, title: 'Education', icon: <FaGraduationCap />, color: '#F59E0B' },
-        { number: 5, title: 'Skills', icon: <FaCogs />, color: '#EC4899' },
-        { number: 6, title: 'Projects', icon: <FaProjectDiagram />, color: '#6366F1' },
-        { number: 7, title: 'Certifications', icon: <FaCertificate />, color: '#14B8A6' },
-        { number: 8, title: 'Finish', icon: <FaCheck />, color: '#EF4444' }
-    ];
-
-    const renderCurrentStep = () => {
-        const commonProps = {
-            resumeData,
-            onInputChange: handleInputChange,
-            errors,
-            setErrors
-        };
-
-        switch (currentStep) {
-            case 1: return <PersonalInfoPage {...commonProps} />;
-            case 2: return <SummaryPage {...commonProps} />;
-            case 3: return <ExperiencePage {...commonProps} />;
-            case 4: return <EducationPage {...commonProps} />;
-            case 5: return <SkillsPage {...commonProps} />;
-            case 6: return <ProjectsPage {...commonProps} />;
-            case 7: return <CertificationsPage {...commonProps} />;
-            case 8: return <CompletionPage {...commonProps} />;
-            default: return <PersonalInfoPage {...commonProps} />;
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="loading-screen">
-                <FaRocket className="loader-icon" />
-                <p className="loading-text">Loading Resume Builder...</p>
-            </div>
-        );
-    }
-
-    return (
-        <div className="builder-container">
-            {/* Top Navigation Bar */}
-            <nav className="top-nav">
-                <div className="nav-left">
-                    <Link to="/dashboard" className="back-btn">
-                        <FaArrowLeft />
-                        <span>Dashboard</span>
-                    </Link>
-                    <div className="resume-title">
-                        <input
-                            type="text"
-                            value={resumeTitle}
-                            onChange={(e) => setResumeTitle(e.target.value)}
-                            placeholder="Resume Title"
-                            className="title-input"
-                        />
-                        {lastSaved && (
-                            <span className="save-indicator">
-                                <FaRegClock /> Saved {lastSaved}
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                <div className="nav-center">
-                    <div className="progress-steps">
-                        {steps.map((step) => (
-                            <button
-                                key={step.number}
-                                onClick={() => setCurrentStep(step.number)}
-                                className={`step-dot ${currentStep === step.number ? 'active' : ''} 
-                                         ${currentStep > step.number ? 'completed' : ''}`}
-                                style={{ '--step-color': step.color }}
-                                title={step.title}
-                            >
-                                {step.icon}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="nav-right">
-                    {saveError && (
-                        <span className="save-error">
-                            <FaExclamationCircle /> {saveError}
-                        </span>
+                        </motion.div>
                     )}
-                    <button
-                        onClick={saveResume}
-                        className="save-btn"
-                        disabled={isSaving}
-                    >
-                        {isSaving ? <FaSpinner className="spinner" /> : <FaSave />}
-                        <span>Save</span>
-                    </button>
-
-                    <div className="export-dropdown">
-                        <button className="export-btn" disabled={isExporting}>
-                            <FaDownload />
-                            <span>Export</span>
-                            <FaChevronRight className="dropdown-arrow" />
-                        </button>
-                        <div className="export-options">
-                            <button onClick={() => exportResume('json')}>
-                                <SiJson /> JSON
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </nav>
-
-            {/* Main Content Area */}
-            <main className="main-content">
-                <div className="content-grid">
-                    {/* Left: Form Section */}
-                    <div className="form-section">
-                        <div className="form-header">
-                            <h2 className="step-title">
-                                {steps[currentStep - 1]?.title}
-                                <span className="step-number">Step {currentStep} of {steps.length}</span>
-                            </h2>
-                            <div className="step-actions">
-                                <button
-                                    onClick={handlePrevStep}
-                                    disabled={currentStep === 1}
-                                    className="nav-btn prev-btn"
-                                >
-                                    <FaChevronLeft />
-                                    Previous
-                                </button>
-                                <button
-                                    onClick={handleNextStep}
-                                    disabled={currentStep === steps.length}
-                                    className="nav-btn next-btn"
-                                >
-                                    Next
-                                    <FaChevronRight />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="form-content">
-                            {renderCurrentStep()}
-                        </div>
-                    </div>
-
-                    {/* Middle: Live Preview */}
-                    <AnimatePresence>
-                        {showPreview && (
-                            <motion.div
-                                className={`preview-section ${previewSize}`}
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 20 }}
-                            >
-                                <EnhancedLivePreview
-                                    resumeData={resumeData}
-                                    previewSize={previewSize}
-                                />
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    {/* Right: AI Panel */}
-                    <AnimatePresence>
-                        {showAIPanel && (
-                            <motion.div
-                                className="ai-section"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 20 }}
-                            >
-                                <EnhancedAIPanel
-                                    suggestions={aiSuggestions}
-                                    jobAnalysis={jobAnalysis}
-                                    isLoading={isAnalyzing}
-                                    onApplySuggestion={applyAISuggestion}
-                                    onClose={() => setShowAIPanel(false)}
-                                    activeSection={activeSection}
-                                />
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
+                </AnimatePresence>
             </main>
 
-            {/* Bottom Control Bar */}
-            <div className="control-bar">
-                <div className="control-left">
-                    <button
-                        onClick={() => setShowAIPanel(!showAIPanel)}
-                        className={`control-btn ${showAIPanel ? 'active' : ''}`}
+            {/* Delete Confirmation Modal */}
+            <AnimatePresence>
+                {showDeleteConfirm && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                        onClick={() => setShowDeleteConfirm(null)}
                     >
-                        <FaRobot />
-                        <span>AI Assistant</span>
-                    </button>
-                    <button
-                        onClick={() => setShowPreview(!showPreview)}
-                        className={`control-btn ${showPreview ? 'active' : ''}`}
-                    >
-                        {showPreview ? <FaEyeSlash /> : <FaEye />}
-                        <span>Preview</span>
-                    </button>
-                    <button
-                        onClick={() => setShowJobModal(true)}
-                        className="control-btn"
-                    >
-                        <FaSearch />
-                        <span>Analyze Job</span>
-                    </button>
-                    <button
-                        onClick={() => setShowUploadModal(true)}
-                        className="control-btn"
-                    >
-                        <FaUpload />
-                        <span>Upload Resume</span>
-                    </button>
-                </div>
-
-                <div className="control-center">
-                    <div className="preview-size-controls">
-                        <span className="size-label">Preview Size:</span>
-                        <button
-                            onClick={() => setPreviewSize('small')}
-                            className={`size-btn ${previewSize === 'small' ? 'active' : ''}`}
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-white rounded-2xl p-6 max-w-md w-full"
+                            onClick={(e) => e.stopPropagation()}
                         >
-                            <FaCompress />
-                        </button>
-                        <button
-                            onClick={() => setPreviewSize('medium')}
-                            className={`size-btn ${previewSize === 'medium' ? 'active' : ''}`}
-                        >
-                            <FaExpand />
-                        </button>
-                        <button
-                            onClick={() => setPreviewSize('large')}
-                            className={`size-btn ${previewSize === 'large' ? 'active' : ''}`}
-                        >
-                            <FaExpand style={{ transform: 'scale(1.2)' }} />
-                        </button>
-                    </div>
-                </div>
+                            <div className="text-center mb-6">
+                                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <FaExclamationTriangle className="text-2xl text-red-600" />
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-900 mb-2">Delete Resume</h3>
+                                <p className="text-slate-600">
+                                    Are you sure you want to delete "{showDeleteConfirm.title}"? This action cannot be undone.
+                                </p>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowDeleteConfirm(null)}
+                                    className="flex-1 px-4 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteResume(showDeleteConfirm.id, showDeleteConfirm.title)}
+                                    className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-medium"
+                                >
+                                    Delete Resume
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
-                <div className="control-right">
-                    <button
-                        onClick={saveResume}
-                        disabled={isSaving}
-                        className="control-btn primary"
-                    >
-                        {isSaving ? <FaSpinner className="spinner" /> : <FaSave />}
-                        <span>Save Draft</span>
-                    </button>
-                    <button
-                        onClick={() => navigate('/dashboard')}
-                        className="control-btn secondary"
-                    >
-                        <FaHome />
-                        <span>Exit</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Modals */}
-            <JobURLModal
-                isOpen={showJobModal}
-                onClose={() => setShowJobModal(false)}
-                onAnalyze={analyzeJobDescription}
-            />
-
-            <ResumeUploadModal
-                isOpen={showUploadModal}
-                onClose={() => setShowUploadModal(false)}
-                onUpload={handleResumeUpload}
-            />
+            {/* Use your Footer component */}
+            <Footer />
         </div>
     );
 };
 
-// CSS Styles
-const styles = `
-.builder-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    overflow: hidden;
-}
-
-.top-nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 2rem;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-    z-index: 100;
-}
-
-.nav-left, .nav-right {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-}
-
-.nav-center {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-}
-
-.back-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    color: #495057;
-    text-decoration: none;
-    transition: all 0.3s ease;
-}
-
-.back-btn:hover {
-    background: #e9ecef;
-    transform: translateY(-1px);
-}
-
-.resume-title {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.title-input {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #212529;
-    border: none;
-    background: transparent;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    transition: all 0.3s ease;
-    min-width: 200px;
-}
-
-.title-input:focus {
-    outline: none;
-    background: #f8f9fa;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-}
-
-.save-indicator {
-    font-size: 0.75rem;
-    color: #6c757d;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.progress-steps {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-}
-
-.step-dot {
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 50%;
-    border: 2px solid #e9ecef;
-    background: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #adb5bd;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    position: relative;
-}
-
-.step-dot.active {
-    background: var(--step-color);
-    color: white;
-    border-color: var(--step-color);
-    transform: scale(1.1);
-}
-
-.step-dot.completed {
-    background: #28a745;
-    color: white;
-    border-color: #28a745;
-}
-
-.step-dot:hover {
-    transform: scale(1.1);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.save-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1.5rem;
-    background: #28a745;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.save-btn:hover:not(:disabled) {
-    background: #218838;
-    transform: translateY(-1px);
-}
-
-.save-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.export-dropdown {
-    position: relative;
-}
-
-.export-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1.5rem;
-    background: #6f42c1;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.export-btn:hover {
-    background: #5a32a3;
-    transform: translateY(-1px);
-}
-
-.export-options {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 0.5rem;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-    min-width: 150px;
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(-10px);
-    transition: all 0.3s ease;
-}
-
-.export-dropdown:hover .export-options {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-}
-
-.export-options button {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    background: none;
-    border: none;
-    text-align: left;
-    color: #495057;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    transition: all 0.2s ease;
-}
-
-.export-options button:hover {
-    background: #f8f9fa;
-    color: #212529;
-}
-
-.save-error {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-    border-radius: 6px;
-    font-size: 0.875rem;
-}
-
-.main-content {
-    flex: 1;
-    padding: 2rem;
-    overflow: hidden;
-}
-
-.content-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 400px;
-    gap: 2rem;
-    height: 100%;
-}
-
-.form-section, .preview-section, .ai-section {
-    background: white;
-    border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-.form-section {
-    grid-column: 1;
-}
-
-.preview-section {
-    grid-column: 2;
-}
-
-.ai-section {
-    grid-column: 3;
-}
-
-.form-header {
-    padding: 1.5rem;
-    border-bottom: 1px solid #e9ecef;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.step-title {
-    font-size: 1.5rem;
-    color: #212529;
-    margin: 0;
-}
-
-.step-number {
-    display: block;
-    font-size: 0.875rem;
-    color: #6c757d;
-    margin-top: 0.25rem;
-}
-
-.step-actions {
-    display: flex;
-    gap: 0.75rem;
-}
-
-.nav-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    color: #495057;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.nav-btn:hover:not(:disabled) {
-    background: #e9ecef;
-    transform: translateY(-1px);
-}
-
-.nav-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.next-btn {
-    background: #007bff;
-    color: white;
-    border-color: #007bff;
-}
-
-.next-btn:hover:not(:disabled) {
-    background: #0056b3;
-    border-color: #0056b3;
-}
-
-.form-content {
-    flex: 1;
-    padding: 1.5rem;
-    overflow-y: auto;
-}
-
-.page-title {
-    color: #212529;
-    margin-bottom: 1.5rem;
-    font-size: 1.25rem;
-}
-
-.form-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-
-.form-group {
-    margin-bottom: 1rem;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    color: #495057;
-    font-weight: 500;
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #ced4da;
-    border-radius: 8px;
-    font-size: 0.875rem;
-    transition: all 0.3s ease;
-}
-
-.form-group input:focus,
-.form-group textarea:focus {
-    outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-}
-
-.form-group textarea {
-    resize: vertical;
-    min-height: 100px;
-}
-
-.error {
-    border-color: #dc3545 !important;
-}
-
-.error-message {
-    color: #dc3545;
-    font-size: 0.75rem;
-    margin-top: 0.25rem;
-    display: block;
-}
-
-.char-count {
-    text-align: right;
-    font-size: 0.75rem;
-    color: #6c757d;
-    margin-top: 0.25rem;
-}
-
-.experience-item,
-.education-item,
-.project-item,
-.certification-item {
-    background: #f8f9fa;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-    border: 1px solid #e9ecef;
-}
-
-.item-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.item-header h4 {
-    margin: 0;
-    color: #212529;
-}
-
-.remove-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.375rem 0.75rem;
-    background: #dc3545;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.875rem;
-    transition: all 0.3s ease;
-}
-
-.remove-btn:hover {
-    background: #c82333;
-    transform: translateY(-1px);
-}
-
-.date-group {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-}
-
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    font-size: 0.875rem;
-    color: #495057;
-}
-
-.add-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    background: #007bff;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    margin-top: 1rem;
-    transition: all 0.3s ease;
-}
-
-.add-btn:hover {
-    background: #0056b3;
-    transform: translateY(-1px);
-}
-
-.skills-input-group {
-    margin-bottom: 1.5rem;
-}
-
-.input-with-button {
-    display: flex;
-    gap: 0.5rem;
-}
-
-.input-with-button input {
-    flex: 1;
-    padding: 0.75rem;
-    border: 1px solid #ced4da;
-    border-radius: 8px;
-    font-size: 0.875rem;
-}
-
-.add-skill-btn {
-    padding: 0.75rem 1.5rem;
-    background: #28a745;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    transition: all 0.3s ease;
-}
-
-.add-skill-btn:hover {
-    background: #218838;
-    transform: translateY(-1px);
-}
-
-.skills-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    min-height: 100px;
-    padding: 1rem;
-    background: #f8f9fa;
-    border-radius: 12px;
-    border: 1px solid #e9ecef;
-}
-
-.skill-tag {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: white;
-    border: 1px solid #007bff;
-    border-radius: 50px;
-    color: #007bff;
-    font-size: 0.875rem;
-    transition: all 0.3s ease;
-}
-
-.skill-tag:hover {
-    background: #007bff;
-    color: white;
-    transform: translateY(-1px);
-}
-
-.remove-skill {
-    background: none;
-    border: none;
-    color: inherit;
-    cursor: pointer;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0.7;
-    transition: opacity 0.2s ease;
-}
-
-.remove-skill:hover {
-    opacity: 1;
-}
-
-.empty-state {
-    text-align: center;
-    color: #6c757d;
-    width: 100%;
-    padding: 2rem;
-}
-
-.completion-page {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: 3rem;
-}
-
-.completion-content {
-    text-align: center;
-    max-width: 400px;
-}
-
-.completion-icon {
-    font-size: 4rem;
-    color: #28a745;
-    margin-bottom: 1.5rem;
-}
-
-.completion-title {
-    color: #212529;
-    margin-bottom: 1rem;
-    font-size: 1.75rem;
-}
-
-.completion-message {
-    color: #6c757d;
-    line-height: 1.6;
-    margin-bottom: 2rem;
-}
-
-.completion-stats {
-    display: flex;
-    justify-content: space-around;
-    gap: 1rem;
-}
-
-.stat {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-.stat-number {
-    font-size: 1.75rem;
-    font-weight: 600;
-    color: #007bff;
-}
-
-.stat-label {
-    font-size: 0.75rem;
-    color: #6c757d;
-    margin-top: 0.25rem;
-}
-
-.enhanced-live-preview {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-}
-
-.preview-toolbar {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid #e9ecef;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.preview-toolbar h4 {
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: #212529;
-}
-
-.live-badge {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.5rem;
-    background: #28a745;
-    color: white;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.pulse {
-    width: 6px;
-    height: 6px;
-    background: white;
-    border-radius: 50%;
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
-}
-
-.export-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    color: #495057;
-    cursor: pointer;
-    font-size: 0.875rem;
-    transition: all 0.3s ease;
-}
-
-.export-btn:hover {
-    background: #e9ecef;
-    transform: translateY(-1px);
-}
-
-.export-btn.pdf {
-    background: #dc3545;
-    color: white;
-    border-color: #dc3545;
-}
-
-.export-btn.pdf:hover {
-    background: #c82333;
-    border-color: #bd2130;
-}
-
-.spinner {
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-.preview-content-wrapper {
-    flex: 1;
-    padding: 2rem;
-    overflow: auto;
-    background: #f8f9fa;
-}
-
-.preview-content {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-    padding: 2rem;
-    min-height: 1000px;
-}
-
-.resume-template.modern {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    color: #333;
-}
-
-.resume-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 2rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 3px solid #007bff;
-}
-
-.header-left h1 {
-    margin: 0;
-    font-size: 2.5rem;
-    color: #212529;
-    font-weight: 700;
-}
-
-.header-left .title {
-    margin: 0.5rem 0 0;
-    color: #6c757d;
-    font-size: 1.25rem;
-    font-weight: 500;
-}
-
-.contact-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    text-align: right;
-}
-
-.contact-item {
-    font-size: 0.875rem;
-    color: #495057;
-}
-
-.contact-item .label {
-    font-weight: 600;
-    color: #212529;
-    margin-right: 0.5rem;
-}
-
-.section {
-    margin-bottom: 2rem;
-}
-
-.section-title {
-    color: #007bff;
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 2px solid #e9ecef;
-}
-
-.section-content {
-    font-size: 0.875rem;
-    line-height: 1.6;
-    color: #495057;
-}
-
-.experience-header,
-.education-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-}
-
-.experience-header h3,
-.education-header h3 {
-    margin: 0;
-    font-size: 1rem;
-    color: #212529;
-    font-weight: 600;
-}
-
-.company,
-.institution,
-.date {
-    color: #6c757d;
-    font-size: 0.875rem;
-}
-
-.experience-description {
-    margin: 0;
-    padding-left: 1rem;
-    border-left: 2px solid #e9ecef;
-}
-
-.gpa {
-    display: inline-block;
-    background: #f8f9fa;
-    padding: 0.25rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    color: #28a745;
-    margin-top: 0.5rem;
-}
-
-.skills-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.skill-tag {
-    display: inline-block;
-    padding: 0.375rem 0.75rem;
-    background: #007bff;
-    color: white;
-    border-radius: 50px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-.project-tech {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.375rem;
-    margin-top: 0.75rem;
-}
-
-.tech-tag {
-    display: inline-block;
-    padding: 0.25rem 0.5rem;
-    background: #f8f9fa;
-    color: #495057;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    border: 1px solid #e9ecef;
-}
-
-.preview-footer {
-    padding: 1rem 1.5rem;
-    border-top: 1px solid #e9ecef;
-    background: white;
-}
-
-.preview-info {
-    display: flex;
-    gap: 1.5rem;
-    justify-content: center;
-}
-
-.info-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    color: #6c757d;
-}
-
-.enhanced-ai-panel {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-}
-
-.enhanced-ai-panel.loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.brain-animation {
-    position: relative;
-    margin-bottom: 2rem;
-}
-
-.brain-icon {
-    font-size: 4rem;
-    color: white;
-    animation: float 3s ease-in-out infinite;
-}
-
-.brain-pulse {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 100px;
-    height: 100px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    animation: pulse-ring 2s linear infinite;
-}
-
-@keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-}
-
-@keyframes pulse-ring {
-    0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.8; }
-    100% { transform: translate(-50%, -50%) scale(1.2); opacity: 0; }
-}
-
-.loading-details {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-top: 1.5rem;
-    text-align: center;
-}
-
-.loading-details span {
-    opacity: 0.8;
-    animation: fadeInOut 1.5s ease-in-out infinite;
-}
-
-.loading-details span:nth-child(2) { animation-delay: 0.5s; }
-.loading-details span:nth-child(3) { animation-delay: 1s; }
-
-@keyframes fadeInOut {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 1; }
-}
-
-.panel-header {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.ai-status-indicator {
-    position: relative;
-}
-
-.status-dot {
-    width: 8px;
-    height: 8px;
-    background: #28a745;
-    border-radius: 50%;
-    position: relative;
-}
-
-.status-dot.active::after {
-    content: '';
-    position: absolute;
-    top: -4px;
-    left: -4px;
-    right: -4px;
-    bottom: -4px;
-    border: 2px solid rgba(40, 167, 69, 0.3);
-    border-radius: 50%;
-    animation: pulse 2s infinite;
-}
-
-.header-info h3 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-}
-
-.ai-model {
-    font-size: 0.75rem;
-    opacity: 0.8;
-}
-
-.close-btn {
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    color: white;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.close-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: rotate(90deg);
-}
-
-.panel-tabs {
-    display: flex;
-    padding: 0.5rem 1.5rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    gap: 0.5rem;
-}
-
-.tab {
-    flex: 1;
-    padding: 0.75rem;
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    border-radius: 8px;
-    color: white;
-    cursor: pointer;
-    font-size: 0.875rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    transition: all 0.3s ease;
-}
-
-.tab:hover {
-    background: rgba(255, 255, 255, 0.15);
-}
-
-.tab.active {
-    background: white;
-    color: #764ba2;
-    font-weight: 600;
-}
-
-.panel-content {
-    flex: 1;
-    padding: 1.5rem;
-    overflow-y: auto;
-}
-
-.suggestions-container,
-.analysis-container,
-.jobmatch-container {
-    height: 100%;
-}
-
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-}
-
-.section-header h4 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-}
-
-.suggestion-count {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 0.25rem 0.75rem;
-    border-radius: 50px;
-    font-size: 0.75rem;
-}
-
-.suggestions-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.suggestion-card {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 1rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border: 1px solid transparent;
-}
-
-.suggestion-card:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.2);
-    transform: translateY(-2px);
-}
-
-.suggestion-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.75rem;
-}
-
-.priority-indicator {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.priority-icon {
-    font-size: 0.75rem;
-}
-
-.priority-icon.high { color: #ff6b6b; }
-.priority-icon.medium { color: #ffd93d; }
-.priority-icon.low { color: #6bcf7f; }
-
-.priority-text {
-    font-size: 0.75rem;
-    opacity: 0.9;
-}
-
-.category-badge {
-    background: rgba(255, 255, 255, 0.15);
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-.suggestion-card-body {
-    margin-bottom: 1rem;
-}
-
-.suggestion-text {
-    margin: 0;
-    font-size: 0.875rem;
-    line-height: 1.5;
-    opacity: 0.95;
-}
-
-.impact-meter {
-    margin-top: 0.75rem;
-}
-
-.impact-label {
-    font-size: 0.75rem;
-    margin-bottom: 0.25rem;
-    opacity: 0.8;
-}
-
-.impact-bar {
-    height: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-.impact-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcf7f);
-    border-radius: 2px;
-}
-
-.suggestion-card-footer {
-    display: flex;
-    justify-content: flex-end;
-}
-
-.apply-suggestion-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: rgba(255, 255, 255, 0.15);
-    border: none;
-    border-radius: 6px;
-    color: white;
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.apply-suggestion-btn:hover {
-    background: rgba(255, 255, 255, 0.25);
-}
-
-.suggestion-detail-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
-.modal-content {
-    background: white;
-    border-radius: 16px;
-    max-width: 500px;
-    width: 90%;
-    max-height: 80vh;
-    overflow: hidden;
-    color: #212529;
-}
-
-.modal-header {
-    padding: 1.5rem;
-    border-bottom: 1px solid #e9ecef;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.modal-header h4 {
-    margin: 0;
-    color: #212529;
-}
-
-.modal-header button {
-    background: none;
-    border: none;
-    color: #6c757d;
-    cursor: pointer;
-    font-size: 1rem;
-}
-
-.modal-body {
-    padding: 1.5rem;
-}
-
-.action-buttons {
-    display: flex;
-    gap: 1rem;
-    margin-top: 1.5rem;
-}
-
-.btn-primary, .btn-secondary {
-    flex: 1;
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-}
-
-.btn-primary {
-    background: #007bff;
-    color: white;
-}
-
-.btn-primary:hover {
-    background: #0056b3;
-    transform: translateY(-1px);
-}
-
-.btn-secondary {
-    background: #f8f9fa;
-    color: #495057;
-    border: 1px solid #e9ecef;
-}
-
-.btn-secondary:hover {
-    background: #e9ecef;
-}
-
-.analysis-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-.analysis-card {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 1.5rem;
-}
-
-.analysis-card h4 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 600;
-}
-
-.score-display {
-    display: flex;
-    align-items: center;
-    gap: 2rem;
-}
-
-.score-circle {
-    position: relative;
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    background: conic-gradient(#28a745 0% 78%, #e9ecef 78% 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.score-circle::before {
-    content: '';
-    position: absolute;
-    width: 80px;
-    height: 80px;
-    background: #667eea;
-    border-radius: 50%;
-}
-
-.score-value,
-.score-max {
-    position: relative;
-    z-index: 1;
-    color: white;
-    font-weight: 600;
-}
-
-.score-value {
-    font-size: 2rem;
-}
-
-.score-max {
-    font-size: 1rem;
-    opacity: 0.8;
-}
-
-.score-breakdown {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.score-item {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.score-label {
-    font-size: 0.875rem;
-    min-width: 70px;
-}
-
-.score-bar {
-    flex: 1;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcf7f);
-    border-radius: 4px;
-}
-
-.score-percent {
-    font-size: 0.875rem;
-    min-width: 40px;
-    text-align: right;
-}
-
-.improvement-areas {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 1.5rem;
-}
-
-.improvement-areas h4 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 600;
-}
-
-.improvement-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.improvement-list li {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 0.875rem;
-}
-
-.warning-icon {
-    color: #ffd93d;
-    flex-shrink: 0;
-}
-
-.jobmatch-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-.match-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.score-display-large {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.score-value {
-    font-size: 2.5rem;
-    font-weight: 700;
-    line-height: 1;
-}
-
-.score-label {
-    font-size: 0.875rem;
-    opacity: 0.8;
-}
-
-.job-details {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1rem;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 1rem;
-}
-
-.detail-item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.detail-label {
-    font-size: 0.75rem;
-    opacity: 0.7;
-}
-
-.detail-value {
-    font-size: 0.875rem;
-    font-weight: 600;
-}
-
-.keyword-analysis {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 1rem;
-}
-
-.keyword-analysis h5 {
-    margin: 0 0 1rem 0;
-    font-size: 0.875rem;
-    font-weight: 600;
-}
-
-.keyword-cloud {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.keyword-tag {
-    padding: 0.375rem 0.75rem;
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 50px;
-    font-size: 0.75rem;
-    transition: all 0.3s ease;
-}
-
-.keyword-tag.primary {
-    background: rgba(255, 107, 107, 0.3);
-    color: #ff6b6b;
-}
-
-.keyword-tag.secondary {
-    background: rgba(255, 217, 61, 0.3);
-    color: #ffd93d;
-}
-
-.keyword-tag.tertiary {
-    background: rgba(107, 207, 127, 0.3);
-    color: #6bcf7f;
-}
-
-.keyword-tag:hover {
-    transform: translateY(-1px);
-}
-
-.match-breakdown {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 1rem;
-}
-
-.match-breakdown h5 {
-    margin: 0 0 1rem 0;
-    font-size: 0.875rem;
-    font-weight: 600;
-}
-
-.breakdown-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.breakdown-item {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.breakdown-label {
-    font-size: 0.875rem;
-    min-width: 80px;
-}
-
-.breakdown-bar {
-    flex: 1;
-    height: 6px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.breakdown-percent {
-    font-size: 0.875rem;
-    min-width: 40px;
-    text-align: right;
-}
-
-.panel-footer {
-    padding: 1rem 1.5rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    display: flex;
-    justify-content: center;
-}
-
-.refresh-suggestions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
-    color: white;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.refresh-suggestions:hover {
-    background: rgba(255, 255, 255, 0.15);
-    transform: translateY(-1px);
-}
-
-.control-bar {
-    padding: 1rem 2rem;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 2rem;
-}
-
-.control-left,
-.control-right {
-    display: flex;
-    gap: 0.75rem;
-}
-
-.control-center {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-}
-
-.control-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    color: #495057;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-weight: 500;
-}
-
-.control-btn:hover {
-    background: #e9ecef;
-    transform: translateY(-1px);
-}
-
-.control-btn.active {
-    background: #007bff;
-    color: white;
-    border-color: #007bff;
-}
-
-.control-btn.primary {
-    background: #28a745;
-    color: white;
-    border-color: #28a745;
-}
-
-.control-btn.primary:hover {
-    background: #218838;
-    border-color: #1e7e34;
-}
-
-.control-btn.secondary {
-    background: #6c757d;
-    color: white;
-    border-color: #6c757d;
-}
-
-.control-btn.secondary:hover {
-    background: #5a6268;
-    border-color: #545b62;
-}
-
-.preview-size-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: #f8f9fa;
-    padding: 0.5rem;
-    border-radius: 8px;
-}
-
-.size-label {
-    font-size: 0.875rem;
-    color: #6c757d;
-    margin-right: 0.5rem;
-}
-
-.size-btn {
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: white;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    color: #495057;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.size-btn:hover {
-    background: #e9ecef;
-    transform: translateY(-1px);
-}
-
-.size-btn.active {
-    background: #007bff;
-    color: white;
-    border-color: #007bff;
-}
-
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-    backdrop-filter: blur(4px);
-}
-
-.job-url-modal,
-.upload-modal {
-    background: white;
-    border-radius: 16px;
-    max-width: 600px;
-    width: 90%;
-    max-height: 80vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-.modal-header {
-    padding: 1.5rem;
-    border-bottom: 1px solid #e9ecef;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.modal-header h3 {
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: #212529;
-}
-
-.modal-body {
-    flex: 1;
-    padding: 1.5rem;
-    overflow-y: auto;
-}
-
-.url-type-selector {
-    margin-bottom: 1.5rem;
-}
-
-.url-type-selector h4 {
-    margin: 0 0 1rem 0;
-    color: #212529;
-}
-
-.platform-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-}
-
-.platform-card {
-    padding: 1rem;
-    background: #f8f9fa;
-    border: 2px solid #e9ecef;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.platform-card:hover {
-    background: #e9ecef;
-    transform: translateY(-1px);
-}
-
-.platform-card.active {
-    background: #007bff;
-    border-color: #007bff;
-    color: white;
-}
-
-.platform-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.25rem;
-}
-
-.platform-icon.linkedin {
-    background: #0077b5;
-    color: white;
-}
-
-.platform-icon.indeed {
-    background: #2164f3;
-    color: white;
-}
-
-.platform-icon.glassdoor {
-    background: #0caa41;
-    color: white;
-}
-
-.platform-icon.custom {
-    background: #6c757d;
-    color: white;
-}
-
-.input-group {
-    margin-bottom: 1.5rem;
-}
-
-.input-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-}
-
-.input-header label {
-    font-weight: 600;
-    color: #212529;
-}
-
-.paste-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.375rem 0.75rem;
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    color: #495057;
-    cursor: pointer;
-    font-size: 0.875rem;
-    transition: all 0.3s ease;
-}
-
-.paste-btn:hover {
-    background: #e9ecef;
-}
-
-.input-wrapper {
-    position: relative;
-}
-
-.input-icon {
-    position: absolute;
-    left: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #6c757d;
-}
-
-.url-input {
-    width: 100%;
-    padding: 0.75rem 1rem 0.75rem 3rem;
-    border: 1px solid #ced4da;
-    border-radius: 8px;
-    font-size: 0.875rem;
-    transition: all 0.3s ease;
-}
-
-.url-input:focus {
-    outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-}
-
-.analysis-preview {
-    margin-top: 1.5rem;
-}
-
-.analysis-preview h4 {
-    margin: 0 0 1rem 0;
-    color: #212529;
-}
-
-.features-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 0.75rem;
-}
-
-.feature-card {
-    padding: 1rem;
-    background: #f8f9fa;
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
-    text-align: center;
-}
-
-.feature-icon {
-    font-size: 1.25rem;
-    color: #007bff;
-}
-
-.feature-card span {
-    font-size: 0.75rem;
-    color: #495057;
-    font-weight: 500;
-}
-
-.modal-footer {
-    padding: 1.5rem;
-    border-top: 1px solid #e9ecef;
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-}
-
-.btn-secondary {
-    padding: 0.75rem 1.5rem;
-    background: #6c757d;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.3s ease;
-}
-
-.btn-secondary:hover {
-    background: #5a6268;
-}
-
-.btn-primary {
-    padding: 0.75rem 1.5rem;
-    background: #007bff;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.btn-primary:hover:not(:disabled) {
-    background: #0056b3;
-    transform: translateY(-1px);
-}
-
-.btn-primary:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.upload-methods {
-    margin-bottom: 1.5rem;
-}
-
-.upload-methods h4 {
-    margin: 0 0 1rem 0;
-    color: #212529;
-}
-
-.method-options {
-    display: flex;
-    gap: 0.75rem;
-}
-
-.method-btn {
-    flex: 1;
-    padding: 1rem;
-    background: #f8f9fa;
-    border: 2px solid #e9ecef;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.method-btn:hover {
-    background: #e9ecef;
-    transform: translateY(-1px);
-}
-
-.method-btn.active {
-    background: #007bff;
-    border-color: #007bff;
-    color: white;
-}
-
-.method-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: #e9ecef;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.25rem;
-    transition: all 0.3s ease;
-}
-
-.method-btn.active .method-icon {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-.method-info {
-    text-align: left;
-}
-
-.method-info h5 {
-    margin: 0 0 0.25rem 0;
-    font-size: 0.875rem;
-}
-
-.method-info p {
-    margin: 0;
-    font-size: 0.75rem;
-    opacity: 0.8;
-}
-
-.upload-zone {
-    border: 2px dashed #ced4da;
-    border-radius: 12px;
-    padding: 3rem;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-bottom: 1.5rem;
-}
-
-.upload-zone:hover,
-.upload-zone.drag-over {
-    border-color: #007bff;
-    background: #f8f9fa;
-}
-
-.upload-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-}
-
-.upload-icon-large {
-    font-size: 3rem;
-    color: #6c757d;
-}
-
-.supported-formats {
-    display: flex;
-    gap: 0.5rem;
-    margin: 1rem 0;
-}
-
-.format-badge {
-    padding: 0.25rem 0.75rem;
-    background: #e9ecef;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    color: #495057;
-}
-
-.file-size-note {
-    font-size: 0.75rem;
-    margin-top: 0.5rem;
-}
-
-.file-preview {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-
-.file-icon-large {
-    font-size: 2rem;
-    color: #007bff;
-}
-
-.file-details {
-    flex: 1;
-    text-align: left;
-}
-
-.file-details h4 {
-    margin: 0 0 0.5rem 0;
-    font-size: 1rem;
-}
-
-.file-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-}
-
-.remove-file-btn {
-    margin-top: 0.5rem;
-    padding: 0.375rem 0.75rem;
-    background: #dc3545;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.875rem;
-    transition: all 0.3s ease;
-}
-
-.remove-file-btn:hover {
-    background: #c82333;
-}
-
-.upload-features {
-    margin-top: 1.5rem;
-}
-
-.feature-steps {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
-.step {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-
-.step-number {
-    width: 32px;
-    height: 32px;
-    background: #007bff;
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 0.875rem;
-}
-
-.step-content h5 {
-    margin: 0 0 0.25rem 0;
-    font-size: 0.875rem;
-}
-
-.step-content p {
-    margin: 0;
-    font-size: 0.75rem;
-    opacity: 0.8;
-}
-
-.hidden {
-    display: none;
-}
-
-.loading-screen {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-}
-
-.loader-icon {
-    font-size: 4rem;
-    animation: float 3s ease-in-out infinite;
-    margin-bottom: 2rem;
-}
-
-.loading-text {
-    font-size: 1.25rem;
-    opacity: 0.9;
-}
-
-/* Responsive adjustments */
-@media (max-width: 1400px) {
-    .content-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-    
-    .ai-section {
-        position: fixed;
-        right: 0;
-        top: 0;
-        bottom: 0;
-        width: 400px;
-        z-index: 1000;
-        transform: translateX(100%);
-        transition: transform 0.3s ease;
-    }
-    
-    .ai-section.active {
-        transform: translateX(0);
-    }
-}
-
-@media (max-width: 1200px) {
-    .content-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .preview-section {
-        position: fixed;
-        right: 0;
-        top: 0;
-        bottom: 0;
-        width: 50%;
-        z-index: 1000;
-        transform: translateX(100%);
-        transition: transform 0.3s ease;
-    }
-    
-    .preview-section.active {
-        transform: translateX(0);
-    }
-}
-
-@media (max-width: 768px) {
-    .top-nav {
-        flex-direction: column;
-        gap: 1rem;
-        padding: 1rem;
-    }
-    
-    .nav-left, .nav-right {
-        width: 100%;
-        justify-content: space-between;
-    }
-    
-    .progress-steps {
-        overflow-x: auto;
-        padding: 0.5rem 0;
-    }
-    
-    .main-content {
-        padding: 1rem;
-    }
-    
-    .content-grid {
-        gap: 1rem;
-    }
-    
-    .control-bar {
-        flex-direction: column;
-        gap: 1rem;
-        padding: 1rem;
-    }
-    
-    .control-left, .control-right, .control-center {
-        width: 100%;
-        justify-content: center;
-    }
-    
-    .preview-section {
-        width: 100%;
-    }
-    
-    .ai-section {
-        width: 100%;
-    }
-}
-`;
-
-// Add styles to document
-if (typeof document !== 'undefined') {
-    const styleSheet = document.createElement("style");
-    styleSheet.textContent = styles;
-    document.head.appendChild(styleSheet);
-}
-
-export default Builder;
+export default Dashboard;

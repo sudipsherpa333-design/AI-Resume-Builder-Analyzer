@@ -1,18 +1,21 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import { Toaster } from "react-hot-toast";
-import "./index.css";
-import { AuthProvider } from "./context/AuthContext.jsx";
-import App from "./App.jsx";
+// App.jsx or main.jsx
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Home from './pages/Home';
+import Dashboard from './pages/Dashboard';
+import NotFound from './pages/NotFound';
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
+function App() {
+  return (
     <BrowserRouter>
-      <AuthProvider>
-        <App />
-        <Toaster />
-      </AuthProvider>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/login" element={<Login />} />
+        {/* This catches all unmatched routes */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     </BrowserRouter>
-  </React.StrictMode>
-);
+  );
+}
+
+export default App;
