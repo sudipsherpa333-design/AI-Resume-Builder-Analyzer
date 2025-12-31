@@ -1,1058 +1,399 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { jsPDF } from 'jspdf';
-import toast from 'react-hot-toast';
+// src/pages/TemplateSelect.jsx
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { jsPDF } from "jspdf";
+import toast from "react-hot-toast";
 
-const Templates = () => {
+// --- Icons ---
+import {
+  FaArrowLeft, FaPalette, FaDownload, FaSearch, FaTimes,
+  FaLaptopCode, FaBriefcase, FaGraduationCap, FaSpinner,
+  FaEye, FaFileAlt
+} from "react-icons/fa";
+
+// --- Contexts and Hooks (Assumed to exist) ---
+import { useAuth } from "../context/AuthContext";
+
+// =========================================================================
+// MOCK TEMPLATE DATA & STRUCTURE (For demonstration)
+// =========================================================================
+
+// Base Resume Structure (matches the structure used in the Builder component)
+const BASE_RESUME_STRUCTURE = {
+  title: "Untitled Resume",
+  templateId: "classic",
+  data: {
+    personalInfo: { firstName: "", lastName: "", email: "", phone: "", city: "", country: "", links: [] },
+    summary: "",
+    experience: [],
+    education: [],
+    skills: [],
+    awards: [],
+    languages: []
+  }
+};
+
+// Function to generate data for a specific template
+const generateTemplateData = (templateId) => {
+  switch (templateId) {
+    case "modern":
+      return {
+        ...BASE_RESUME_STRUCTURE,
+        title: "Modern Professional Resume",
+        templateId: "modern",
+        data: {
+          ...BASE_RESUME_STRUCTURE.data,
+          personalInfo: {
+            firstName: "Alex", lastName: "Chen", email: "alex.chen@pro.com", phone: "+1 555-1234", city: "San Francisco", country: "USA",
+            links: [{ name: "LinkedIn", url: "linkedin.com/in/alexchen" }]
+          },
+          summary: "Highly motivated Software Engineer with 5+ years of experience in full-stack development. Proven ability to deliver scalable solutions and lead complex projects from concept to deployment. Seeking to leverage technical skills in a challenging environment.",
+          skills: [
+            { name: "React", rating: 5, description: "" },
+            { name: "Node.js", rating: 4, description: "" },
+            { name: "AWS/Cloud", rating: 4, description: "" },
+          ]
+        }
+      };
+    case "minimalist":
+      return {
+        ...BASE_RESUME_STRUCTURE,
+        title: "Minimalist Executive CV",
+        templateId: "minimalist",
+        data: {
+          ...BASE_RESUME_STRUCTURE.data,
+          personalInfo: {
+            firstName: "Sarah", lastName: "Jones", email: "sarah.jones@exec.com", phone: "+44 207 123 4567", city: "London", country: "UK",
+            links: [{ name: "Portfolio", url: "sarahjones.com/portfolio" }]
+          },
+          summary: "Senior Executive known for driving revenue growth and operational efficiency across global markets. Expertise in strategic leadership, financial planning, and large-scale team management.",
+          skills: [
+            { name: "Strategic Planning", rating: 5, description: "" },
+            { name: "Financial Analysis", rating: 5, description: "" },
+            { name: "Leadership", rating: 4, description: "" },
+          ]
+        }
+      };
+    case "classic":
+    default:
+      return BASE_RESUME_STRUCTURE; // Returns the empty structure
+  }
+};
+
+// Template display data
+const TEMPLATES = [
+  { id: "classic", name: "Classic Professional", icon: FaFileAlt, description: "Traditional, recruiter-friendly design." },
+  { id: "modern", name: "Modern Tech", icon: FaLaptopCode, description: "Bold, two-column layout for tech roles." },
+  { id: "minimalist", name: "Minimalist Executive", icon: FaBriefcase, description: "Clean, elegant design, maximizing readability." },
+];
+
+// =========================================================================
+// COMPONENTS
+// =========================================================================
+
+/**
+ * Renders a single template card for selection.
+ */
+const TemplateCard = ({ template, onSelect, onPreview }) => {
+  const { id, name, icon: Icon, description } = template;
+
+  return (
+    <motion.div
+      className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden border border-gray-100 flex flex-col h-full"
+      whileHover={{ scale: 1.03 }}
+      transition={{ type: "spring", stiffness: 300 }}
+    >
+      <div className={`p-6 flex flex-col items-center justify-center bg-gray-50 border-b-4 ${id === 'classic' ? 'border-blue-500' : id === 'modern' ? 'border-indigo-500' : 'border-emerald-500'}`}>
+        <Icon className={`text-5xl ${id === 'classic' ? 'text-blue-600' : id === 'modern' ? 'text-indigo-600' : 'text-emerald-600'}`} />
+        <h3 className="text-xl font-bold mt-3 text-gray-800">{name}</h3>
+        <p className="text-sm text-gray-500 mt-1 text-center">{description}</p>
+      </div>
+
+      <div className="p-4 flex flex-col flex-grow justify-between">
+        <div className="flex items-center justify-center mb-4">
+          {/* Placeholder for a minimal template preview image/SVG */}
+          <div className={`w-3/4 h-32 bg-gray-200 rounded-md flex items-center justify-center text-sm text-gray-600 font-medium ${id === 'modern' ? 'shadow-inner' : 'shadow'}`}>
+            {name} Preview
+          </div>
+        </div>
+
+        <div className="flex justify-around gap-3">
+          <button
+            onClick={() => onPreview(id)}
+            className="flex-1 px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center justify-center gap-2 font-medium"
+          >
+            <FaEye /> Preview
+          </button>
+          <button
+            onClick={() => onSelect(id)}
+            className={`flex-1 px-4 py-2 text-sm rounded-lg transition font-medium flex items-center justify-center gap-2 shadow-md 
+                            ${id === 'classic' ? 'bg-blue-600 hover:bg-blue-700 text-white' : id === 'modern' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
+          >
+            <FaPalette /> Select
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// =========================================================================
+// MAIN PAGE COMPONENT
+// =========================================================================
+
+const TemplateSelect = () => {
   const navigate = useNavigate();
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [resumeData, setResumeData] = useState(null);
+  const { user } = useAuth(); // Assuming useAuth exists
 
-  // Load resume data from localStorage
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filteredTemplates, setFilteredTemplates] = useState(TEMPLATES);
+
   useEffect(() => {
-    const savedResume = localStorage.getItem('resumeDraft');
-    if (savedResume) {
-      try {
-        const parsedData = JSON.parse(savedResume);
-        setResumeData(parsedData.data || parsedData);
-      } catch (error) {
-        console.error('Error loading resume data:', error);
-      }
+    if (searchTerm) {
+      setFilteredTemplates(
+        TEMPLATES.filter(t =>
+          t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          t.description.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      );
+    } else {
+      setFilteredTemplates(TEMPLATES);
     }
-  }, []);
+  }, [searchTerm]);
 
-  const templateCategories = {
-    all: 'All Templates',
-    professional: 'Professional',
-    modern: 'Modern',
-    creative: 'Creative',
-    minimal: 'Minimal',
-    executive: 'Executive',
-    academic: 'Academic'
-  };
+  /**
+   * Handles template selection and navigates to the builder page.
+   * @param {string} templateId - The ID of the selected template.
+   */
+  const handleTemplateSelect = (templateId) => {
+    setIsLoading(true);
+    toast.loading(`Preparing ${templateId} template...`, { id: 'select-toast' });
 
-  const templates = [
-    {
-      id: 1,
-      name: 'Professional Classic',
-      category: 'professional',
-      description: 'Clean, traditional layout perfect for corporate roles',
-      color: '#3b82f6',
-      icon: '💼',
-      popularity: 95,
-      tags: ['corporate', 'business', 'traditional']
-    },
-    {
-      id: 2,
-      name: 'Modern Tech',
-      category: 'modern',
-      description: 'Sleek design optimized for tech professionals',
-      color: '#10b981',
-      icon: '💻',
-      popularity: 88,
-      tags: ['technology', 'developer', 'startup']
-    },
-    {
-      id: 3,
-      name: 'Creative Portfolio',
-      category: 'creative',
-      description: 'Bold and artistic for creative professionals',
-      color: '#8b5cf6',
-      icon: '🎨',
-      popularity: 76,
-      tags: ['design', 'art', 'portfolio']
-    },
-    {
-      id: 4,
-      name: 'Minimal Elegance',
-      category: 'minimal',
-      description: 'Simple, clean and highly readable',
-      color: '#6b7280',
-      icon: '⚪',
-      popularity: 82,
-      tags: ['clean', 'simple', 'readable']
-    },
-    {
-      id: 5,
-      name: 'Executive Suite',
-      category: 'executive',
-      description: 'Premium layout for senior leadership roles',
-      color: '#f59e0b',
-      icon: '👔',
-      popularity: 91,
-      tags: ['executive', 'management', 'leadership']
-    },
-    {
-      id: 6,
-      name: 'Academic Scholar',
-      category: 'academic',
-      description: 'Structured format for academic and research positions',
-      color: '#ef4444',
-      icon: '🎓',
-      popularity: 79,
-      tags: ['academic', 'research', 'education']
-    },
-    {
-      id: 7,
-      name: 'Startup Innovator',
-      category: 'modern',
-      description: 'Dynamic layout for startup environments',
-      color: '#06b6d4',
-      icon: '🚀',
-      popularity: 85,
-      tags: ['startup', 'innovation', 'dynamic']
-    },
-    {
-      id: 8,
-      name: 'Corporate Executive',
-      category: 'professional',
-      description: 'Formal design for corporate executives',
-      color: '#6366f1',
-      icon: '🏢',
-      popularity: 89,
-      tags: ['corporate', 'executive', 'formal']
-    },
-    {
-      id: 9,
-      name: 'Design Visionary',
-      category: 'creative',
-      description: 'Visually striking for design professionals',
-      color: '#ec4899',
-      icon: '✨',
-      popularity: 81,
-      tags: ['design', 'creative', 'visual']
-    },
-    {
-      id: 10,
-      name: 'Tech Innovator',
-      category: 'modern',
-      description: 'Modern layout for technology roles',
-      color: '#84cc16',
-      icon: '🔧',
-      popularity: 87,
-      tags: ['tech', 'developer', 'engineer']
-    },
-    {
-      id: 11,
-      name: 'Simple Professional',
-      category: 'minimal',
-      description: 'Straightforward and professional',
-      color: '#64748b',
-      icon: '📄',
-      popularity: 83,
-      tags: ['simple', 'professional', 'clean']
-    },
-    {
-      id: 12,
-      name: 'Research Academic',
-      category: 'academic',
-      description: 'Comprehensive format for research positions',
-      color: '#dc2626',
-      icon: '🔬',
-      popularity: 77,
-      tags: ['research', 'academic', 'scientific']
-    },
-    {
-      id: 13,
-      name: 'Leadership Pro',
-      category: 'executive',
-      description: 'Commanding presence for leaders',
-      color: '#d97706',
-      icon: '⭐',
-      popularity: 92,
-      tags: ['leadership', 'management', 'executive']
-    },
-    {
-      id: 14,
-      name: 'Creative Artist',
-      category: 'creative',
-      description: 'Expressive layout for artists and creators',
-      color: '#a855f7',
-      icon: '🎭',
-      popularity: 74,
-      tags: ['artist', 'creative', 'portfolio']
-    },
-    {
-      id: 15,
-      name: 'Modern Minimalist',
-      category: 'minimal',
-      description: 'Contemporary minimal design',
-      color: '#475569',
-      icon: '⬜',
-      popularity: 80,
-      tags: ['modern', 'minimal', 'contemporary']
-    },
-    {
-      id: 16,
-      name: 'Business Professional',
-      category: 'professional',
-      description: 'Standard business format',
-      color: '#1d4ed8',
-      icon: '📊',
-      popularity: 90,
-      tags: ['business', 'professional', 'corporate']
-    },
-    {
-      id: 17,
-      name: 'Tech Executive',
-      category: 'executive',
-      description: 'Executive format for tech leaders',
-      color: '#059669',
-      icon: '💎',
-      popularity: 86,
-      tags: ['tech', 'executive', 'leadership']
-    },
-    {
-      id: 18,
-      name: 'Academic Professional',
-      category: 'academic',
-      description: 'Professional academic format',
-      color: '#b91c1c',
-      icon: '📚',
-      popularity: 78,
-      tags: ['academic', 'professional', 'education']
-    },
-    {
-      id: 19,
-      name: 'Creative Professional',
-      category: 'creative',
-      description: 'Professional yet creative design',
-      color: '#c026d3',
-      icon: '🎯',
-      popularity: 84,
-      tags: ['creative', 'professional', 'design']
-    },
-    {
-      id: 20,
-      name: 'Ultra Minimal',
-      category: 'minimal',
-      description: 'Extremely clean and space-efficient',
-      color: '#374151',
-      icon: '⚫',
-      popularity: 75,
-      tags: ['minimal', 'clean', 'compact']
-    }
-  ];
+    try {
+      // 1. Generate the initial resume data structure based on the template
+      const templateData = generateTemplateData(templateId);
 
-  const filteredTemplates = templates.filter(template => {
-    const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      template.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      template.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+      // 2. Structure the data for the Builder
+      const newResume = {
+        id: Date.now().toString(), // Use a new ID
+        title: templateData.title,
+        templateId: templateId,
+        userId: user?.id || 'guest',
+        data: templateData.data,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-    const matchesCategory = filterCategory === 'all' || template.category === filterCategory;
+      // 3. Navigate to the Builder page, passing the initial data
+      navigate('/builder', { state: newResume });
 
-    return matchesSearch && matchesCategory;
-  });
+      toast.success(`Template selected! Starting the builder.`, { id: 'select-toast' });
 
-  const handleTemplateSelect = (template) => {
-    setSelectedTemplate(template);
-    toast.success(`Selected ${template.name} template`);
-  };
-
-  const handleUseTemplate = () => {
-    if (!selectedTemplate) {
-      toast.error('Please select a template first');
-      return;
-    }
-
-    // Save template preference
-    localStorage.setItem('selectedTemplate', JSON.stringify(selectedTemplate));
-
-    // Navigate to builder with template
-    navigate('/builder', { state: { template: selectedTemplate } });
-  };
-
-  const handlePreviewTemplate = (template) => {
-    // Generate a quick preview
-    const previewWindow = window.open('', '_blank');
-    previewWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Preview - ${template.name}</title>
-                <style>
-                    body { 
-                        font-family: Arial, sans-serif; 
-                        margin: 40px; 
-                        background: #f5f5f5;
-                    }
-                    .preview-container {
-                        max-width: 800px;
-                        margin: 0 auto;
-                        background: white;
-                        padding: 40px;
-                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                        border-radius: 8px;
-                    }
-                    .template-header {
-                        text-align: center;
-                        margin-bottom: 30px;
-                        padding-bottom: 20px;
-                        border-bottom: 2px solid ${template.color};
-                    }
-                    .template-name {
-                        color: ${template.color};
-                        font-size: 24px;
-                        margin: 0;
-                    }
-                    .template-description {
-                        color: #666;
-                        font-size: 14px;
-                    }
-                    .preview-content {
-                        display: grid;
-                        grid-template-columns: 1fr 2fr;
-                        gap: 30px;
-                    }
-                    .preview-section {
-                        margin-bottom: 20px;
-                    }
-                    .preview-label {
-                        font-weight: bold;
-                        color: ${template.color};
-                        margin-bottom: 5px;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="preview-container">
-                    <div class="template-header">
-                        <h1 class="template-name">${template.name}</h1>
-                        <p class="template-description">${template.description}</p>
-                    </div>
-                    <div class="preview-content">
-                        <div>
-                            <div class="preview-section">
-                                <div class="preview-label">Contact Info</div>
-                                <div>Email: your.email@example.com</div>
-                                <div>Phone: +1 (555) 123-4567</div>
-                            </div>
-                            <div class="preview-section">
-                                <div class="preview-label">Skills</div>
-                                <div>• Leadership</div>
-                                <div>• Project Management</div>
-                                <div>• Strategic Planning</div>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="preview-section">
-                                <div class="preview-label">Experience</div>
-                                <div><strong>Senior Manager</strong> - ABC Company (2020-Present)</div>
-                                <div>Led team of 15 professionals...</div>
-                            </div>
-                            <div class="preview-section">
-                                <div class="preview-label">Education</div>
-                                <div><strong>MBA</strong> - University Name (2018)</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="text-align: center; margin-top: 30px; color: #666; font-size: 12px;">
-                        This is a preview of the "${template.name}" template
-                    </div>
-                </div>
-            </body>
-            </html>
-        `);
-    previewWindow.document.close();
-  };
-
-  const handleQuickExport = (template) => {
-    if (!resumeData) {
-      toast.error('No resume data found. Please create a resume first.');
-      navigate('/builder');
-      return;
-    }
-
-    const doc = new jsPDF();
-
-    // Template-specific styling
-    doc.setFillColor(parseInt(template.color.slice(1, 3), 16),
-      parseInt(template.color.slice(3, 5), 16),
-      parseInt(template.color.slice(5, 7), 16));
-    doc.rect(0, 0, 210, 40, 'F');
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
-    doc.text(`${resumeData.personalInfo?.firstName || ''} ${resumeData.personalInfo?.lastName || ''}`, 20, 25);
-
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(12);
-    doc.text(resumeData.personalInfo?.jobTitle || 'Professional', 20, 45);
-
-    let yPosition = 60;
-
-    // Professional Summary
-    if (resumeData.professionalSummary) {
-      doc.setFontSize(14);
-      doc.setTextColor(parseInt(template.color.slice(1, 3), 16),
-        parseInt(template.color.slice(3, 5), 16),
-        parseInt(template.color.slice(5, 7), 16));
-      doc.text('PROFESSIONAL SUMMARY', 20, yPosition);
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(10);
-      const splitSummary = doc.splitTextToSize(resumeData.professionalSummary, 170);
-      doc.text(splitSummary, 20, yPosition + 10);
-      yPosition += 10 + (splitSummary.length * 5) + 15;
-    }
-
-    const fileName = `resume-${template.name.toLowerCase().replace(/\s+/g, '-')}.pdf`;
-    doc.save(fileName);
-    toast.success(`Exported with ${template.name} template!`);
-  };
-
-  const getCategoryCount = (category) => {
-    return templates.filter(t => category === 'all' || t.category === category).length;
-  };
-
-  // Inline Styles
-  const styles = {
-    container: {
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
-    },
-    header: {
-      background: 'white',
-      borderBottom: '1px solid #e2e8f0',
-      padding: '2rem 0',
-      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-    },
-    headerContent: {
-      maxWidth: '1200px',
-      margin: '0 auto',
-      padding: '0 2rem',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      flexWrap: 'wrap',
-      gap: '1rem'
-    },
-    headerText: {
-      flex: 1
-    },
-    headerTitle: {
-      fontSize: '2.5rem',
-      fontWeight: '800',
-      background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      margin: '0 0 0.5rem 0'
-    },
-    headerSubtitle: {
-      fontSize: '1.1rem',
-      color: '#64748b',
-      margin: 0,
-      maxWidth: '500px'
-    },
-    headerActions: {
-      display: 'flex',
-      gap: '1rem'
-    },
-    btnPrimary: {
-      background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
-      color: 'white',
-      border: 'none',
-      padding: '0.75rem 1.5rem',
-      borderRadius: '0.5rem',
-      fontWeight: '600',
-      cursor: 'pointer',
-      transition: 'all 0.2s ease',
-      textDecoration: 'none',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '0.5rem'
-    },
-    btnSecondary: {
-      background: '#f1f5f9',
-      color: '#475569',
-      border: '1px solid #e2e8f0',
-      padding: '0.75rem 1.5rem',
-      borderRadius: '0.5rem',
-      fontWeight: '600',
-      cursor: 'pointer',
-      transition: 'all 0.2s ease'
-    },
-    btnOutline: {
-      background: 'transparent',
-      color: '#3b82f6',
-      border: '2px solid #3b82f6',
-      padding: '0.75rem 1.5rem',
-      borderRadius: '0.5rem',
-      fontWeight: '600',
-      cursor: 'pointer',
-      transition: 'all 0.2s ease'
-    },
-    filtersSection: {
-      maxWidth: '1200px',
-      margin: '2rem auto',
-      padding: '0 2rem',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '1.5rem'
-    },
-    searchBox: {
-      position: 'relative',
-      maxWidth: '400px'
-    },
-    searchInput: {
-      width: '100%',
-      padding: '1rem 1rem 1rem 3rem',
-      border: '2px solid #e2e8f0',
-      borderRadius: '0.75rem',
-      fontSize: '1rem',
-      transition: 'all 0.2s ease',
-      background: 'white'
-    },
-    searchIcon: {
-      position: 'absolute',
-      left: '1rem',
-      top: '50%',
-      transform: 'translateY(-50%)',
-      color: '#94a3b8'
-    },
-    categoryFilters: {
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '0.5rem'
-    },
-    categoryFilter: {
-      background: 'white',
-      border: '2px solid #e2e8f0',
-      padding: '0.5rem 1rem',
-      borderRadius: '2rem',
-      fontSize: '0.875rem',
-      fontWeight: '500',
-      cursor: 'pointer',
-      transition: 'all 0.2s ease'
-    },
-    categoryFilterActive: {
-      background: '#3b82f6',
-      color: 'white',
-      borderColor: '#3b82f6'
-    },
-    selectedBanner: {
-      background: 'white',
-      border: '2px solid #3b82f6',
-      borderRadius: '1rem',
-      margin: '2rem auto',
-      maxWidth: '1200px',
-      padding: '1.5rem',
-      boxShadow: '0 4px 6px rgba(59, 130, 246, 0.1)'
-    },
-    bannerContent: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      flexWrap: 'wrap',
-      gap: '1rem'
-    },
-    bannerInfo: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '1rem'
-    },
-    bannerIcon: {
-      fontSize: '2rem'
-    },
-    bannerTitle: {
-      margin: '0 0 0.25rem 0',
-      color: '#1e293b'
-    },
-    bannerDescription: {
-      margin: 0,
-      color: '#64748b'
-    },
-    bannerActions: {
-      display: 'flex',
-      gap: '0.75rem',
-      flexWrap: 'wrap'
-    },
-    templatesGrid: {
-      maxWidth: '1200px',
-      margin: '0 auto',
-      padding: '2rem',
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
-      gap: '2rem'
-    },
-    templateCard: {
-      background: 'white',
-      borderRadius: '1rem',
-      overflow: 'hidden',
-      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
-      transition: 'all 0.3s ease',
-      cursor: 'pointer',
-      border: '2px solid transparent'
-    },
-    templateCardSelected: {
-      borderColor: '#3b82f6',
-      boxShadow: '0 8px 20px rgba(59, 130, 246, 0.2)'
-    },
-    templateHeader: {
-      padding: '1.5rem',
-      color: 'white',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      position: 'relative'
-    },
-    templateIcon: {
-      fontSize: '2rem'
-    },
-    templateBadge: {
-      background: 'rgba(255, 255, 255, 0.2)',
-      padding: '0.25rem 0.75rem',
-      borderRadius: '1rem',
-      fontSize: '0.75rem',
-      fontWeight: '600',
-      backdropFilter: 'blur(10px)'
-    },
-    templateContent: {
-      padding: '1.5rem'
-    },
-    templateName: {
-      fontSize: '1.25rem',
-      fontWeight: '700',
-      color: '#1e293b',
-      margin: '0 0 0.5rem 0'
-    },
-    templateDescription: {
-      color: '#64748b',
-      fontSize: '0.875rem',
-      lineHeight: '1.5',
-      margin: '0 0 1rem 0'
-    },
-    templateTags: {
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '0.5rem',
-      marginBottom: '1rem'
-    },
-    tag: {
-      background: '#f1f5f9',
-      color: '#475569',
-      padding: '0.25rem 0.5rem',
-      borderRadius: '0.375rem',
-      fontSize: '0.75rem',
-      fontWeight: '500'
-    },
-    templateCategory: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.5rem',
-      fontSize: '0.875rem',
-      color: '#64748b'
-    },
-    categoryDot: {
-      width: '8px',
-      height: '8px',
-      borderRadius: '50%'
-    },
-    templateActions: {
-      padding: '1rem 1.5rem',
-      borderTop: '1px solid #f1f5f9',
-      display: 'flex',
-      gap: '0.5rem'
-    },
-    btnPreview: {
-      flex: 1,
-      padding: '0.5rem 1rem',
-      border: '1px solid #e2e8f0',
-      borderRadius: '0.375rem',
-      background: 'white',
-      color: '#475569',
-      fontSize: '0.875rem',
-      fontWeight: '500',
-      cursor: 'pointer',
-      transition: 'all 0.2s ease'
-    },
-    btnExport: {
-      flex: 1,
-      padding: '0.5rem 1rem',
-      border: '1px solid #e2e8f0',
-      borderRadius: '0.375rem',
-      background: 'white',
-      color: '#475569',
-      fontSize: '0.875rem',
-      fontWeight: '500',
-      cursor: 'pointer',
-      transition: 'all 0.2s ease'
-    },
-    emptyState: {
-      textAlign: 'center',
-      padding: '4rem 2rem',
-      color: '#64748b'
-    },
-    emptyIcon: {
-      fontSize: '4rem',
-      marginBottom: '1rem',
-      opacity: 0.5
-    },
-    emptyTitle: {
-      margin: '0 0 0.5rem 0',
-      color: '#475569'
-    },
-    emptyText: {
-      margin: '0 0 2rem 0'
-    },
-    footer: {
-      background: 'white',
-      borderTop: '1px solid #e2e8f0',
-      padding: '3rem 0',
-      marginTop: '4rem'
-    },
-    footerContent: {
-      maxWidth: '1200px',
-      margin: '0 auto',
-      padding: '0 2rem',
-      textAlign: 'center'
-    },
-    footerTitle: {
-      color: '#1e293b',
-      margin: '0 0 2rem 0',
-      fontSize: '1.5rem'
-    },
-    footerTips: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-      gap: '2rem',
-      maxWidth: '800px',
-      margin: '0 auto'
-    },
-    tip: {
-      textAlign: 'center'
-    },
-    tipTitle: {
-      display: 'block',
-      color: '#3b82f6',
-      marginBottom: '0.5rem',
-      fontSize: '1.1rem'
-    },
-    tipText: {
-      color: '#64748b',
-      margin: 0,
-      fontSize: '0.9rem'
+    } catch (error) {
+      console.error("Template selection error:", error);
+      toast.error("Failed to load template. Please try again.", { id: 'select-toast' });
+      setIsLoading(false);
     }
   };
 
-  // Hover effects
-  const hoverEffects = {
-    btnPrimary: {
-      transform: 'translateY(-2px)',
-      boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
-    },
-    btnSecondary: {
-      background: '#e2e8f0',
-      borderColor: '#cbd5e1'
-    },
-    btnOutline: {
-      background: '#3b82f6',
-      color: 'white'
-    },
-    categoryFilter: {
-      borderColor: '#cbd5e1',
-      background: '#f8fafc'
-    },
-    templateCard: {
-      transform: 'translateY(-4px)',
-      boxShadow: '0 12px 25px rgba(0, 0, 0, 0.1)'
-    },
-    btnPreview: {
-      background: '#f8fafc',
-      borderColor: '#cbd5e1'
-    },
-    btnExport: {
-      background: '#3b82f6',
-      color: 'white',
-      borderColor: '#3b82f6'
+  /**
+   * Simple PDF preview without jspdf-autotable
+   */
+  const handleTemplatePreview = (templateId) => {
+    toast.loading(`Generating static preview for ${templateId}...`, { id: 'preview-toast' });
+
+    try {
+      const doc = new jsPDF();
+      const data = generateTemplateData(templateId);
+
+      // Set font and title
+      doc.setFontSize(22);
+      doc.text(`Resume Preview: ${data.title}`, 10, 20);
+
+      doc.setFontSize(12);
+      doc.text(`Template ID: ${templateId}`, 10, 30);
+      doc.text(`Name: ${data.data.personalInfo.firstName} ${data.data.personalInfo.lastName}`, 10, 40);
+      doc.text(`Email: ${data.data.personalInfo.email}`, 10, 50);
+      doc.text(`Phone: ${data.data.personalInfo.phone}`, 10, 60);
+
+      // Add a simple line separator
+      doc.line(10, 65, 200, 65);
+
+      // Add skills section manually (simple alternative to autotable)
+      doc.text("Skills:", 10, 75);
+      let yPos = 85;
+      data.data.skills.forEach((skill, index) => {
+        doc.text(`${index + 1}. ${skill.name} (Rating: ${skill.rating}/5)`, 15, yPos);
+        yPos += 10;
+        if (yPos > 280) {
+          doc.addPage();
+          yPos = 20;
+        }
+      });
+
+      // Add summary
+      doc.text("Summary:", 10, yPos + 10);
+      const summaryLines = doc.splitTextToSize(data.data.summary, 180);
+      doc.text(summaryLines, 15, yPos + 20);
+
+      // Open PDF in new window
+      doc.output('dataurlnewwindow');
+
+      toast.success(`Static PDF Preview opened.`, { id: 'preview-toast' });
+    } catch (error) {
+      console.error("PDF generation error:", error);
+      toast.error("Failed to generate preview. Please try again.", { id: 'preview-toast' });
     }
   };
 
   return (
-    <div style={styles.container}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
       {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.headerContent}>
-          <div style={styles.headerText}>
-            <h1 style={styles.headerTitle}>Resume Templates</h1>
-            <p style={styles.headerSubtitle}>
-              Choose from 20 professionally designed templates to showcase your career story
+      <div className="bg-white/80 backdrop-blur-sm shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="p-3 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition rounded-xl flex items-center gap-2"
+            >
+              <FaArrowLeft className="text-lg" />
+              <span className="font-medium">Back to Dashboard</span>
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">
+                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Choose Your Template
+                </span>
+              </h1>
+              <p className="text-slate-600 mt-2">
+                Select a professionally designed template to start building
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {/* Search Bar */}
+        <div className="relative mb-10 max-w-2xl mx-auto">
+          <div className="relative">
+            <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search templates by name, style, or industry..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-10 py-4 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 p-1"
+              >
+                <FaTimes />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Template Grid */}
+        {isLoading ? (
+          <div className="text-center py-20">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+              className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full mx-auto mb-6"
+            />
+            <p className="text-slate-600 font-medium text-lg">Loading templates...</p>
+          </div>
+        ) : (
+          <>
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-slate-900 mb-4">Popular Templates</h2>
+              <p className="text-slate-600">
+                {filteredTemplates.length} templates found
+              </p>
+            </div>
+
+            <motion.div
+              layout
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+            >
+              <AnimatePresence>
+                {filteredTemplates.map(template => (
+                  <TemplateCard
+                    key={template.id}
+                    template={template}
+                    onSelect={handleTemplateSelect}
+                    onPreview={handleTemplatePreview}
+                  />
+                ))}
+              </AnimatePresence>
+            </motion.div>
+          </>
+        )}
+
+        {filteredTemplates.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-16 bg-white rounded-2xl shadow-lg mt-8"
+          >
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-red-100 to-pink-100 flex items-center justify-center">
+              <FaTimes className="text-3xl text-red-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-3">No Templates Found</h3>
+            <p className="text-slate-600 mb-6 max-w-md mx-auto">
+              Try a different search term or browse all available options below.
+            </p>
+            <button
+              onClick={() => setSearchTerm("")}
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium hover:from-blue-700 hover:to-purple-700 transition-all"
+            >
+              Show All Templates
+            </button>
+          </motion.div>
+        )}
+
+        {/* Help Text */}
+        <div className="mt-12 pt-8 border-t border-slate-200">
+          <div className="text-center">
+            <p className="text-slate-600">
+              <span className="font-semibold">Tip:</span> You can fully customize colors, fonts, and layout in the builder after selecting a template.
             </p>
           </div>
-          <div style={styles.headerActions}>
+        </div>
+      </div>
+
+      {/* Footer / CTA */}
+      <div className="mt-12 py-8 bg-white/50 backdrop-blur-sm border-t border-slate-200">
+        <div className="max-w-7xl mx-auto text-center px-4">
+          <h3 className="text-xl font-bold text-slate-900 mb-3">Need Help Choosing?</h3>
+          <p className="text-slate-600 mb-6 max-w-2xl mx-auto">
+            All templates are fully customizable. If you're unsure, choose "Classic Professional"
+            - it works well for most industries and roles.
+          </p>
+          <div className="flex justify-center gap-4">
             <button
-              style={styles.btnPrimary}
-              onClick={() => navigate('/builder')}
-              onMouseEnter={(e) => Object.assign(e.target.style, hoverEffects.btnPrimary)}
-              onMouseLeave={(e) => Object.assign(e.target.style, styles.btnPrimary)}
+              onClick={() => navigate('/dashboard')}
+              className="px-6 py-3 border-2 border-slate-300 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors"
             >
-              ← Back to Builder
+              Cancel
+            </button>
+            <button
+              onClick={() => handleTemplateSelect('classic')}
+              className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-medium hover:from-emerald-600 hover:to-teal-700 transition-all shadow-lg"
+            >
+              Start with Classic Template
             </button>
           </div>
         </div>
       </div>
-
-      {/* Filters and Search */}
-      <div style={styles.filtersSection}>
-        <div style={styles.searchBox}>
-          <input
-            type="text"
-            placeholder="Search templates..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={styles.searchInput}
-          />
-          <span style={styles.searchIcon}>🔍</span>
-        </div>
-
-        <div style={styles.categoryFilters}>
-          {Object.entries(templateCategories).map(([key, label]) => (
-            <button
-              key={key}
-              style={{
-                ...styles.categoryFilter,
-                ...(filterCategory === key && styles.categoryFilterActive)
-              }}
-              onClick={() => setFilterCategory(key)}
-              onMouseEnter={(e) => filterCategory !== key && Object.assign(e.target.style, hoverEffects.categoryFilter)}
-              onMouseLeave={(e) => filterCategory !== key && Object.assign(e.target.style, styles.categoryFilter)}
-            >
-              {label} ({getCategoryCount(key)})
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Selected Template Banner */}
-      {selectedTemplate && (
-        <div style={styles.selectedBanner}>
-          <div style={styles.bannerContent}>
-            <div style={styles.bannerInfo}>
-              <span style={styles.bannerIcon}>{selectedTemplate.icon}</span>
-              <div>
-                <h3 style={styles.bannerTitle}>{selectedTemplate.name}</h3>
-                <p style={styles.bannerDescription}>{selectedTemplate.description}</p>
-              </div>
-            </div>
-            <div style={styles.bannerActions}>
-              <button
-                style={styles.btnSecondary}
-                onClick={() => handlePreviewTemplate(selectedTemplate)}
-                onMouseEnter={(e) => Object.assign(e.target.style, hoverEffects.btnSecondary)}
-                onMouseLeave={(e) => Object.assign(e.target.style, styles.btnSecondary)}
-              >
-                Preview
-              </button>
-              {resumeData && (
-                <button
-                  style={styles.btnOutline}
-                  onClick={() => handleQuickExport(selectedTemplate)}
-                  onMouseEnter={(e) => Object.assign(e.target.style, hoverEffects.btnOutline)}
-                  onMouseLeave={(e) => Object.assign(e.target.style, styles.btnOutline)}
-                >
-                  Quick Export
-                </button>
-              )}
-              <button
-                style={styles.btnPrimary}
-                onClick={handleUseTemplate}
-                onMouseEnter={(e) => Object.assign(e.target.style, hoverEffects.btnPrimary)}
-                onMouseLeave={(e) => Object.assign(e.target.style, styles.btnPrimary)}
-              >
-                Use This Template
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Templates Grid */}
-      <div style={styles.templatesGrid}>
-        {filteredTemplates.map(template => (
-          <div
-            key={template.id}
-            style={{
-              ...styles.templateCard,
-              ...(selectedTemplate?.id === template.id && styles.templateCardSelected)
-            }}
-            onClick={() => handleTemplateSelect(template)}
-            onMouseEnter={(e) => selectedTemplate?.id !== template.id && Object.assign(e.target.style, hoverEffects.templateCard)}
-            onMouseLeave={(e) => selectedTemplate?.id !== template.id && Object.assign(e.target.style, styles.templateCard)}
-          >
-            <div
-              style={{
-                ...styles.templateHeader,
-                backgroundColor: template.color
-              }}
-            >
-              <span style={styles.templateIcon}>{template.icon}</span>
-              <div style={styles.templateBadge}>
-                {template.popularity}% Popular
-              </div>
-            </div>
-
-            <div style={styles.templateContent}>
-              <h3 style={styles.templateName}>{template.name}</h3>
-              <p style={styles.templateDescription}>{template.description}</p>
-
-              <div style={styles.templateTags}>
-                {template.tags.map((tag, index) => (
-                  <span key={index} style={styles.tag}>#{tag}</span>
-                ))}
-              </div>
-
-              <div style={styles.templateCategory}>
-                <span
-                  style={{
-                    ...styles.categoryDot,
-                    backgroundColor: template.color
-                  }}
-                ></span>
-                {templateCategories[template.category]}
-              </div>
-            </div>
-
-            <div style={styles.templateActions}>
-              <button
-                style={styles.btnPreview}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePreviewTemplate(template);
-                }}
-                onMouseEnter={(e) => Object.assign(e.target.style, hoverEffects.btnPreview)}
-                onMouseLeave={(e) => Object.assign(e.target.style, styles.btnPreview)}
-              >
-                👁️ Preview
-              </button>
-              {resumeData && (
-                <button
-                  style={styles.btnExport}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleQuickExport(template);
-                  }}
-                  onMouseEnter={(e) => Object.assign(e.target.style, hoverEffects.btnExport)}
-                  onMouseLeave={(e) => Object.assign(e.target.style, styles.btnExport)}
-                >
-                  📥 Export
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Empty State */}
-      {filteredTemplates.length === 0 && (
-        <div style={styles.emptyState}>
-          <div style={styles.emptyIcon}>🔍</div>
-          <h3 style={styles.emptyTitle}>No templates found</h3>
-          <p style={styles.emptyText}>Try adjusting your search or filter criteria</p>
-          <button
-            style={styles.btnPrimary}
-            onClick={() => {
-              setSearchTerm('');
-              setFilterCategory('all');
-            }}
-            onMouseEnter={(e) => Object.assign(e.target.style, hoverEffects.btnPrimary)}
-            onMouseLeave={(e) => Object.assign(e.target.style, styles.btnPrimary)}
-          >
-            Clear Filters
-          </button>
-        </div>
-      )}
-
-      {/* Footer Info */}
-      <div style={styles.footer}>
-        <div style={styles.footerContent}>
-          <h3 style={styles.footerTitle}>Need help choosing?</h3>
-          <div style={styles.footerTips}>
-            <div style={styles.tip}>
-              <strong style={styles.tipTitle}>Professional Templates</strong>
-              <p style={styles.tipText}>Best for corporate, business, and traditional roles</p>
-            </div>
-            <div style={styles.tip}>
-              <strong style={styles.tipTitle}>Creative Templates</strong>
-              <p style={styles.tipText}>Ideal for designers, artists, and creative fields</p>
-            </div>
-            <div style={styles.tip}>
-              <strong style={styles.tipTitle}>Minimal Templates</strong>
-              <p style={styles.tipText}>Perfect for ATS systems and clean presentation</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Inline CSS for animations */}
-      <style>
-        {`
-                    @keyframes fadeInUp {
-                        from {
-                            opacity: 0;
-                            transform: translateY(20px);
-                        }
-                        to {
-                            opacity: 1;
-                            transform: translateY(0);
-                        }
-                    }
-
-                    .template-card-animation {
-                        animation: fadeInUp 0.5s ease forwards;
-                    }
-
-                    @media (max-width: 768px) {
-                        .header-content {
-                            flex-direction: column;
-                            text-align: center;
-                        }
-                        
-                        .header-title {
-                            font-size: 2rem;
-                        }
-                        
-                        .templates-grid {
-                            grid-template-columns: 1fr;
-                            padding: 1rem;
-                        }
-                        
-                        .banner-content {
-                            flex-direction: column;
-                            align-items: stretch;
-                        }
-                        
-                        .banner-actions {
-                            justify-content: center;
-                        }
-                        
-                        .category-filters {
-                            justify-content: center;
-                        }
-                        
-                        .filters-section {
-                            padding: 0 1rem;
-                        }
-                    }
-
-                    @media (max-width: 480px) {
-                        .template-actions {
-                            flex-direction: column;
-                        }
-                        
-                        .banner-actions {
-                            flex-direction: column;
-                        }
-                        
-                        .banner-actions button {
-                            width: 100%;
-                        }
-                    }
-                `}
-      </style>
     </div>
   );
 };
 
-export default Templates;
+export default TemplateSelect;

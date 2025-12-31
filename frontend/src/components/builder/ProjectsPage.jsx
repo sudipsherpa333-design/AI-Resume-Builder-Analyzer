@@ -1,576 +1,1391 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     FaProjectDiagram,
-    FaCalendarAlt,
-    FaLink,
-    FaCode,
-    FaTrash,
     FaPlus,
-    FaStar,
-    FaExternalLinkAlt
+    FaTrash,
+    FaEdit,
+    FaSave,
+    FaTimes,
+    FaCalendarAlt,
+    FaCode,
+    FaLink,
+    FaTrophy,
+    FaGithub,
+    FaExternalLinkAlt,
+    FaStar
 } from 'react-icons/fa';
+import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
 
-const EnhancedProjectsPage = ({ resumeData, onInputChange, onAddNew, onRemove }) => {
-    const projects = Array.isArray(resumeData.projects) ? resumeData.projects : [];
+const ProjectsPage = ({ resumeData, onUpdate, errors, setErrors }) => {
+    const [projects, setProjects] = useState(resumeData?.projects || []);
+    const [editingIndex, setEditingIndex] = useState(-1);
+    const [isAddingNew, setIsAddingNew] = useState(false);
+    const [formData, setFormData] = useState({
+        title: '',
+        description: '',
+        technologies: '',
+        startDate: '',
+        endDate: '',
+        current: false,
+        githubUrl: '',
+        liveUrl: '',
+        achievements: [],
+        role: '',
+        teamSize: ''
+    });
 
-    const handleChange = (id, field, value) => {
-        onInputChange('projects', field, value, id);
-    };
+    useEffect(() => {
+        if (resumeData?.projects) {
+            setProjects(resumeData.projects);
+        }
+    }, [resumeData?.projects]);
 
-    const addNewProject = () => {
-        onAddNew('projects');
-    };
-
-    const removeProject = (id) => {
-        if (projects.length > 1) {
-            onRemove('projects', id);
+    const handleUpdate = (data) => {
+        if (onUpdate) {
+            onUpdate('projects', data);
         }
     };
 
-    const calculateIsStepValid = () => {
-        if (projects.length === 0) return false;
-        return projects.some(proj => proj.name && proj.description);
+    useEffect(() => {
+        if (projects.length > 0 || projects.length === 0) {
+            handleUpdate(projects);
+        }
+    }, [projects]);
+
+    const handleInputChange = (field, value) => {
+        setFormData(prev => ({
+            ...prev,
+            [field]: value
+        }));
     };
 
-    const isStepValid = calculateIsStepValid();
+    const handleAddAchievement = () => {
+        setFormData(prev => ({
+            ...prev,
+            achievements: [...prev.achievements, '']
+        }));
+    };
+
+    const handleAchievementChange = (index, value) => {
+        setFormData(prev => ({
+            ...prev,
+            achievements: prev.achievements.map((item, i) => i === index ? value : item)
+        }));
+    };
+
+    const handleRemoveAchievement = (index) => {
+        setFormData(prev => ({
+            ...prev,
+            achievements: prev.achievements.filter((_, i) => i !== index)
+        }));
+    };
+
+    const validateForm = () => {
+        const newErrors = {};
+
+        if (!formData.title.trim()) {
+            newErrors.title = 'Project title is required';
+        }
+        if (!formData.description.trim()) {
+            newErrors.description = 'Description is required';
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(prev => ({ ...prev, ...newErrors }));
+            return false;
+        }
+
+        setErrors({});
+        return true;
+    };
+
+    const handleAddProject = () => {
+        if (!validateForm()) {
+            toast.error('Please fill all required fields');
+            return;
+        }
+
+        const newProject = {
+            id: Date.now(),
+            ...formData,
+            achievements: formData.achievements.filter(a => a.trim() !== '')
+        };
+
+        setProjects(prev => [...prev, newProject]);
+        resetForm();
+        setIsAddingNew(false);
+        toast.success('Project added successfully!');
+    };
+
+    const handleEditProject = (index) => {
+        const project = projects[index];
+        setFormData({
+            title: project.title || '',
+            description: project.description || '',
+            technologies: project.technologies || '',
+            startDate: project.startDate || '',
+            endDate: project.endDate || '',
+            current: project.current || false,
+            githubUrl: project.githubUrl || '',
+            liveUrl: project.liveUrl || '',
+            achievements: project.achievements || [],
+            role: project.role || '',
+            teamSize: project.teamSize || ''
+        });
+        setEditingIndex(index);
+        setIsAddingNew(false);
+    };
+
+    const handleUpdateProject = () => {
+        if (!validateForm()) {
+            toast.error('Please fill all required fields');
+            return;
+        }
+
+        setProjects(prev => {
+            const updated = [...prev];
+            updated[editingIndex] = {
+                ...updated[editingIndex],
+                ...formData,
+                achievements: formData.achievements.filter(a => a.trim() !== '')
+            };
+            return updated;
+        });
+
+        resetForm();
+        setEditingIndex(-1);
+        toast.success('Project updated successfully!');
+    };
+
+    const handleDeleteProject = (index) => {
+        if (window.confirm('Are you sure you want to delete this project?')) {
+            setProjects(prev => prev.filter((_, i) => i !== index));
+            toast.success('Project removed successfully');
+        }
+    };
+
+    const handleMoveProject = (index, direction) => {
+        if ((direction === 'up' && index === 0) || (direction === 'down' && index === projects.length - 1)) {
+            return;
+        }
+
+        setProjects(prev => {
+            const updated = [...prev];
+            const newIndex = direction === 'up' ? index - 1 : index + 1;
+            [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
+            return updated;
+        });
+    };
+
+    const handleDuplicateProject = (index) => {
+        const project = projects[index];
+        const duplicatedProject = {
+            ...project,
+            id: Date.now(),
+            title: `${project.title} (Copy)`
+        };
+
+        setProjects(prev => [...prev, duplicatedProject]);
+        toast.success('Project duplicated successfully!');
+    };
+
+    const resetForm = () => {
+        setFormData({
+            title: '',
+            description: '',
+            technologies: '',
+            startDate: '',
+            endDate: '',
+            current: false,
+            githubUrl: '',
+            liveUrl: '',
+            achievements: [],
+            role: '',
+            teamSize: ''
+        });
+        setErrors({});
+    };
+
+    const getProjectDuration = (start, end, current) => {
+        try {
+            const startDate = new Date(start);
+            const endDate = current ? new Date() : new Date(end);
+            const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 + (endDate.getMonth() - startDate.getMonth());
+
+            if (months < 0) return 'Invalid date';
+
+            const years = Math.floor(months / 12);
+            const remainingMonths = months % 12;
+
+            let duration = '';
+            if (years > 0) duration += `${years} year${years > 1 ? 's' : ''}`;
+            if (remainingMonths > 0) {
+                if (duration) duration += ' ';
+                duration += `${remainingMonths} month${remainingMonths > 1 ? 's' : ''}`;
+            }
+
+            return duration || 'Less than a month';
+        } catch (error) {
+            return 'N/A';
+        }
+    };
+
+    const getTechTags = (technologies) => {
+        if (!technologies) return [];
+        return technologies.split(',').map(tech => tech.trim()).filter(tech => tech);
+    };
 
     return (
-        <div className="enhanced-projects-page">
+        <div className="projects-page">
+            {/* Header */}
             <div className="page-header">
-                <div className="header-icon">
-                    <FaProjectDiagram />
+                <div className="header-left">
+                    <div className="header-icon">
+                        <FaProjectDiagram />
+                    </div>
+                    <div>
+                        <h2 className="page-title">Projects</h2>
+                        <p className="page-subtitle">Showcase your work and contributions</p>
+                    </div>
                 </div>
-                <div className="header-content">
-                    <h2 className="page-title">Projects</h2>
-                    <p className="page-subtitle">Showcase your personal and professional projects</p>
+                <div className="header-stats">
+                    <div className="stat-chip">
+                        <FaStar />
+                        <span>Projects: {projects.length}</span>
+                    </div>
+                    <button
+                        className="btn-primary"
+                        onClick={() => {
+                            resetForm();
+                            setIsAddingNew(true);
+                            setEditingIndex(-1);
+                        }}
+                        type="button"
+                    >
+                        <FaPlus /> Add Project
+                    </button>
                 </div>
             </div>
 
-            <div className="projects-list">
-                {projects.map((proj, index) => (
-                    <div key={proj.id || index} className="project-card">
-                        <div className="card-header">
-                            <div className="card-title-section">
-                                <div className="card-icon">
-                                    <FaProjectDiagram />
-                                </div>
+            {/* Stats Overview */}
+            <div className="stats-overview">
+                <div className="stat-card">
+                    <div className="stat-value">{projects.length}</div>
+                    <div className="stat-label">Projects</div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-value">
+                        {projects.filter(p => p.current).length}
+                    </div>
+                    <div className="stat-label">Active</div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-value">
+                        {projects.reduce((total, p) => total + (p.achievements?.length || 0), 0)}
+                    </div>
+                    <div className="stat-label">Achievements</div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-value">
+                        {projects.filter(p => p.liveUrl || p.githubUrl).length}
+                    </div>
+                    <div className="stat-label">With Links</div>
+                </div>
+            </div>
+
+            {/* Add/Edit Form */}
+            <AnimatePresence>
+                {(isAddingNew || editingIndex !== -1) && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="project-form-card"
+                    >
+                        <div className="form-header">
+                            <div className="form-title">
                                 <h3>
-                                    Project #{index + 1}
-                                    {proj.name && proj.description && (
-                                        <span className="status-badge complete">
-                                            <FaStar /> Complete
-                                        </span>
-                                    )}
+                                    {editingIndex !== -1 ?
+                                        <><FaEdit /> Edit Project</> :
+                                        <><FaPlus /> Add New Project</>
+                                    }
                                 </h3>
+                                <p className="form-subtitle">
+                                    {editingIndex !== -1 ? 'Update your project details' : 'Add a new project to showcase'}
+                                </p>
                             </div>
-                            {projects.length > 1 && (
-                                <button
-                                    onClick={() => removeProject(proj.id)}
-                                    className="remove-btn"
-                                >
-                                    <FaTrash /> Remove
-                                </button>
-                            )}
+                            <button
+                                className="btn-icon"
+                                onClick={() => {
+                                    resetForm();
+                                    setIsAddingNew(false);
+                                    setEditingIndex(-1);
+                                }}
+                                type="button"
+                            >
+                                <FaTimes />
+                            </button>
                         </div>
 
-                        <div className="card-content">
-                            <div className="form-grid">
-                                {/* Project Name */}
-                                <div className="input-group">
-                                    <label>
-                                        <FaProjectDiagram className="input-icon" />
-                                        Project Name *
-                                    </label>
+                        <div className="form-grid">
+                            {/* Project Title */}
+                            <div className="form-group full-width">
+                                <label className="required">Project Title *</label>
+                                <div className="input-with-status">
+                                    <FaProjectDiagram className="field-icon" />
                                     <input
                                         type="text"
-                                        value={proj.name || ''}
-                                        onChange={(e) => handleChange(proj.id, 'name', e.target.value)}
-                                        placeholder="E-commerce Platform"
-                                        className={`input-field ${proj.name ? 'filled' : ''}`}
+                                        value={formData.title}
+                                        onChange={(e) => handleInputChange('title', e.target.value)}
+                                        placeholder="e.g., E-commerce Platform, Mobile App"
+                                        className={`form-input ${errors?.title ? 'error' : ''}`}
                                     />
                                 </div>
-
-                                {/* Project Type */}
-                                <div className="input-group">
-                                    <label>Project Type</label>
-                                    <select
-                                        value={proj.type || ''}
-                                        onChange={(e) => handleChange(proj.id, 'type', e.target.value)}
-                                        className="input-field"
-                                    >
-                                        <option value="">Select type</option>
-                                        <option value="personal">Personal Project</option>
-                                        <option value="professional">Professional</option>
-                                        <option value="academic">Academic</option>
-                                        <option value="open-source">Open Source</option>
-                                        <option value="freelance">Freelance</option>
-                                    </select>
-                                </div>
-
-                                {/* Dates */}
-                                <div className="input-group">
-                                    <label>
-                                        <FaCalendarAlt className="input-icon" />
-                                        Start Date
-                                    </label>
-                                    <input
-                                        type="month"
-                                        value={proj.startDate || ''}
-                                        onChange={(e) => handleChange(proj.id, 'startDate', e.target.value)}
-                                        className="input-field"
-                                    />
-                                </div>
-
-                                <div className="input-group">
-                                    <label>
-                                        <FaCalendarAlt className="input-icon" />
-                                        End Date
-                                    </label>
-                                    <input
-                                        type="month"
-                                        value={proj.endDate || ''}
-                                        onChange={(e) => handleChange(proj.id, 'endDate', e.target.value)}
-                                        className="input-field"
-                                        disabled={proj.current}
-                                    />
-                                </div>
-
-                                {/* URLs */}
-                                <div className="input-group">
-                                    <label>
-                                        <FaLink className="input-icon" />
-                                        Live URL
-                                    </label>
-                                    <input
-                                        type="url"
-                                        value={proj.url || ''}
-                                        onChange={(e) => handleChange(proj.id, 'url', e.target.value)}
-                                        placeholder="https://project-demo.com"
-                                        className={`input-field ${proj.url ? 'filled' : ''}`}
-                                    />
-                                </div>
-
-                                <div className="input-group">
-                                    <label>
-                                        <FaCode className="input-icon" />
-                                        GitHub URL
-                                    </label>
-                                    <input
-                                        type="url"
-                                        value={proj.github || ''}
-                                        onChange={(e) => handleChange(proj.id, 'github', e.target.value)}
-                                        placeholder="https://github.com/username/project"
-                                        className={`input-field ${proj.github ? 'filled' : ''}`}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Technologies */}
-                            <div className="input-group">
-                                <label>Technologies Used</label>
-                                <input
-                                    type="text"
-                                    value={proj.technologies || ''}
-                                    onChange={(e) => handleChange(proj.id, 'technologies', e.target.value)}
-                                    placeholder="React, Node.js, MongoDB, AWS, Docker"
-                                    className="input-field"
-                                />
-                                <div className="input-tip">
-                                    Separate technologies with commas
-                                </div>
+                                {errors?.title && (
+                                    <div className="error-message">{errors.title}</div>
+                                )}
+                                <div className="field-tip">Name of your project</div>
                             </div>
 
                             {/* Description */}
-                            <div className="textarea-group">
-                                <label>Project Description & Features *</label>
-                                <textarea
-                                    value={proj.description || ''}
-                                    onChange={(e) => handleChange(proj.id, 'description', e.target.value)}
-                                    placeholder="• Developed a full-stack e-commerce platform with React and Node.js
-• Implemented user authentication, payment processing, and admin dashboard
-• Optimized performance achieving 95% Lighthouse score
-• Containerized with Docker and deployed on AWS"
-                                    className="description-textarea"
-                                    rows={5}
-                                />
-                                <div className="textarea-tip">
-                                    Use bullet points to highlight key features and achievements
+                            <div className="form-group full-width">
+                                <label className="required">Description *</label>
+                                <div className="input-with-status">
+                                    <textarea
+                                        value={formData.description}
+                                        onChange={(e) => handleInputChange('description', e.target.value)}
+                                        placeholder="Describe the project, its purpose, and what it does..."
+                                        className={`form-textarea ${errors?.description ? 'error' : ''}`}
+                                        rows={4}
+                                    />
+                                </div>
+                                {errors?.description && (
+                                    <div className="error-message">{errors.description}</div>
+                                )}
+                                <div className="field-tip">Detailed description of the project</div>
+                            </div>
+
+                            {/* Role & Team Size */}
+                            <div className="form-group">
+                                <label>Your Role</label>
+                                <div className="input-with-status">
+                                    <input
+                                        type="text"
+                                        value={formData.role}
+                                        onChange={(e) => handleInputChange('role', e.target.value)}
+                                        placeholder="e.g., Lead Developer, UI Designer"
+                                        className="form-input"
+                                    />
+                                </div>
+                                <div className="field-tip">Your role in the project</div>
+                            </div>
+
+                            <div className="form-group">
+                                <label>Team Size</label>
+                                <div className="input-with-status">
+                                    <input
+                                        type="text"
+                                        value={formData.teamSize}
+                                        onChange={(e) => handleInputChange('teamSize', e.target.value)}
+                                        placeholder="e.g., Solo, 5 members"
+                                        className="form-input"
+                                    />
+                                </div>
+                                <div className="field-tip">Number of team members</div>
+                            </div>
+
+                            {/* Dates */}
+                            <div className="form-group">
+                                <label>Start Date</label>
+                                <div className="input-with-status">
+                                    <FaCalendarAlt className="field-icon" />
+                                    <input
+                                        type="month"
+                                        value={formData.startDate}
+                                        onChange={(e) => handleInputChange('startDate', e.target.value)}
+                                        className="form-input"
+                                    />
+                                </div>
+                                <div className="field-tip">When you started the project</div>
+                            </div>
+
+                            <div className="form-group">
+                                <label>End Date</label>
+                                <div className="date-container">
+                                    <div className="current-checkbox-container">
+                                        <input
+                                            type="checkbox"
+                                            id="current-project"
+                                            checked={formData.current}
+                                            onChange={(e) => handleInputChange('current', e.target.checked)}
+                                            className="current-checkbox"
+                                        />
+                                        <label htmlFor="current-project" className="checkbox-label">
+                                            Ongoing Project
+                                        </label>
+                                    </div>
+                                    <div className="input-with-status">
+                                        <FaCalendarAlt className="field-icon" />
+                                        <input
+                                            type="month"
+                                            value={formData.current ? '' : formData.endDate}
+                                            onChange={(e) => handleInputChange('endDate', e.target.value)}
+                                            className="form-input"
+                                            disabled={formData.current}
+                                            placeholder={formData.current ? 'Present' : ''}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="field-tip">Leave empty for ongoing projects</div>
+                            </div>
+
+                            {/* Technologies */}
+                            <div className="form-group full-width">
+                                <label>Technologies Used</label>
+                                <div className="input-with-status">
+                                    <FaCode className="field-icon" />
+                                    <input
+                                        type="text"
+                                        value={formData.technologies}
+                                        onChange={(e) => handleInputChange('technologies', e.target.value)}
+                                        placeholder="e.g., React, Node.js, MongoDB, AWS"
+                                        className="form-input"
+                                    />
+                                </div>
+                                <div className="field-tip">Separate technologies with commas</div>
+                            </div>
+
+                            {/* URLs */}
+                            <div className="form-group">
+                                <label>GitHub URL</label>
+                                <div className="input-with-status">
+                                    <FaGithub className="field-icon" />
+                                    <input
+                                        type="url"
+                                        value={formData.githubUrl}
+                                        onChange={(e) => handleInputChange('githubUrl', e.target.value)}
+                                        placeholder="https://github.com/username/project"
+                                        className="form-input"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label>Live Demo URL</label>
+                                <div className="input-with-status">
+                                    <FaExternalLinkAlt className="field-icon" />
+                                    <input
+                                        type="url"
+                                        value={formData.liveUrl}
+                                        onChange={(e) => handleInputChange('liveUrl', e.target.value)}
+                                        placeholder="https://project-demo.com"
+                                        className="form-input"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Achievements */}
+                            <div className="form-group full-width">
+                                <div className="section-header">
+                                    <div>
+                                        <label>Key Achievements</label>
+                                        <p className="field-subtitle">Project accomplishments and impact</p>
+                                    </div>
+                                    <button
+                                        className="btn-small"
+                                        onClick={handleAddAchievement}
+                                        type="button"
+                                    >
+                                        <FaPlus /> Add Achievement
+                                    </button>
+                                </div>
+
+                                <div className="items-list">
+                                    {formData.achievements.map((achievement, index) => (
+                                        <div key={index} className="item">
+                                            <div className="item-number">{index + 1}</div>
+                                            <input
+                                                type="text"
+                                                value={achievement}
+                                                onChange={(e) => handleAchievementChange(index, e.target.value)}
+                                                placeholder="e.g., Improved performance by 40%, Reduced load time by 50%..."
+                                                className="item-input"
+                                            />
+                                            <button
+                                                className="btn-icon danger"
+                                                onClick={() => handleRemoveAchievement(index)}
+                                                type="button"
+                                                title="Remove achievement"
+                                            >
+                                                <FaTrash />
+                                            </button>
+                                        </div>
+                                    ))}
+
+                                    {formData.achievements.length === 0 && (
+                                        <div className="no-items">
+                                            <FaTrophy className="empty-icon" />
+                                            <div className="empty-content">
+                                                <h4>No achievements added yet</h4>
+                                                <p>Add measurable results and project impact</p>
+                                                <button
+                                                    className="btn-small"
+                                                    onClick={handleAddAchievement}
+                                                    type="button"
+                                                >
+                                                    <FaPlus /> Add First Achievement
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
-                    </div>
-                ))}
-            </div>
 
-            <button onClick={addNewProject} className="add-project-btn">
-                <FaPlus /> Add Another Project
-            </button>
+                        <div className="form-actions">
+                            <button
+                                className="btn-secondary"
+                                onClick={() => {
+                                    resetForm();
+                                    setIsAddingNew(false);
+                                    setEditingIndex(-1);
+                                }}
+                                type="button"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="btn-primary"
+                                onClick={editingIndex !== -1 ? handleUpdateProject : handleAddProject}
+                                type="button"
+                            >
+                                <FaSave /> {editingIndex !== -1 ? 'Update Project' : 'Save Project'}
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
-            <div className="validation-section">
-                {isStepValid ? (
-                    <div className="validation-success">
-                        <div className="success-icon">✓</div>
-                        <div className="success-content">
-                            <h4>Projects Complete!</h4>
-                            <p>Your projects have been saved successfully.</p>
+            {/* Projects List */}
+            <div className="projects-list">
+                {projects.length === 0 ? (
+                    <div className="empty-state">
+                        <FaProjectDiagram className="empty-icon" />
+                        <div className="empty-content">
+                            <h3>No projects added yet</h3>
+                            <p>Add your projects to showcase your practical experience and skills</p>
+                            <button
+                                className="btn-primary"
+                                onClick={() => setIsAddingNew(true)}
+                                type="button"
+                            >
+                                <FaPlus /> Add Your First Project
+                            </button>
                         </div>
                     </div>
                 ) : (
-                    <div className="validation-warning">
-                        <div className="warning-icon">!</div>
-                        <div className="warning-content">
-                            <h4>Add Projects</h4>
-                            <p>Add at least one project with name and description to showcase your work.</p>
-                        </div>
-                    </div>
+                    <AnimatePresence>
+                        {projects.map((project, index) => (
+                            <motion.div
+                                key={project.id || index}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                className="project-card"
+                            >
+                                <div className="project-header">
+                                    <div className="project-info">
+                                        <div className="project-main">
+                                            <h3 className="project-title">{project.title}</h3>
+                                            {project.role && (
+                                                <div className="project-role">
+                                                    <FaProjectDiagram /> Role: {project.role}
+                                                    {project.teamSize && ` • Team: ${project.teamSize}`}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="project-meta">
+                                            <div className="duration">
+                                                <FaCalendarAlt />
+                                                <span>
+                                                    {project.startDate ? new Date(project.startDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A'} -
+                                                    {project.current ? ' Present' : ` ${project.endDate ? new Date(project.endDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A'}`}
+                                                </span>
+                                                {project.startDate && project.endDate && (
+                                                    <span className="duration-badge">
+                                                        {getProjectDuration(project.startDate, project.endDate, project.current)}
+                                                    </span>
+                                                )}
+                                                {project.current && (
+                                                    <span className="current-badge">
+                                                        <FaStar /> Active
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="project-actions">
+                                        <button
+                                            className="btn-icon"
+                                            onClick={() => handleMoveProject(index, 'up')}
+                                            disabled={index === 0}
+                                            title="Move up"
+                                            type="button"
+                                        >
+                                            <FaArrowUp />
+                                        </button>
+                                        <button
+                                            className="btn-icon"
+                                            onClick={() => handleMoveProject(index, 'down')}
+                                            disabled={index === projects.length - 1}
+                                            title="Move down"
+                                            type="button"
+                                        >
+                                            <FaArrowDown />
+                                        </button>
+                                        <button
+                                            className="btn-icon"
+                                            onClick={() => handleDuplicateProject(index)}
+                                            title="Duplicate"
+                                            type="button"
+                                        >
+                                            <FaCopy />
+                                        </button>
+                                        <button
+                                            className="btn-icon"
+                                            onClick={() => handleEditProject(index)}
+                                            title="Edit"
+                                            type="button"
+                                        >
+                                            <FaEdit />
+                                        </button>
+                                        <button
+                                            className="btn-icon danger"
+                                            onClick={() => handleDeleteProject(index)}
+                                            title="Delete"
+                                            type="button"
+                                        >
+                                            <FaTrash />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="project-description">
+                                    <p>{project.description}</p>
+                                </div>
+
+                                {project.technologies && (
+                                    <div className="technologies">
+                                        <div className="technologies-header">
+                                            <FaCode />
+                                            <strong>Technologies Used</strong>
+                                        </div>
+                                        <div className="tech-tags">
+                                            {getTechTags(project.technologies).map((tech, idx) => (
+                                                <span key={idx} className="tech-tag">{tech}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {project.achievements && project.achievements.length > 0 && (
+                                    <div className="achievements">
+                                        <div className="achievements-header">
+                                            <FaTrophy />
+                                            <strong>Key Achievements</strong>
+                                        </div>
+                                        <ul className="achievements-list">
+                                            {project.achievements.map((achievement, idx) => (
+                                                <li key={idx}>
+                                                    <span className="bullet"></span>
+                                                    <span className="achievement-text">{achievement}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {(project.githubUrl || project.liveUrl) && (
+                                    <div className="project-links">
+                                        {project.githubUrl && (
+                                            <a href={project.githubUrl} target="_blank" rel="noopener noreferrer" className="project-link">
+                                                <FaGithub /> GitHub
+                                            </a>
+                                        )}
+                                        {project.liveUrl && (
+                                            <a href={project.liveUrl} target="_blank" rel="noopener noreferrer" className="project-link">
+                                                <FaExternalLinkAlt /> Live Demo
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
                 )}
             </div>
 
             <style jsx>{`
-                .enhanced-projects-page {
+                .projects-page {
                     padding: 0;
                     max-width: 100%;
                 }
 
+                /* Header */
                 .page-header {
+                    margin-bottom: 2.5rem;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 1.5rem;
+                }
+
+                .header-left {
                     display: flex;
                     align-items: center;
-                    gap: 1rem;
-                    margin-bottom: 2rem;
-                    padding-bottom: 1rem;
-                    border-bottom: 2px solid #e5e7eb;
+                    gap: 1.25rem;
                 }
 
                 .header-icon {
-                    width: 50px;
-                    height: 50px;
-                    background: linear-gradient(135deg, #6366F1, #4F46E5);
-                    border-radius: 12px;
+                    width: 65px;
+                    height: 65px;
+                    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                    border-radius: 15px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     color: white;
-                    font-size: 1.5rem;
-                }
-
-                .header-content .page-title {
                     font-size: 1.75rem;
-                    font-weight: 700;
-                    color: #1f2937;
-                    margin: 0 0 0.25rem 0;
+                    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
                 }
 
-                .header-content .page-subtitle {
-                    font-size: 0.95rem;
+                .page-title {
+                    font-size: 2.5rem;
+                    font-weight: 800;
+                    color: #1f2937;
+                    margin: 0 0 0.5rem 0;
+                    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                }
+
+                .page-subtitle {
+                    font-size: 1.1rem;
                     color: #6b7280;
                     margin: 0;
                 }
 
-                .projects-list {
+                .header-stats {
                     display: flex;
-                    flex-direction: column;
+                    align-items: center;
                     gap: 1.5rem;
-                    margin-bottom: 2rem;
                 }
 
-                .project-card {
-                    background: white;
-                    border: 1px solid #e5e7eb;
-                    border-radius: 12px;
-                    padding: 1.5rem;
+                .stat-chip {
+                    background: linear-gradient(135deg, #f59e0b, #d97706);
+                    color: white;
+                    padding: 0.875rem 1.75rem;
+                    border-radius: 50px;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    font-weight: 600;
+                    font-size: 0.95rem;
+                    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
+                }
+
+                .btn-primary {
+                    padding: 0.875rem 1.75rem;
+                    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 10px;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    cursor: pointer;
                     transition: all 0.3s ease;
                 }
 
-                .project-card:hover {
-                    border-color: #6366f1;
-                    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+                .btn-primary:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.35);
                 }
 
-                .card-header {
+                /* Stats Overview */
+                .stats-overview {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                    gap: 1.25rem;
+                    margin-bottom: 2.5rem;
+                }
+
+                .stat-card {
+                    background: white;
+                    border-radius: 15px;
+                    padding: 1.75rem;
+                    text-align: center;
+                    border: 2px solid #e5e7eb;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+                }
+
+                .stat-card:hover {
+                    border-color: #f59e0b;
+                    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+                    transform: translateY(-3px);
+                }
+
+                .stat-value {
+                    font-size: 2.25rem;
+                    font-weight: 800;
+                    color: #f59e0b;
+                    margin-bottom: 0.5rem;
+                }
+
+                .stat-label {
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    color: #6b7280;
+                    text-transform: uppercase;
+                }
+
+                /* Form */
+                .project-form-card {
+                    background: white;
+                    border-radius: 20px;
+                    padding: 2.5rem;
+                    margin-bottom: 2.5rem;
+                    border: 2px solid #e5e7eb;
+                    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+                }
+
+                .form-header {
                     display: flex;
                     justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 1.5rem;
+                    align-items: flex-start;
+                    margin-bottom: 2rem;
+                    padding-bottom: 1.5rem;
+                    border-bottom: 2px solid #f3f4f6;
                 }
 
-                .card-title-section {
+                .form-title h3 {
+                    font-size: 1.75rem;
+                    font-weight: 700;
+                    color: #1f2937;
+                    margin: 0 0 0.5rem 0;
                     display: flex;
                     align-items: center;
                     gap: 0.75rem;
                 }
 
-                .card-icon {
-                    width: 36px;
-                    height: 36px;
-                    background: #eef2ff;
-                    border-radius: 8px;
+                .form-subtitle {
+                    font-size: 0.95rem;
+                    color: #6b7280;
+                    margin: 0;
+                }
+
+                .btn-icon {
+                    width: 45px;
+                    height: 45px;
+                    border-radius: 10px;
+                    border: 2px solid #e5e7eb;
+                    background: white;
+                    color: #4b5563;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    color: #6366f1;
-                }
-
-                .card-title-section h3 {
-                    font-size: 1.125rem;
-                    font-weight: 600;
-                    color: #1f2937;
-                    margin: 0;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                }
-
-                .status-badge.complete {
-                    background: #e0e7ff;
-                    color: #3730a3;
-                    font-size: 0.75rem;
-                    padding: 0.25rem 0.75rem;
-                    border-radius: 20px;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.25rem;
-                }
-
-                .remove-btn {
-                    padding: 0.5rem 1rem;
-                    background: #fee2e2;
-                    color: #dc2626;
-                    border: none;
-                    border-radius: 8px;
-                    font-size: 0.875rem;
-                    font-weight: 500;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
                     cursor: pointer;
                     transition: all 0.3s ease;
                 }
 
-                .remove-btn:hover {
-                    background: #fecaca;
+                .btn-icon:hover {
+                    background: #f3f4f6;
+                    border-color: #d1d5db;
                 }
 
-                .card-content {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1.5rem;
+                .btn-icon.danger {
+                    color: #ef4444;
+                }
+
+                .btn-icon.danger:hover {
+                    background: #fef2f2;
+                    border-color: #fecaca;
                 }
 
                 .form-grid {
                     display: grid;
                     grid-template-columns: repeat(2, 1fr);
-                    gap: 1.25rem;
-                }
-
-                .input-group {
-                    display: flex;
-                    flex-direction: column;
-                }
-
-                .input-group label {
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    color: #374151;
-                    margin-bottom: 0.5rem;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                }
-
-                .input-icon {
-                    color: #6366f1;
-                    font-size: 0.875rem;
-                }
-
-                .input-field {
-                    padding: 0.75rem 1rem;
-                    border: 2px solid #e5e7eb;
-                    border-radius: 8px;
-                    font-size: 0.95rem;
-                    color: #1f2937;
-                    background: white;
-                    transition: all 0.3s ease;
-                    appearance: none;
-                }
-
-                .input-field:focus {
-                    outline: none;
-                    border-color: #6366f1;
-                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-                }
-
-                .input-field.filled {
-                    border-color: #6366f1;
-                    background-color: #eef2ff;
-                }
-
-                select.input-field {
-                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
-                    background-repeat: no-repeat;
-                    background-position: right 0.75rem center;
-                    background-size: 1.5em 1.5em;
-                    padding-right: 2.5rem;
-                }
-
-                .input-tip {
-                    font-size: 0.75rem;
-                    color: #6b7280;
-                    margin-top: 0.5rem;
-                    font-style: italic;
-                }
-
-                .textarea-group {
-                    display: flex;
-                    flex-direction: column;
-                }
-
-                .textarea-group label {
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    color: #374151;
-                    margin-bottom: 0.5rem;
-                }
-
-                .description-textarea {
-                    padding: 0.75rem 1rem;
-                    border: 2px solid #e5e7eb;
-                    border-radius: 8px;
-                    font-size: 0.95rem;
-                    color: #1f2937;
-                    background: white;
-                    transition: all 0.3s ease;
-                    resize: vertical;
-                    min-height: 150px;
-                    line-height: 1.6;
-                    font-family: inherit;
-                }
-
-                .description-textarea:focus {
-                    outline: none;
-                    border-color: #6366f1;
-                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-                }
-
-                .description-textarea::placeholder {
-                    color: #9ca3af;
-                }
-
-                .textarea-tip {
-                    font-size: 0.75rem;
-                    color: #6b7280;
-                    margin-top: 0.5rem;
-                    font-style: italic;
-                }
-
-                .add-project-btn {
-                    width: 100%;
-                    padding: 1rem;
-                    background: #eef2ff;
-                    color: #3730a3;
-                    border: 2px dashed #6366f1;
-                    border-radius: 8px;
-                    font-size: 1rem;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 0.75rem;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
+                    gap: 1.75rem;
                     margin-bottom: 2rem;
-                }
-
-                .add-project-btn:hover {
-                    background: #e0e7ff;
-                    border-color: #4f46e5;
-                }
-
-                .validation-section {
-                    padding: 1.5rem;
-                    border-radius: 12px;
-                }
-
-                .validation-success {
-                    background: #d1fae5;
-                    border: 1px solid #a7f3d0;
-                    display: flex;
-                    align-items: center;
-                    gap: 1rem;
-                    padding: 1.5rem;
-                    border-radius: 12px;
-                }
-
-                .success-icon {
-                    width: 40px;
-                    height: 40px;
-                    background: #10b981;
-                    color: white;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 1.25rem;
-                    font-weight: bold;
-                }
-
-                .success-content h4 {
-                    font-size: 1rem;
-                    font-weight: 600;
-                    color: #065f46;
-                    margin: 0 0 0.25rem 0;
-                }
-
-                .success-content p {
-                    font-size: 0.875rem;
-                    color: #047857;
-                    margin: 0;
-                }
-
-                .validation-warning {
-                    background: #fef3c7;
-                    border: 1px solid #fde68a;
-                    display: flex;
-                    align-items: center;
-                    gap: 1rem;
-                    padding: 1.5rem;
-                    border-radius: 12px;
-                }
-
-                .warning-icon {
-                    width: 40px;
-                    height: 40px;
-                    background: #f59e0b;
-                    color: white;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 1.25rem;
-                    font-weight: bold;
-                }
-
-                .warning-content h4 {
-                    font-size: 1rem;
-                    font-weight: 600;
-                    color: #92400e;
-                    margin: 0 0 0.25rem 0;
-                }
-
-                .warning-content p {
-                    font-size: 0.875rem;
-                    color: #b45309;
-                    margin: 0;
                 }
 
                 @media (max-width: 768px) {
                     .form-grid {
                         grid-template-columns: 1fr;
                     }
-                    
-                    .card-header {
+                }
+
+                .full-width {
+                    grid-column: 1 / -1;
+                }
+
+                .form-group {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.75rem;
+                }
+
+                .form-group label {
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    color: #374151;
+                }
+
+                .required:after {
+                    content: " *";
+                    color: #ef4444;
+                }
+
+                .input-with-status {
+                    position: relative;
+                }
+
+                .field-icon {
+                    position: absolute;
+                    left: 1rem;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    color: #9ca3af;
+                    font-size: 1rem;
+                }
+
+                .form-input, .form-textarea {
+                    width: 100%;
+                    padding: 0.875rem 1rem 0.875rem 3rem;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 10px;
+                    font-size: 0.95rem;
+                    color: #1f2937;
+                    background: white;
+                    transition: all 0.3s ease;
+                }
+
+                .form-input:focus, .form-textarea:focus {
+                    outline: none;
+                    border-color: #f59e0b;
+                    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.1);
+                }
+
+                .form-input.error, .form-textarea.error {
+                    border-color: #ef4444;
+                }
+
+                .form-textarea {
+                    min-height: 100px;
+                    resize: vertical;
+                    padding-left: 1rem;
+                }
+
+                .error-message {
+                    font-size: 0.75rem;
+                    color: #ef4444;
+                    font-weight: 500;
+                }
+
+                .field-tip {
+                    font-size: 0.75rem;
+                    color: #6b7280;
+                    font-style: italic;
+                }
+
+                .section-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    margin-bottom: 1.5rem;
+                }
+
+                .field-subtitle {
+                    font-size: 0.75rem;
+                    color: #9ca3af;
+                    margin: 0.25rem 0 0 0;
+                }
+
+                .btn-small {
+                    padding: 0.625rem 1.25rem;
+                    background: white;
+                    border: 2px solid #f59e0b;
+                    border-radius: 8px;
+                    color: #f59e0b;
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    cursor: pointer;
+                }
+
+                .btn-small:hover {
+                    background: #f59e0b;
+                    color: white;
+                }
+
+                .items-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1rem;
+                }
+
+                .item {
+                    display: flex;
+                    gap: 1rem;
+                    align-items: center;
+                    padding: 0.75rem;
+                    background: #f9fafb;
+                    border-radius: 8px;
+                    border: 1px solid #e5e7eb;
+                }
+
+                .item-number {
+                    width: 28px;
+                    height: 28px;
+                    background: linear-gradient(135deg, #f59e0b, #d97706);
+                    color: white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                }
+
+                .item-input {
+                    flex: 1;
+                    padding: 0.75rem 1rem;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    font-size: 0.875rem;
+                    color: #1f2937;
+                    background: white;
+                }
+
+                .no-items {
+                    padding: 2.5rem 1.5rem;
+                    text-align: center;
+                    color: #6b7280;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 1rem;
+                    background: #f9fafb;
+                    border-radius: 12px;
+                    border: 2px dashed #d1d5db;
+                }
+
+                .empty-icon {
+                    font-size: 2.5rem;
+                    color: #9ca3af;
+                }
+
+                .empty-content h4 {
+                    font-size: 1.25rem;
+                    font-weight: 600;
+                    color: #4b5563;
+                    margin: 0 0 0.5rem 0;
+                }
+
+                .empty-content p {
+                    color: #6b7280;
+                    margin: 0 0 1.5rem 0;
+                    font-size: 0.95rem;
+                }
+
+                /* Form Actions */
+                .form-actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 1.25rem;
+                    padding-top: 1.5rem;
+                    border-top: 2px solid #f3f4f6;
+                }
+
+                .btn-secondary {
+                    padding: 0.875rem 2rem;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 10px;
+                    background: white;
+                    color: #4b5563;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                }
+
+                .btn-secondary:hover {
+                    background: #f3f4f6;
+                    border-color: #d1d5db;
+                }
+
+                /* Projects List */
+                .projects-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem;
+                }
+
+                .empty-state {
+                    text-align: center;
+                    padding: 4rem 2rem;
+                    background: white;
+                    border-radius: 20px;
+                    border: 2px dashed #d1d5db;
+                }
+
+                .empty-state .empty-icon {
+                    font-size: 4rem;
+                    color: #d1d5db;
+                    margin-bottom: 1.5rem;
+                }
+
+                .empty-state h3 {
+                    font-size: 1.75rem;
+                    color: #374151;
+                    margin: 0 0 1rem 0;
+                }
+
+                .empty-state p {
+                    color: #6b7280;
+                    margin: 0 0 2rem 0;
+                    font-size: 1.05rem;
+                    max-width: 500px;
+                    margin-left: auto;
+                    margin-right: auto;
+                }
+
+                /* Project Card */
+                .project-card {
+                    background: white;
+                    border-radius: 18px;
+                    padding: 2rem;
+                    border: 2px solid #e5e7eb;
+                    transition: all 0.3s ease;
+                }
+
+                .project-card:hover {
+                    border-color: #f59e0b;
+                    box-shadow: 0 8px 30px rgba(245, 158, 11, 0.15);
+                }
+
+                .project-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    margin-bottom: 1.5rem;
+                    gap: 1.5rem;
+                }
+
+                .project-info {
+                    flex: 1;
+                }
+
+                .project-title {
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    color: #1f2937;
+                    margin: 0 0 0.75rem 0;
+                }
+
+                .project-role {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    font-size: 1rem;
+                    color: #4b5563;
+                    margin-bottom: 0.75rem;
+                }
+
+                .duration {
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                    font-size: 0.95rem;
+                    color: #6b7280;
+                }
+
+                .duration-badge {
+                    background: #fef3c7;
+                    color: #92400e;
+                    padding: 0.375rem 1rem;
+                    border-radius: 20px;
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                }
+
+                .current-badge {
+                    background: linear-gradient(135deg, #f59e0b, #d97706);
+                    color: white;
+                    padding: 0.375rem 1rem;
+                    border-radius: 20px;
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.375rem;
+                }
+
+                .project-actions {
+                    display: flex;
+                    gap: 0.5rem;
+                    flex-wrap: wrap;
+                }
+
+                .project-description {
+                    color: #4b5563;
+                    line-height: 1.7;
+                    margin-bottom: 1.5rem;
+                }
+
+                .technologies {
+                    margin: 1.5rem 0;
+                    padding: 1.25rem;
+                    background: #fffbeb;
+                    border-radius: 12px;
+                    border-left: 4px solid #f59e0b;
+                }
+
+                .technologies-header, .achievements-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    margin-bottom: 1rem;
+                }
+
+                .technologies-header svg, .achievements-header svg {
+                    color: #f59e0b;
+                    font-size: 1.1rem;
+                }
+
+                .technologies-header strong, .achievements-header strong {
+                    font-size: 1.1rem;
+                    color: #1f2937;
+                    font-weight: 600;
+                }
+
+                .tech-tags {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 0.75rem;
+                }
+
+                .tech-tag {
+                    background: white;
+                    color: #f59e0b;
+                    padding: 0.5rem 1rem;
+                    border-radius: 20px;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    border: 1px solid #fde68a;
+                }
+
+                .achievements {
+                    margin: 1.5rem 0;
+                    padding: 1.25rem;
+                    background: #fef3c7;
+                    border-radius: 12px;
+                    border-left: 4px solid #d97706;
+                }
+
+                .achievements-list {
+                    margin: 0;
+                    padding-left: 0;
+                    list-style: none;
+                }
+
+                .achievements-list li {
+                    padding: 0.5rem 0;
+                    color: #92400e;
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 1rem;
+                    line-height: 1.6;
+                }
+
+                .bullet {
+                    width: 6px;
+                    height: 6px;
+                    background: #d97706;
+                    border-radius: 50%;
+                    margin-top: 0.5rem;
+                    flex-shrink: 0;
+                }
+
+                .project-links {
+                    display: flex;
+                    gap: 1rem;
+                    margin-top: 1.5rem;
+                }
+
+                .project-link {
+                    padding: 0.75rem 1.5rem;
+                    background: #f59e0b;
+                    color: white;
+                    border-radius: 8px;
+                    text-decoration: none;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    transition: all 0.3s ease;
+                }
+
+                .project-link:hover {
+                    background: #d97706;
+                    transform: translateY(-2px);
+                }
+
+                /* Responsive */
+                @media (max-width: 768px) {
+                    .page-header {
                         flex-direction: column;
-                        gap: 1rem;
                         align-items: flex-start;
+                        gap: 1.5rem;
+                    }
+
+                    .header-stats {
+                        width: 100%;
+                        justify-content: space-between;
+                    }
+
+                    .project-header {
+                        flex-direction: column;
+                        gap: 1.5rem;
+                    }
+
+                    .project-actions {
+                        width: 100%;
+                        justify-content: space-between;
+                    }
+
+                    .stats-overview {
+                        grid-template-columns: repeat(2, 1fr);
+                    }
+                }
+
+                @media (max-width: 640px) {
+                    .stats-overview {
+                        grid-template-columns: 1fr;
+                    }
+
+                    .project-links {
+                        flex-direction: column;
+                    }
+
+                    .project-link {
+                        width: 100%;
+                        justify-content: center;
                     }
                 }
             `}</style>
@@ -578,4 +1393,4 @@ const EnhancedProjectsPage = ({ resumeData, onInputChange, onAddNew, onRemove })
     );
 };
 
-export default EnhancedProjectsPage;
+export default ProjectsPage;

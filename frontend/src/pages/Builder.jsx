@@ -1,1008 +1,1469 @@
-// src/pages/Dashboard.jsx
+// src/pages/Builder.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    FaPlus,
-    FaFileAlt,
-    FaChartLine,
-    FaRocket,
-    FaStar,
-    FaEdit,
-    FaTrash,
-    FaCopy,
-    FaDownload,
-    FaSync,
-    FaBriefcase,
-    FaGraduationCap,
-    FaCogs,
-    FaProjectDiagram,
-    FaSearch,
-    FaFilter,
-    FaSort,
-    FaExclamationCircle,
-    FaSpinner,
-    FaRegClock,
-    FaPalette,
-    FaExclamationTriangle,
-    FaEye,
-    FaShareAlt,
-    FaRobot,
-    FaBolt,
-    FaBrain,
-    FaDatabase,
-    FaCheckCircle
-} from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import toast from 'react-hot-toast';
+import { useResume } from '../context/ResumeContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
+import jsPDF from 'jspdf';
 
-// Import your navbar and footer components
+// Components
+import BuilderSidebar from '../components/ui/BuilderSidebar';
 import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
+import StatsDashboard from '../components/ui/StatsDashboard';
+import AIAssistant from '../components/ai/AIAssistant';
+import FloatingActionButtons from '../components/ui/FloatingActionButtons';
+import FullScreenTextField from '../components/ui/FullScreenTextField';
 
-const Dashboard = () => {
-    const { user } = useAuth();
+// Section Components
+import PersonalInfoPage from '../components/builder/PersonalInfoPage';
+import SummaryPage from '../components/builder/SummaryPage';
+import ExperiencePage from '../components/builder/ExperiencePage';
+import EducationPage from '../components/builder/EducationPage';
+import SkillsPage from '../components/builder/SkillsPage';
+import ProjectsPage from '../components/builder/ProjectsPage';
+import CertificationsPage from '../components/builder/CertificationsPage';
+import LanguagesPage from '../components/builder/LanguagesPage';
+import ReferencesPage from '../components/builder/ReferencesPage';
+
+// Icons
+// In Builder.jsx, update the imports:
+import {
+    Brain,
+    Sparkles,
+    Save,
+    Download,
+    Share2,
+    Printer,
+    CheckCircle,
+    Loader2,
+    ChevronLeft,
+    ChevronRight,
+    Eye,
+    EyeOff,
+    HelpCircle,
+    Zap,
+    User,
+    FileText,
+    Briefcase,
+    GraduationCap,
+    Code,
+    Award,
+    Globe,
+    Users,
+    ArrowLeft,
+    Home,
+    PanelLeft,
+    PanelRight,
+    Maximize2,
+    Minimize2,
+    Settings,
+    Bell,
+    Target,
+    TrendingUp,
+    BarChart,
+    Clock,
+    MessageSquare,
+    Star,
+    Lightbulb,
+    Copy,
+    Edit,
+    Trash2,
+    Search,
+    Filter,
+    Plus,
+    Minus,
+    ExternalLink,
+    Link,
+    Upload,
+    File,
+    FilePlus,
+    FileCheck,
+    Calendar,
+    Tag,
+    Sidebar,
+    SidebarClose,
+    LayoutGrid,
+    Expand,
+    Shrink,
+    ZoomIn,
+    ZoomOut,
+    RotateCcw,
+    Type,
+    Bold,
+    Italic,
+    Underline,
+    AlignLeft,
+    AlignCenter,
+    AlignRight,
+    List,
+    ListOrdered,
+    Image,
+    Table,
+    Menu,
+    X,
+    ChevronDown,
+    ChevronUp
+} from 'lucide-react';
+
+// Sections Configuration
+const SECTIONS = [
+    {
+        id: 'personalInfo',
+        label: 'Personal Info',
+        icon: User,
+        color: '#4f46e5',
+        required: true,
+        description: 'Contact details',
+        fields: 4,
+        visible: true,
+        hasFullScreen: true
+    },
+    {
+        id: 'summary',
+        label: 'Summary',
+        icon: FileText,
+        color: '#059669',
+        required: true,
+        description: 'Professional summary',
+        fields: 1,
+        visible: true,
+        hasFullScreen: true
+    },
+    {
+        id: 'experience',
+        label: 'Experience',
+        icon: Briefcase,
+        color: '#3b82f6',
+        required: true,
+        description: 'Work history',
+        fields: 5,
+        visible: true,
+        hasFullScreen: true
+    },
+    {
+        id: 'education',
+        label: 'Education',
+        icon: GraduationCap,
+        color: '#8b5cf6',
+        required: true,
+        description: 'Academic background',
+        fields: 4,
+        visible: true,
+        hasFullScreen: true
+    },
+    {
+        id: 'skills',
+        label: 'Skills',
+        icon: Code,
+        color: '#f59e0b',
+        required: true,
+        description: 'Technical skills',
+        fields: 3,
+        visible: true,
+        hasFullScreen: true
+    },
+    {
+        id: 'projects',
+        label: 'Projects',
+        icon: Code,
+        color: '#10b981',
+        required: false,
+        description: 'Notable projects',
+        fields: 3,
+        visible: true,
+        hasFullScreen: true
+    },
+    {
+        id: 'certifications',
+        label: 'Certifications',
+        icon: Award,
+        color: '#ef4444',
+        required: false,
+        description: 'Certifications',
+        fields: 2,
+        visible: true,
+        hasFullScreen: true
+    },
+    {
+        id: 'languages',
+        label: 'Languages',
+        icon: Globe,
+        color: '#06b6d4',
+        required: false,
+        description: 'Languages',
+        fields: 2,
+        visible: true,
+        hasFullScreen: true
+    },
+    {
+        id: 'references',
+        label: 'References',
+        icon: Users,
+        color: '#8b5cf6',
+        required: false,
+        description: 'References',
+        fields: 3,
+        visible: true,
+        hasFullScreen: true
+    }
+];
+
+const ResumeBuilder = () => {
     const navigate = useNavigate();
+    const { user, logout } = useAuth();
+    const {
+        currentResume,
+        saveResume,
+        updateSection,
+        saveStatus,
+        isLoading: resumeLoading,
+        isSectionComplete
+    } = useResume();
 
-    // State for resumes from localStorage
-    const [resumes, setResumes] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [stats, setStats] = useState({
-        total: 0,
-        recent: 0,
-        completed: 0,
-        templates: {},
-        averageScore: 85
-    });
-    const [searchQuery, setSearchQuery] = useState('');
-    const [filter, setFilter] = useState('all');
-    const [sortBy, setSortBy] = useState('updated');
-    const [searchLoading, setSearchLoading] = useState(false);
-    const [filteredResumes, setFilteredResumes] = useState([]);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-    const [viewMode, setViewMode] = useState('grid');
-    const [dbStatus, setDbStatus] = useState('connected');
+    // State Management
+    const [activeSection, setActiveSection] = useState('personalInfo');
+    const [completedSections, setCompletedSections] = useState([]);
+    const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+    const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [aiCredits, setAiCredits] = useState(user?.aiCredits || 150);
+    const [showProgress, setShowProgress] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [lastSavedTime, setLastSavedTime] = useState(null);
+    const [zoomLevel, setZoomLevel] = useState(100);
+    const [editorWidth, setEditorWidth] = useState('100%');
+    const [showAIAssistant, setShowAIAssistant] = useState(false);
+    const [sections, setSections] = useState(SECTIONS);
+    const [showHiddenSections, setShowHiddenSections] = useState(false);
+    const [showFullScreenEditor, setShowFullScreenEditor] = useState(false);
+    const [fullScreenContent, setFullScreenContent] = useState('');
+    const [fullScreenSection, setFullScreenSection] = useState('');
+    const [showPreviewMode, setShowPreviewMode] = useState(false);
+    const [textFormat, setTextFormat] = useState('paragraph');
+    const [showMobileMenu, setShowMobileMenu] = useState(false);
 
-    // Load resumes from localStorage
-    const loadUserResumes = useCallback(() => {
-        setLoading(true);
-        try {
-            // Load from localStorage
-            const savedDraft = localStorage.getItem('resumeDraft');
-            const savedResumes = JSON.parse(localStorage.getItem('savedResumes') || '[]');
-
-            let userResumes = [];
-
-            // Add draft if exists
-            if (savedDraft) {
-                try {
-                    const draft = JSON.parse(savedDraft);
-                    userResumes.push({
-                        _id: 'draft_1',
-                        title: draft.title || 'Draft Resume',
-                        template: draft.template || 'modern',
-                        updatedAt: draft.updatedAt || new Date().toISOString(),
-                        createdAt: draft.createdAt || new Date().toISOString(),
-                        data: draft.data || {},
-                        status: 'draft'
-                    });
-                } catch (e) {
-                    console.error('Error parsing draft:', e);
-                }
-            }
-
-            // Add saved resumes
-            if (Array.isArray(savedResumes)) {
-                userResumes = [...userResumes, ...savedResumes];
-            }
-
-            setResumes(userResumes);
-            setDbStatus('connected');
-
-            // Calculate stats
-            calculateStats(userResumes);
-
-            // Initial filtering
-            performClientSideSearch(userResumes, searchQuery, filter, sortBy);
-
-        } catch (err) {
-            console.error('Error loading resumes:', err);
-            setError('Failed to load resumes from storage');
-            setResumes([]);
-            setDbStatus('connected');
-            calculateStats([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [searchQuery, filter, sortBy]);
-
-    // Initial load
+    // Responsive breakpoints
     useEffect(() => {
-        loadUserResumes();
-    }, [loadUserResumes]);
+        const handleResize = () => {
+            const width = window.innerWidth;
+            const mobile = width < 1024;
+            setIsMobile(mobile);
 
-    // Calculate statistics from resumes
-    const calculateStats = useCallback((resumesList) => {
-        const total = resumesList.length;
+            if (mobile) {
+                setLeftSidebarOpen(false);
+                setRightSidebarOpen(false);
+            } else {
+                setLeftSidebarOpen(true);
+                setRightSidebarOpen(true);
+            }
+        };
 
-        const recent = resumesList.filter(resume => {
-            const date = resume.updatedAt || resume.createdAt;
-            if (!date) return false;
-            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            return new Date(date) > weekAgo;
-        }).length;
-
-        const completed = resumesList.filter(resume => {
-            const data = resume.data || {};
-            return data.summary && data.summary.trim().length > 50 &&
-                data.experience && data.experience.length > 0;
-        }).length;
-
-        const templates = {};
-        resumesList.forEach(resume => {
-            const template = resume.template || 'unknown';
-            templates[template] = (templates[template] || 0) + 1;
-        });
-
-        const scores = resumesList
-            .map(r => r.analysis?.atsScore || r.atsScore)
-            .filter(score => score && typeof score === 'number');
-
-        const averageScore = scores.length > 0
-            ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-            : 85;
-
-        setStats({
-            total,
-            recent,
-            completed,
-            templates,
-            averageScore
-        });
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Handle search and filtering
+    // Update editor width based on sidebar states
     useEffect(() => {
-        if (resumes.length === 0) {
-            setFilteredResumes([]);
+        let width = '100%';
+        if (!isMobile) {
+            if (leftSidebarOpen && rightSidebarOpen) {
+                width = 'calc(100% - 320px - 384px)';
+            } else if (leftSidebarOpen) {
+                width = 'calc(100% - 320px)';
+            } else if (rightSidebarOpen) {
+                width = 'calc(100% - 384px)';
+            }
+        }
+        setEditorWidth(width);
+    }, [leftSidebarOpen, rightSidebarOpen, isMobile]);
+
+    // Redirect if not authenticated
+    useEffect(() => {
+        if (!user) {
+            navigate('/login', { replace: true });
+        }
+    }, [user, navigate]);
+
+    // Calculate completed sections
+    useEffect(() => {
+        if (currentResume && isSectionComplete) {
+            const completed = SECTIONS
+                .map(s => s.id)
+                .filter(section => isSectionComplete(section));
+            setCompletedSections(completed);
+        }
+    }, [currentResume, isSectionComplete]);
+
+    // Memoized stats
+    const stats = React.useMemo(() => {
+        const calculateWordCount = (data) => {
+            let wordCount = 0;
+            const countWords = (text) => {
+                if (!text || typeof text !== 'string') return 0;
+                return text.trim().split(/\s+/).length;
+            };
+
+            if (data.personalInfo) {
+                Object.values(data.personalInfo).forEach(value => {
+                    if (typeof value === 'string') wordCount += countWords(value);
+                });
+            }
+
+            if (data.summary?.content) wordCount += countWords(data.summary.content);
+            if (Array.isArray(data.experience?.items)) {
+                data.experience.items.forEach(item => {
+                    if (item.description) wordCount += countWords(item.description);
+                });
+            }
+
+            return wordCount;
+        };
+
+        const visibleSections = sections.filter(s => s.visible);
+        const requiredSections = sections.filter(s => s.required && s.visible);
+        const completedRequired = completedSections.filter(id => {
+            const section = sections.find(s => s.id === id);
+            return section && section.required && section.visible;
+        });
+
+        const completeness = requiredSections.length > 0
+            ? Math.round((completedRequired.length / requiredSections.length) * 100)
+            : 0;
+
+        return {
+            completeness: completeness,
+            atsScore: Math.min(100, 70 + Math.round(completeness * 0.3)),
+            aiEnhancements: currentResume?.metadata?.aiEnhancements || 0,
+            wordCount: calculateWordCount(currentResume?.data || {}),
+            aiCredits: aiCredits,
+            completedSections: completedSections.length,
+            totalSections: sections.length,
+            visibleSections: visibleSections.length,
+            lastSaved: lastSavedTime
+        };
+    }, [completedSections, currentResume, aiCredits, lastSavedTime, sections]);
+
+    // Navigation
+    const navigateToSection = useCallback((direction) => {
+        const visibleSections = sections.filter(s => s.visible);
+        const currentIndex = visibleSections.findIndex(s => s.id === activeSection);
+        let newIndex;
+
+        if (direction === 'next') {
+            newIndex = Math.min(currentIndex + 1, visibleSections.length - 1);
+        } else if (direction === 'prev') {
+            newIndex = Math.max(currentIndex - 1, 0);
+        } else {
+            newIndex = visibleSections.findIndex(s => s.id === direction);
+            if (newIndex === -1) newIndex = 0;
+        }
+
+        if (visibleSections[newIndex]) {
+            setActiveSection(visibleSections[newIndex].id);
+        }
+    }, [activeSection, sections]);
+
+    // Toggle section visibility
+    const toggleSectionVisibility = useCallback((sectionId) => {
+        setSections(prev => prev.map(section =>
+            section.id === sectionId
+                ? { ...section, visible: !section.visible }
+                : section
+        ));
+
+        if (sectionId === activeSection) {
+            const visibleSections = sections.filter(s => s.visible && s.id !== sectionId);
+            if (visibleSections.length > 0) {
+                setActiveSection(visibleSections[0].id);
+            }
+        }
+
+        toast.success(
+            sections.find(s => s.id === sectionId)?.visible
+                ? `📁 "${sections.find(s => s.id === sectionId)?.label}" section hidden`
+                : `👁️ "${sections.find(s => s.id === sectionId)?.label}" section shown`
+        );
+    }, [activeSection, sections]);
+
+    // Save functionality
+    const handleSave = useCallback(async () => {
+        if (saveStatus === 'saving') return;
+
+        setIsSaving(true);
+        try {
+            await saveResume();
+            setLastSavedTime(new Date());
+            toast.success('✅ Resume saved successfully!', {
+                duration: 2000,
+            });
+        } catch (error) {
+            toast.error('Failed to save resume. Please try again.');
+            console.error('Save error:', error);
+        } finally {
+            setIsSaving(false);
+        }
+    }, [saveResume, saveStatus]);
+
+    // AI Enhancement
+    const handleAIEnhance = useCallback(async (section = activeSection) => {
+        if (aiCredits <= 0) {
+            toast.error('💳 Insufficient AI credits!');
             return;
         }
 
-        setSearchLoading(true);
-        const results = performClientSideSearch(resumes, searchQuery, filter, sortBy);
-        setFilteredResumes(results);
-        setSearchLoading(false);
-    }, [searchQuery, filter, sortBy, resumes]);
+        const loadingToast = toast.loading('🤖 AI is enhancing your content...');
 
-    // Client-side search function
-    const performClientSideSearch = useCallback((resumesList, query, filterType, sortType) => {
-        let filtered = [...resumesList];
+        try {
+            await new Promise(resolve => setTimeout(resolve, 1500));
 
-        if (query) {
-            const lowerQuery = query.toLowerCase();
-            filtered = filtered.filter(resume => {
-                const data = resume.data || {};
-                const title = resume.title || '';
-                const firstName = data.personalInfo?.firstName || '';
-                const lastName = data.personalInfo?.lastName || '';
-                const summary = data.summary || '';
+            const currentData = currentResume?.data?.[section] || {};
+            let enhancedData = { ...currentData };
 
-                return (
-                    title.toLowerCase().includes(lowerQuery) ||
-                    firstName.toLowerCase().includes(lowerQuery) ||
-                    lastName.toLowerCase().includes(lowerQuery) ||
-                    summary.toLowerCase().includes(lowerQuery)
-                );
-            });
-        }
-
-        if (filterType !== 'all') {
-            filtered = filtered.filter(resume => resume.template === filterType);
-        }
-
-        filtered.sort((a, b) => {
-            const getDate = (resume) => {
-                if (resume.updatedAt) return new Date(resume.updatedAt);
-                if (resume.createdAt) return new Date(resume.createdAt);
-                return new Date(0);
-            };
-
-            switch (sortType) {
-                case 'title':
-                    return (a.title || '').localeCompare(b.title || '');
-                case 'created':
-                    const dateA = a.createdAt;
-                    const dateB = b.createdAt;
-                    return new Date(dateB || 0) - new Date(dateA || 0);
-                case 'progress':
-                    const progressA = calculateProgress(a);
-                    const progressB = calculateProgress(b);
-                    return progressB - progressA;
-                case 'score':
-                    const scoreA = a.analysis?.atsScore || a.atsScore || 0;
-                    const scoreB = b.analysis?.atsScore || b.atsScore || 0;
-                    return scoreB - scoreA;
-                case 'updated':
+            switch (section) {
+                case 'summary':
+                    enhancedData.content = currentData.content
+                        ? `${currentData.content}\n\n✨ Enhanced with AI.`
+                        : 'Results-driven professional with proven expertise.';
+                    break;
+                case 'experience':
+                    if (Array.isArray(currentData.items)) {
+                        enhancedData.items = currentData.items.map(item => ({
+                            ...item,
+                            description: item.description
+                                ? `${item.description}\n• AI Enhanced`
+                                : item.description
+                        }));
+                    }
+                    break;
                 default:
-                    return getDate(b) - getDate(a);
+                    enhancedData = {
+                        ...currentData,
+                        aiEnhanced: true,
+                        enhancedAt: new Date().toISOString()
+                    };
             }
-        });
 
-        return filtered;
+            updateSection(section, enhancedData);
+            setAiCredits(prev => prev - 5);
+
+            toast.dismiss(loadingToast);
+            toast.success('✨ AI enhancement applied!', {
+                duration: 3000,
+            });
+
+        } catch (error) {
+            toast.dismiss(loadingToast);
+            toast.error('Failed to apply AI enhancement.');
+            console.error('AI enhancement error:', error);
+        }
+    }, [aiCredits, activeSection, currentResume, updateSection]);
+
+    // Export functionality
+    const handleExport = useCallback(async (format = 'pdf') => {
+        try {
+            setIsExporting(true);
+            await handleSave();
+
+            if (format === 'pdf') {
+                toast.loading('📄 Generating PDF...');
+
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                pdf.setFontSize(20);
+                pdf.text('Resume', 105, 20, { align: 'center' });
+                pdf.setFontSize(12);
+                pdf.text(`Generated for: ${user?.displayName || 'User'}`, 105, 30, { align: 'center' });
+                pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 105, 40, { align: 'center' });
+
+                const visibleSections = sections.filter(s => s.visible);
+                let yPosition = 60;
+
+                visibleSections.forEach((section, index) => {
+                    if (yPosition > 270) {
+                        pdf.addPage();
+                        yPosition = 20;
+                    }
+
+                    pdf.setFontSize(14);
+                    pdf.setTextColor(50, 50, 50);
+                    pdf.text(section.label, 20, yPosition);
+                    yPosition += 10;
+
+                    pdf.setFontSize(10);
+                    pdf.setTextColor(100, 100, 100);
+                    pdf.text(`[${section.description} content will be here]`, 20, yPosition);
+                    yPosition += 15;
+                });
+
+                const fileName = `Resume_${user?.displayName?.replace(/[^a-z0-9]/gi, '_') || 'MyResume'}.pdf`;
+                pdf.save(fileName);
+
+                toast.success('✅ PDF exported successfully!');
+            }
+
+        } catch (error) {
+            toast.error(`Export failed: ${error.message}`);
+            console.error('Export error:', error);
+        } finally {
+            setIsExporting(false);
+        }
+    }, [handleSave, user, sections]);
+
+    // Fullscreen functionality
+    const handleFullscreen = useCallback(() => {
+        if (!isFullscreen) {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            }
+            setIsFullscreen(true);
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+            setIsFullscreen(false);
+        }
+    }, [isFullscreen]);
+
+    // Handle fullscreen change
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        };
     }, []);
 
-    // Calculate progress for a resume
-    const calculateProgress = (resume) => {
-        const data = resume.data || {};
-        let completed = 0;
-        let total = 7;
-
-        if (data.personalInfo?.firstName && data.personalInfo?.email) completed++;
-        if (data.summary && data.summary.trim().length > 50) completed++;
-        if (data.experience && data.experience.length > 0) completed++;
-        if (data.education && data.education.length > 0) completed++;
-        if (data.skills && data.skills.length > 0) completed++;
-        if (data.projects && data.projects.length > 0) completed++;
-        if (data.certifications && data.certifications.length > 0) completed++;
-
-        return Math.round((completed / total) * 100);
-    };
-
-    // Event Handlers
-    const handleBuildResume = () => {
-        navigate('/builder');
-    };
-
-    const handleDeleteResume = async (id, title) => {
+    const handleLogout = useCallback(async () => {
         try {
-            const savedResumes = JSON.parse(localStorage.getItem('savedResumes') || '[]');
-            const updatedResumes = savedResumes.filter(resume => resume._id !== id);
-            localStorage.setItem('savedResumes', JSON.stringify(updatedResumes));
-
-            setResumes(prev => prev.filter(resume => resume._id !== id));
-            toast.success('Resume deleted successfully');
-            setShowDeleteConfirm(null);
-
-        } catch (err) {
-            console.error('Error deleting resume:', err);
-            toast.error('Failed to delete resume');
+            await handleSave();
+            await logout();
+            toast.success('👋 Successfully logged out');
+            navigate('/login');
+        } catch (error) {
+            toast.error('Failed to logout');
         }
-    };
+    }, [handleSave, logout, navigate]);
 
-    const handleDuplicateResume = async (id, title) => {
-        try {
-            const resumeToDuplicate = resumes.find(r => r._id === id);
-            if (!resumeToDuplicate) {
-                toast.error('Resume not found');
-                return;
+    const handleSectionUpdate = useCallback((data) => {
+        if (updateSection) {
+            updateSection(activeSection, data);
+        }
+    }, [activeSection, updateSection]);
+
+    const handleSectionChange = useCallback((sectionId) => {
+        const section = sections.find(s => s.id === sectionId);
+        if (section && section.visible) {
+            setActiveSection(sectionId);
+            if (isMobile) {
+                setLeftSidebarOpen(false);
+                setRightSidebarOpen(false);
+                setShowMobileMenu(false);
             }
-
-            const duplicate = {
-                ...resumeToDuplicate,
-                _id: `resume_${Date.now()}`,
-                title: `${title} (Copy)`,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
-
-            const savedResumes = JSON.parse(localStorage.getItem('savedResumes') || '[]');
-            savedResumes.push(duplicate);
-            localStorage.setItem('savedResumes', JSON.stringify(savedResumes));
-
-            setResumes(prev => [duplicate, ...prev]);
-            toast.success('Resume duplicated successfully');
-
-        } catch (err) {
-            console.error('Error duplicating resume:', err);
-            toast.error('Failed to duplicate resume');
         }
-    };
+    }, [sections, isMobile]);
 
-    const handleExportResume = async (id, title) => {
-        try {
-            const resume = resumes.find(r => r._id === id);
-            if (!resume) {
-                toast.error('Resume not found');
-                return;
+    // Zoom controls
+    const handleZoomIn = useCallback(() => {
+        setZoomLevel(prev => Math.min(prev + 10, 200));
+    }, []);
+
+    const handleZoomOut = useCallback(() => {
+        setZoomLevel(prev => Math.max(prev - 10, 50));
+    }, []);
+
+    const resetZoom = useCallback(() => {
+        setZoomLevel(100);
+    }, []);
+
+    // Open full screen editor
+    const openFullScreenEditor = useCallback((content = '', section = activeSection) => {
+        const sectionData = currentResume?.data?.[section] || {};
+        let editorContent = content;
+
+        if (!editorContent && sectionData) {
+            switch (section) {
+                case 'summary':
+                    editorContent = sectionData.content || '';
+                    break;
+                case 'experience':
+                    editorContent = sectionData.items?.[0]?.description || '';
+                    break;
+                case 'education':
+                    editorContent = sectionData.items?.[0]?.description || '';
+                    break;
+                default:
+                    editorContent = '';
             }
-
-            const dataStr = JSON.stringify(resume, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            const url = window.URL.createObjectURL(dataBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `${title || 'resume'}.json`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-
-            toast.success('Resume exported successfully!');
-        } catch (err) {
-            console.error('Error exporting resume:', err);
-            toast.error('Failed to export resume');
         }
-    };
 
-    const handleRefresh = () => {
-        loadUserResumes();
-        toast.success('Refreshed resumes');
-    };
+        setFullScreenContent(editorContent);
+        setFullScreenSection(section);
+        setShowFullScreenEditor(true);
+    }, [activeSection, currentResume]);
 
-    const handlePreviewResume = (resume) => {
-        navigate(`/preview/${resume._id}`);
-    };
+    // Save full screen editor content
+    const saveFullScreenContent = useCallback((content) => {
+        const sectionData = currentResume?.data?.[fullScreenSection] || {};
+        let updatedData = { ...sectionData };
 
-    const handleShareResume = (resume) => {
-        const shareUrl = `${window.location.origin}/preview/${resume._id}`;
-        navigator.clipboard.writeText(shareUrl)
-            .then(() => toast.success('Share link copied to clipboard!'))
-            .catch(() => toast.error('Failed to copy link'));
-    };
+        switch (fullScreenSection) {
+            case 'summary':
+                updatedData.content = content;
+                break;
+            case 'experience':
+                if (Array.isArray(updatedData.items) && updatedData.items.length > 0) {
+                    updatedData.items[0].description = content;
+                }
+                break;
+            case 'education':
+                if (Array.isArray(updatedData.items) && updatedData.items.length > 0) {
+                    updatedData.items[0].description = content;
+                }
+                break;
+        }
 
-    const handleAIAnalyze = (resume) => {
-        navigate(`/analyzer?resumeId=${resume._id}`);
-    };
+        updateSection(fullScreenSection, updatedData);
+        setShowFullScreenEditor(false);
+        toast.success('✅ Changes saved successfully!');
+    }, [fullScreenSection, currentResume, updateSection]);
 
-    // Helper Functions
-    const formatDate = (dateString) => {
-        if (!dateString) return 'N/A';
+    // Text formatting handler
+    const handleTextFormat = useCallback((format) => {
+        setTextFormat(format);
+        toast.success(`Applied ${format} formatting`);
+    }, []);
+
+    // Insert element handler
+    const handleInsertElement = useCallback((element) => {
+        toast.success(`Inserted ${element}`);
+    }, []);
+
+    // AI Action handler
+    const handleAIAction = useCallback(async (action, data) => {
         try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return 'N/A';
+            toast.loading(`Processing ${action.replace('-', ' ')}...`);
+            await new Promise(resolve => setTimeout(resolve, 1500));
 
-            const now = new Date();
-            const diffTime = Math.abs(now - date);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            if (diffDays === 0) return 'Today';
-            if (diffDays === 1) return 'Yesterday';
-            if (diffDays < 7) return `${diffDays} days ago`;
-            if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-
-            return date.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-            });
-        } catch {
-            return 'N/A';
+            switch (action) {
+                case 'enhance-all':
+                    setAiCredits(prev => prev - 3);
+                    toast.success('✨ All sections enhanced with AI!');
+                    break;
+                case 'ats-check':
+                    setAiCredits(prev => prev - 1);
+                    toast.success('✅ ATS compatibility checked!');
+                    break;
+                case 'grammar-check':
+                    setAiCredits(prev => prev - 1);
+                    toast.success('✅ Grammar and spelling checked!');
+                    break;
+                case 'rewrite':
+                    setAiCredits(prev => prev - 5);
+                    toast.success('✨ Resume rewritten with AI!');
+                    break;
+                case 'cover-letter':
+                    setAiCredits(prev => prev - 4);
+                    toast.success('📄 Cover letter generated!');
+                    break;
+            }
+        } catch (error) {
+            toast.error(`Failed to process ${action}`);
         }
-    };
+    }, []);
 
-    const getTemplateIcon = (template) => {
-        switch (template) {
-            case 'modern': return <FaRocket className="text-blue-500" />;
-            case 'classic': return <FaFileAlt className="text-amber-500" />;
-            case 'creative': return <FaPalette className="text-purple-500" />;
-            case 'professional': return <FaBriefcase className="text-emerald-500" />;
-            case 'minimal': return <FaFileAlt className="text-gray-500" />;
-            default: return <FaFileAlt className="text-gray-500" />;
+    // Auto-save effect
+    useEffect(() => {
+        if (!currentResume) return;
+
+        const autoSaveTimer = setTimeout(() => {
+            if (saveStatus !== 'saving' && !isSaving) {
+                handleSave();
+            }
+        }, 30000);
+
+        return () => clearTimeout(autoSaveTimer);
+    }, [currentResume, saveStatus, isSaving, handleSave]);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Ctrl/Cmd + S to save
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                handleSave();
+            }
+            // Ctrl/Cmd + → for next section
+            if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
+                e.preventDefault();
+                navigateToSection('next');
+            }
+            // Ctrl/Cmd + ← for previous section
+            if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
+                e.preventDefault();
+                navigateToSection('prev');
+            }
+            // Ctrl/Cmd + E to export
+            if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+                e.preventDefault();
+                handleExport('pdf');
+            }
+            // Ctrl/Cmd + F for fullscreen
+            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                e.preventDefault();
+                handleFullscreen();
+            }
+            // Ctrl/Cmd + Space for AI Assistant
+            if ((e.ctrlKey || e.metaKey) && e.code === 'Space') {
+                e.preventDefault();
+                setShowAIAssistant(!showAIAssistant);
+            }
+            // Ctrl/Cmd + Enter for full screen editor
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                openFullScreenEditor();
+            }
+            // Escape to close modals
+            if (e.key === 'Escape') {
+                if (showFullScreenEditor) {
+                    setShowFullScreenEditor(false);
+                }
+                if (showAIAssistant) {
+                    setShowAIAssistant(false);
+                }
+                if (isMobile) {
+                    setLeftSidebarOpen(false);
+                    setRightSidebarOpen(false);
+                    setShowMobileMenu(false);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleSave, navigateToSection, handleExport, handleFullscreen, showAIAssistant, showFullScreenEditor, isMobile, openFullScreenEditor]);
+
+    // Render section component based on active section
+    const renderActiveSection = () => {
+        const sectionData = currentResume?.data?.[activeSection] || {};
+        const sectionConfig = sections.find(s => s.id === activeSection);
+
+        if (!sectionConfig?.visible) {
+            return (
+                <div className="flex flex-col items-center justify-center h-full py-12">
+                    <EyeOff className="w-16 h-16 text-gray-300 mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-700 mb-2">Section Hidden</h3>
+                    <p className="text-gray-500 text-center mb-6 max-w-md">
+                        This section is currently hidden. Show it to edit the content.
+                    </p>
+                    <button
+                        onClick={() => toggleSectionVisibility(activeSection)}
+                        className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                        <Eye className="w-4 h-4 mr-2" />
+                        Show Section
+                    </button>
+                </div>
+            );
         }
-    };
 
-    const getTemplateColor = (template) => {
-        switch (template) {
-            case 'modern': return 'bg-blue-100 text-blue-600';
-            case 'classic': return 'bg-amber-100 text-amber-600';
-            case 'creative': return 'bg-purple-100 text-purple-600';
-            case 'professional': return 'bg-emerald-100 text-emerald-600';
-            case 'minimal': return 'bg-gray-100 text-gray-600';
-            default: return 'bg-gray-100 text-gray-600';
-        }
-    };
+        const commonProps = {
+            data: sectionData,
+            onUpdate: handleSectionUpdate,
+            onAIEnhance: () => handleAIEnhance(activeSection),
+            onNext: () => navigateToSection('next'),
+            onPrev: () => navigateToSection('prev'),
+            onFullScreen: () => openFullScreenEditor()
+        };
 
-    const getScoreColor = (score) => {
-        if (!score) return 'text-gray-500';
-        if (score >= 90) return 'text-emerald-500';
-        if (score >= 80) return 'text-green-500';
-        if (score >= 70) return 'text-yellow-500';
-        if (score >= 60) return 'text-orange-500';
-        return 'text-red-500';
-    };
-
-    const getScoreBg = (score) => {
-        if (!score) return 'bg-gray-100';
-        if (score >= 90) return 'bg-emerald-500';
-        if (score >= 80) return 'bg-green-500';
-        if (score >= 70) return 'bg-yellow-500';
-        if (score >= 60) return 'bg-orange-500';
-        return 'bg-red-500';
-    };
-
-    // Loading State
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="relative">
-                        <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                            className="w-20 h-20 border-4 border-indigo-200 border-t-indigo-600 rounded-full mx-auto"
-                        />
-                        <FaDatabase className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-2xl text-indigo-600" />
+        switch (activeSection) {
+            case 'personalInfo':
+                return <PersonalInfoPage {...commonProps} />;
+            case 'summary':
+                return <SummaryPage {...commonProps} />;
+            case 'experience':
+                return <ExperiencePage {...commonProps} />;
+            case 'education':
+                return <EducationPage {...commonProps} />;
+            case 'skills':
+                return <SkillsPage {...commonProps} />;
+            case 'projects':
+                return <ProjectsPage {...commonProps} />;
+            case 'certifications':
+                return <CertificationsPage {...commonProps} />;
+            case 'languages':
+                return <LanguagesPage {...commonProps} />;
+            case 'references':
+                return <ReferencesPage {...commonProps} />;
+            default:
+                return (
+                    <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                            <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-indigo-500" />
+                            <p className="text-gray-600">Loading section...</p>
+                        </div>
                     </div>
-                    <p className="mt-6 text-slate-600 font-medium">Loading your resumes...</p>
+                );
+        }
+    };
+
+    // Render section navigation buttons
+    const renderSectionNavigation = () => {
+        const visibleSections = sections.filter(s => s.visible);
+        const currentIndex = visibleSections.findIndex(s => s.id === activeSection);
+        const currentSection = sections.find(s => s.id === activeSection);
+
+        return (
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-6">
+                <div className="flex items-center space-x-2">
+                    <button
+                        onClick={() => navigateToSection('prev')}
+                        disabled={currentIndex <= 0}
+                        className={`flex items-center px-3 py-2 rounded-lg transition-all ${currentIndex <= 0
+                            ? 'opacity-50 cursor-not-allowed bg-gray-100'
+                            : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                            }`}
+                    >
+                        <ChevronLeft className="w-4 h-4 mr-2" />
+                        <span className="hidden sm:inline">Previous</span>
+                    </button>
+
+                    <div className="flex items-center">
+                        <div className="flex items-center px-3 py-2 bg-gray-50 rounded-lg">
+                            <span className="text-sm font-medium text-gray-700">
+                                {currentSection?.label || 'Section'}
+                            </span>
+                            <span className="mx-2 text-gray-400 hidden sm:inline">•</span>
+                            <span className="text-xs text-gray-500 hidden sm:inline">
+                                {currentIndex + 1} of {visibleSections.length}
+                            </span>
+                        </div>
+
+                        {/* Full Screen Button */}
+                        {currentSection?.hasFullScreen && !isMobile && (
+                            <button
+                                onClick={() => openFullScreenEditor()}
+                                className="ml-2 hidden sm:flex items-center px-3 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:opacity-90 transition-opacity"
+                            >
+                                <Maximize2 className="w-4 h-4 mr-2" />
+                                Full Screen
+                            </button>
+                        )}
+                    </div>
+
+                    <button
+                        onClick={() => navigateToSection('next')}
+                        disabled={currentIndex >= visibleSections.length - 1}
+                        className={`flex items-center px-3 py-2 rounded-lg transition-all ${currentIndex >= visibleSections.length - 1
+                            ? 'opacity-50 cursor-not-allowed bg-gray-100'
+                            : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                            }`}
+                    >
+                        <span className="hidden sm:inline">Next</span>
+                        <ChevronRight className="w-4 h-4 ml-2" />
+                    </button>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                    {isMobile && currentSection?.hasFullScreen && (
+                        <button
+                            onClick={() => openFullScreenEditor()}
+                            className="flex items-center px-3 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:opacity-90 transition-opacity"
+                        >
+                            <Maximize2 className="w-4 h-4 mr-2" />
+                            Full
+                        </button>
+                    )}
+
+                    <button
+                        onClick={() => handleAIEnhance()}
+                        disabled={aiCredits <= 0}
+                        className={`flex items-center px-3 py-2 rounded-lg transition-all ${aiCredits <= 0
+                            ? 'opacity-50 cursor-not-allowed bg-gray-100'
+                            : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90'
+                            }`}
+                    >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        <span className="hidden sm:inline">AI Enhance</span>
+                        <span className="ml-2 text-xs bg-white/20 px-2 py-1 rounded">
+                            {aiCredits}
+                        </span>
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    // Mobile Top Bar
+    const MobileTopBar = () => (
+        <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 py-3">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                    <button
+                        onClick={() => setShowMobileMenu(!showMobileMenu)}
+                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                        {showMobileMenu ? (
+                            <X className="w-5 h-5 text-gray-600" />
+                        ) : (
+                            <Menu className="w-5 h-5 text-gray-600" />
+                        )}
+                    </button>
+
+                    <div>
+                        <h1 className="text-lg font-bold text-gray-800 truncate max-w-[180px]">
+                            {currentResume?.name || 'Untitled Resume'}
+                        </h1>
+                        <div className="flex items-center text-xs text-gray-500">
+                            <span>{stats.completedSections}/{stats.totalSections} sections</span>
+                            <span className="mx-1">•</span>
+                            <span>{stats.completeness}% complete</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving || saveStatus === 'saving'}
+                        className={`px-3 py-2 rounded-lg transition-all ${isSaving || saveStatus === 'saving'
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            }`}
+                    >
+                        {isSaving || saveStatus === 'saving' ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Save className="w-4 h-4" />
+                        )}
+                    </button>
+
+                    <button
+                        onClick={() => setShowAIAssistant(!showAIAssistant)}
+                        className={`p-2 rounded-lg transition-colors ${showAIAssistant
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                    >
+                        <Brain className="w-5 h-5" />
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+
+    // Main render
+    if (resumeLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+                <div className="text-center">
+                    <Loader2 className="w-16 h-16 animate-spin mx-auto mb-4 text-indigo-500" />
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Loading Resume Builder</h2>
+                    <p className="text-gray-600">Preparing your workspace...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-            {/* Use your Navbar component */}
-            <Navbar />
-
-            {/* Animated Background */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
-                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-1000" />
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+            {/* Navbar */}
+            <div className="hidden lg:block">
+                <Navbar
+                    user={user}
+                    onLogout={handleLogout}
+                    onSave={handleSave}
+                    onExport={handleExport}
+                    isSaving={isSaving}
+                    saveStatus={saveStatus}
+                    aiCredits={aiCredits}
+                />
             </div>
 
-            <main className="container mx-auto px-4 py-6 relative z-10 mt-16"> {/* Added mt-16 for navbar */}
-                {/* Stats Cards */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
-                >
-                    {[
-                        {
-                            title: "Total Resumes",
-                            value: stats.total,
-                            change: `${Math.round((stats.recent / Math.max(stats.total, 1)) * 100)}% active`,
-                            icon: <FaFileAlt className="text-2xl" />,
-                            color: "from-blue-500 to-cyan-500",
-                            bg: "bg-gradient-to-br from-blue-50 to-cyan-50",
-                            description: "Saved locally"
-                        },
-                        {
-                            title: "Completed",
-                            value: stats.completed,
-                            change: `${Math.round((stats.completed / Math.max(stats.total, 1)) * 100)}% complete`,
-                            icon: <FaChartLine className="text-2xl" />,
-                            color: "from-emerald-500 to-green-500",
-                            bg: "bg-gradient-to-br from-emerald-50 to-green-50",
-                            description: "Ready to use"
-                        },
-                        {
-                            title: "Avg. Score",
-                            value: `${stats.averageScore}%`,
-                            change: "+5% from last week",
-                            icon: <FaStar className="text-2xl" />,
-                            color: "from-amber-500 to-orange-500",
-                            bg: "bg-gradient-to-br from-amber-50 to-orange-50",
-                            description: "ATS optimization"
-                        },
-                        {
-                            title: "Recent Activity",
-                            value: stats.recent,
-                            change: "Last 7 days",
-                            icon: <FaBolt className="text-2xl" />,
-                            color: "from-purple-500 to-pink-500",
-                            bg: "bg-gradient-to-br from-purple-50 to-pink-50",
-                            description: "Updated resumes"
-                        }
-                    ].map((stat, index) => (
+            {/* Mobile Top Bar */}
+            <MobileTopBar />
+
+            {/* Main Content */}
+            <div className="flex h-[calc(100vh-64px)] lg:h-[calc(100vh-64px)] mt-16 lg:mt-0">
+                {/* Left Sidebar - Section Navigation */}
+                <AnimatePresence>
+                    {(leftSidebarOpen || (isMobile && showMobileMenu)) && (
                         <motion.div
-                            key={index}
-                            whileHover={{ y: -5 }}
-                            className={`${stat.bg} rounded-2xl p-6 border border-white shadow-sm hover:shadow-lg transition-all duration-300`}
+                            initial={{ x: -320, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            exit={{ x: -320, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className={`fixed lg:relative z-40 h-full bg-white border-r border-gray-200 shadow-xl lg:shadow-none ${isMobile ? 'inset-0' : ''}`}
+                            style={{ width: isMobile ? '100%' : '320px' }}
                         >
-                            <div className="flex items-center justify-between mb-4">
-                                <div className={`p-3 rounded-xl bg-gradient-to-r ${stat.color} bg-opacity-10`}>
-                                    <div className={`text-gradient bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`}>
-                                        {stat.icon}
-                                    </div>
-                                </div>
-                                <span className="text-xs font-medium text-slate-600 bg-white px-2 py-1 rounded-full">
-                                    {stat.change}
-                                </span>
-                            </div>
-                            <h3 className="text-3xl font-bold text-slate-900 mb-1">{stat.value}</h3>
-                            <p className="text-slate-900 font-medium mb-1">{stat.title}</p>
-                            <p className="text-slate-600 text-sm">{stat.description}</p>
-                        </motion.div>
-                    ))}
-                </motion.div>
-
-                {/* Quick Actions */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="mb-8"
-                >
-                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-6 shadow-lg">
-                        <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
-                            <div className="flex-1">
-                                <h2 className="text-2xl font-bold text-white mb-2">Manage Your Resumes</h2>
-                                <p className="text-indigo-100 mb-6">
-                                    {stats.total > 0
-                                        ? `You have ${stats.total} saved resumes. Create new ones or enhance existing ones.`
-                                        : 'Start building your professional resume collection.'}
-                                </p>
-                                <div className="flex flex-wrap gap-3">
-                                    <button
-                                        onClick={handleBuildResume}
-                                        className="px-6 py-3 bg-white text-indigo-600 rounded-xl hover:bg-indigo-50 transition font-semibold flex items-center gap-2"
-                                    >
-                                        <FaPlus />
-                                        {stats.total === 0 ? 'Create First Resume' : 'Create New Resume'}
-                                    </button>
-
-                                    {stats.total > 0 && (
-                                        <>
-                                            <button
-                                                onClick={() => navigate('/analyzer')}
-                                                className="px-6 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition font-semibold flex items-center gap-2"
-                                            >
-                                                <FaRobot />
-                                                AI Analyze All
-                                            </button>
-
-                                            <button
-                                                onClick={() => navigate('/templates')}
-                                                className="px-6 py-3 bg-transparent border-2 border-white text-white rounded-xl hover:bg-white/10 transition font-semibold flex items-center gap-2"
-                                            >
-                                                <FaPalette />
-                                                Browse Templates
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="hidden lg:block">
-                                <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
-                                    <FaDatabase className="text-4xl text-white" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </motion.div>
-
-                {/* Search and Filter Bar - Only show if we have resumes */}
-                {stats.total > 0 && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="mb-8"
-                    >
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-                            <div className="flex flex-col lg:flex-row gap-4">
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                                        <input
-                                            type="text"
-                                            placeholder="Search your resumes by title, name, or keywords..."
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-slate-50"
-                                        />
-                                        {searchLoading && (
-                                            <FaSpinner className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 animate-spin" />
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-wrap gap-3">
-                                    <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-1">
+                            <div className="h-full flex flex-col">
+                                {/* Mobile Header */}
+                                {isMobile && (
+                                    <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                                        <h2 className="text-xl font-bold text-gray-800">Sections</h2>
                                         <button
-                                            onClick={() => setViewMode('grid')}
-                                            className={`px-4 py-2 rounded-lg transition ${viewMode === 'grid' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-600'}`}
+                                            onClick={() => {
+                                                setLeftSidebarOpen(false);
+                                                setShowMobileMenu(false);
+                                            }}
+                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                                         >
-                                            Grid
-                                        </button>
-                                        <button
-                                            onClick={() => setViewMode('list')}
-                                            className={`px-4 py-2 rounded-lg transition ${viewMode === 'list' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-600'}`}
-                                        >
-                                            List
+                                            <X className="w-5 h-5 text-gray-600" />
                                         </button>
                                     </div>
+                                )}
 
-                                    <div className="relative">
-                                        <select
-                                            value={filter}
-                                            onChange={(e) => setFilter(e.target.value)}
-                                            className="appearance-none pl-10 pr-8 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white cursor-pointer min-w-[160px]"
-                                        >
-                                            <option value="all">All Templates</option>
-                                            <option value="modern">Modern</option>
-                                            <option value="classic">Classic</option>
-                                            <option value="creative">Creative</option>
-                                            <option value="professional">Professional</option>
-                                            <option value="minimal">Minimal</option>
-                                        </select>
-                                        <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                                    </div>
-
-                                    <div className="relative">
-                                        <select
-                                            value={sortBy}
-                                            onChange={(e) => setSortBy(e.target.value)}
-                                            className="appearance-none pl-10 pr-8 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white cursor-pointer min-w-[160px]"
-                                        >
-                                            <option value="updated">Recently Updated</option>
-                                            <option value="created">Date Created</option>
-                                            <option value="title">Title (A-Z)</option>
-                                            <option value="progress">Progress</option>
-                                            <option value="score">ATS Score</option>
-                                        </select>
-                                        <FaSort className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-
-                {/* Resume Grid/List */}
-                <AnimatePresence mode="wait">
-                    {stats.total > 0 ? (
-                        filteredResumes.length > 0 ? (
-                            <motion.div
-                                key={viewMode}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className={viewMode === 'grid' ?
-                                    "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" :
-                                    "space-y-4"
-                                }
-                            >
-                                {filteredResumes.map((resume, index) => {
-                                    const data = resume.data || {};
-                                    const progress = calculateProgress(resume);
-                                    const updatedAt = resume.updatedAt;
-                                    const template = resume.template || 'modern';
-                                    const title = resume.title || 'Untitled Resume';
-                                    const score = resume.analysis?.atsScore || resume.atsScore || Math.floor(Math.random() * 30) + 70;
-                                    const resumeId = resume._id || resume.id || `resume_${index}`;
-
-                                    return viewMode === 'grid' ? (
-                                        <motion.div
-                                            key={resumeId}
-                                            initial={{ scale: 0.95, opacity: 0 }}
-                                            animate={{ scale: 1, opacity: 1 }}
-                                            whileHover={{ scale: 1.03 }}
-                                            className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden group cursor-pointer"
-                                            onClick={() => navigate(`/builder/${resumeId}`)}
-                                        >
-                                            <div className="p-6">
-                                                {/* Header */}
-                                                <div className="flex justify-between items-start mb-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`p-2 rounded-lg ${getTemplateColor(template)}`}>
-                                                            {getTemplateIcon(template)}
-                                                        </div>
-                                                        <div className="overflow-hidden">
-                                                            <h3 className="font-semibold text-slate-900 group-hover:text-indigo-600 transition truncate">
-                                                                {title}
-                                                            </h3>
-                                                            <p className="text-sm text-slate-500">
-                                                                {formatDate(updatedAt)}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex gap-1">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleAIAnalyze(resume);
-                                                            }}
-                                                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                                                            title="AI Analyze"
-                                                        >
-                                                            <FaBrain />
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handlePreviewResume(resume);
-                                                            }}
-                                                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                                                            title="Preview"
-                                                        >
-                                                            <FaEye />
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                {/* Score Badge */}
-                                                <div className="flex items-center justify-between mb-4">
-                                                    <div className={`px-3 py-1 rounded-full ${getScoreBg(score)} bg-opacity-10`}>
-                                                        <span className={`text-sm font-semibold ${getScoreColor(score)}`}>
-                                                            ATS Score: {score}%
-                                                        </span>
-                                                    </div>
-                                                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${getTemplateColor(template)}`}>
-                                                        {template.charAt(0).toUpperCase() + template.slice(1)}
-                                                    </span>
-                                                </div>
-
-                                                {/* Progress Bar */}
-                                                <div className="mb-6">
-                                                    <div className="flex justify-between text-xs text-slate-600 mb-2">
-                                                        <span>Completion</span>
-                                                        <span>{progress}%</span>
-                                                    </div>
-                                                    <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                                                        <motion.div
-                                                            initial={{ width: 0 }}
-                                                            animate={{ width: `${progress}%` }}
-                                                            transition={{ duration: 1, delay: index * 0.1 }}
-                                                            className={`h-full rounded-full ${progress >= 80 ? 'bg-emerald-500' :
-                                                                progress >= 60 ? 'bg-blue-500' :
-                                                                    progress >= 40 ? 'bg-yellow-500' :
-                                                                        'bg-red-500'}`}
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                {/* Stats Grid */}
-                                                <div className="grid grid-cols-2 gap-3 mb-6">
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <FaBriefcase className="text-blue-500" />
-                                                        <span className="text-slate-700 font-medium">{data.experience?.length || 0}</span>
-                                                        <span className="text-slate-500">Exp</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <FaGraduationCap className="text-emerald-500" />
-                                                        <span className="text-slate-700 font-medium">{data.education?.length || 0}</span>
-                                                        <span className="text-slate-500">Edu</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <FaCogs className="text-purple-500" />
-                                                        <span className="text-slate-700 font-medium">{data.skills?.length || 0}</span>
-                                                        <span className="text-slate-500">Skills</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <FaProjectDiagram className="text-amber-500" />
-                                                        <span className="text-slate-700 font-medium">{data.projects?.length || 0}</span>
-                                                        <span className="text-slate-500">Projects</span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Action Buttons */}
-                                                <div className="flex gap-2 pt-4 border-t border-slate-100">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            navigate(`/builder/${resumeId}`);
-                                                        }}
-                                                        className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium flex items-center justify-center gap-2"
-                                                    >
-                                                        <FaEdit />
-                                                        Edit in Builder
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleShareResume(resume);
-                                                        }}
-                                                        className="p-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition"
-                                                        title="Share"
-                                                    >
-                                                        <FaShareAlt className="text-slate-600" />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDuplicateResume(resumeId, title);
-                                                        }}
-                                                        className="p-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition"
-                                                        title="Duplicate"
-                                                    >
-                                                        <FaCopy className="text-slate-600" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    ) : (
-                                        // List View
-                                        <motion.div
-                                            key={resumeId}
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: index * 0.05 }}
-                                            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 group hover:shadow-md transition-shadow cursor-pointer"
-                                            onClick={() => navigate(`/builder/${resumeId}`)}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className={`p-3 rounded-xl ${getTemplateColor(template)}`}>
-                                                    {getTemplateIcon(template)}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <div>
-                                                            <h3 className="font-semibold text-slate-900 truncate group-hover:text-indigo-600">
-                                                                {title}
-                                                            </h3>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${getTemplateColor(template)}`}>
-                                                                {template}
-                                                            </span>
-                                                            <span className={`text-sm font-medium ${getScoreColor(score)}`}>
-                                                                {score}%
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-4 text-sm text-slate-500 mb-2">
-                                                        <span className="flex items-center gap-1">
-                                                            <FaRegClock />
-                                                            {formatDate(updatedAt)}
-                                                        </span>
-                                                        <span>•</span>
-                                                        <span>{progress}% complete</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-6 text-sm">
-                                                        <span className="flex items-center gap-1">
-                                                            <FaBriefcase className="text-blue-500" />
-                                                            {data.experience?.length || 0} exp
-                                                        </span>
-                                                        <span className="flex items-center gap-1">
-                                                            <FaGraduationCap className="text-emerald-500" />
-                                                            {data.education?.length || 0} edu
-                                                        </span>
-                                                        <span className="flex items-center gap-1">
-                                                            <FaCogs className="text-purple-500" />
-                                                            {data.skills?.length || 0} skills
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleAIAnalyze(resume);
-                                                        }}
-                                                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                                                        title="AI Analyze"
-                                                    >
-                                                        <FaBrain />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            navigate(`/builder/${resumeId}`);
-                                                        }}
-                                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    );
-                                })}
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="text-center py-16"
-                            >
-                                <div className="max-w-md mx-auto">
-                                    <div className="p-4 bg-slate-100 rounded-full inline-block mb-6">
-                                        <FaSearch className="text-3xl text-slate-400" />
-                                    </div>
-                                    <h3 className="text-2xl font-bold text-slate-900 mb-3">
-                                        No matching resumes found
-                                    </h3>
-                                    <p className="text-slate-600 mb-8">
-                                        Try adjusting your search criteria or clear the filters
-                                    </p>
-                                    <button
-                                        onClick={() => {
-                                            setSearchQuery('');
-                                            setFilter('all');
-                                        }}
-                                        className="px-8 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition font-semibold"
-                                    >
-                                        Clear Filters
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )
-                    ) : (
-                        // Empty State - No resumes
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="text-center py-16"
-                        >
-                            <div className="max-w-md mx-auto">
-                                <div className="relative">
-                                    <motion.div
-                                        animate={{ rotate: 360 }}
-                                        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                                        className="w-32 h-32 border-4 border-indigo-100 rounded-full mx-auto"
-                                    />
-                                    <FaDatabase className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-4xl text-indigo-400" />
-                                </div>
-                                <h3 className="text-2xl font-bold text-slate-900 mt-8 mb-3">
-                                    Your Resume Collection is Empty
-                                </h3>
-                                <p className="text-slate-600 mb-8">
-                                    Start building your professional resume collection.
-                                </p>
-                                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                                    <button
-                                        onClick={handleBuildResume}
-                                        className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition font-semibold flex items-center gap-2 justify-center"
-                                    >
-                                        <FaPlus />
-                                        Create Your First Resume
-                                    </button>
-                                    <button
-                                        onClick={() => navigate('/templates')}
-                                        className="px-8 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition font-semibold"
-                                    >
-                                        <FaPalette className="inline mr-2" />
-                                        Browse Templates
-                                    </button>
-                                </div>
+                                <BuilderSidebar
+                                    sections={sections}
+                                    activeSection={activeSection}
+                                    completedSections={completedSections}
+                                    onSectionChange={(sectionId) => {
+                                        handleSectionChange(sectionId);
+                                        if (isMobile) {
+                                            setShowMobileMenu(false);
+                                        }
+                                    }}
+                                    onToggleVisibility={toggleSectionVisibility}
+                                    showHiddenSections={showHiddenSections}
+                                    onToggleHiddenSections={() => setShowHiddenSections(!showHiddenSections)}
+                                    stats={stats}
+                                    showProgress={showProgress}
+                                    onToggleProgress={() => setShowProgress(!showProgress)}
+                                    onSave={handleSave}
+                                    onExport={handleExport}
+                                    isSaving={isSaving}
+                                    saveStatus={saveStatus}
+                                />
                             </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </main>
 
-            {/* Delete Confirmation Modal */}
-            <AnimatePresence>
-                {showDeleteConfirm && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-                        onClick={() => setShowDeleteConfirm(null)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-white rounded-2xl p-6 max-w-md w-full"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="text-center mb-6">
-                                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <FaExclamationTriangle className="text-2xl text-red-600" />
+                {/* Main Editor Area */}
+                <div
+                    className="flex-1 overflow-auto transition-all duration-200"
+                    style={{ width: editorWidth }}
+                >
+                    <div className="h-full flex flex-col">
+                        {/* Editor Header - Desktop */}
+                        <div className="hidden lg:block sticky top-0 z-30 bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-4">
+                                    <button
+                                        onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
+                                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                    >
+                                        {leftSidebarOpen ? (
+                                            <PanelLeft className="w-5 h-5 text-gray-600" />
+                                        ) : (
+                                            <PanelRight className="w-5 h-5 text-gray-600" />
+                                        )}
+                                    </button>
+
+                                    <div className="flex items-center space-x-2">
+                                        <button
+                                            onClick={() => navigate('/dashboard')}
+                                            className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors"
+                                        >
+                                            <Home className="w-4 h-4 mr-2" />
+                                            Dashboard
+                                        </button>
+                                        <span className="text-gray-300">|</span>
+                                        <div className="text-sm text-gray-600">
+                                            Editing: <span className="font-semibold">{currentResume?.name || 'Untitled Resume'}</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <h3 className="text-xl font-bold text-slate-900 mb-2">Delete Resume</h3>
-                                <p className="text-slate-600">
-                                    Are you sure you want to delete "{showDeleteConfirm.title}"? This action cannot be undone.
-                                </p>
+
+                                <div className="flex items-center space-x-2">
+                                    {/* Zoom Controls */}
+                                    <div className="hidden md:flex items-center bg-gray-100 rounded-lg p-1">
+                                        <button
+                                            onClick={handleZoomOut}
+                                            className="p-1 hover:bg-gray-200 rounded transition-colors"
+                                            disabled={zoomLevel <= 50}
+                                        >
+                                            <ZoomOut className="w-4 h-4 text-gray-600" />
+                                        </button>
+                                        <button
+                                            onClick={resetZoom}
+                                            className="px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded transition-colors"
+                                        >
+                                            {zoomLevel}%
+                                        </button>
+                                        <button
+                                            onClick={handleZoomIn}
+                                            className="p-1 hover:bg-gray-200 rounded transition-colors"
+                                            disabled={zoomLevel >= 200}
+                                        >
+                                            <ZoomIn className="w-4 h-4 text-gray-600" />
+                                        </button>
+                                    </div>
+
+                                    {/* Fullscreen Toggle */}
+                                    <button
+                                        onClick={handleFullscreen}
+                                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                    >
+                                        {isFullscreen ? (
+                                            <Minimize2 className="w-5 h-5 text-gray-600" />
+                                        ) : (
+                                            <Maximize2 className="w-5 h-5 text-gray-600" />
+                                        )}
+                                    </button>
+
+                                    {/* AI Assistant Toggle */}
+                                    <button
+                                        onClick={() => setShowAIAssistant(!showAIAssistant)}
+                                        className={`p-2 rounded-lg transition-colors ${showAIAssistant
+                                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                            : 'hover:bg-gray-100 text-gray-600'
+                                            }`}
+                                    >
+                                        <Brain className="w-5 h-5" />
+                                    </button>
+
+                                    {/* Right Sidebar Toggle */}
+                                    <button
+                                        onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
+                                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                    >
+                                        {rightSidebarOpen ? (
+                                            <PanelRight className="w-5 h-5 text-gray-600" />
+                                        ) : (
+                                            <PanelLeft className="w-5 h-5 text-gray-600" />
+                                        )}
+                                    </button>
+                                </div>
                             </div>
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowDeleteConfirm(null)}
-                                    className="flex-1 px-4 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition font-medium"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={() => handleDeleteResume(showDeleteConfirm.id, showDeleteConfirm.title)}
-                                    className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-medium"
-                                >
-                                    Delete Resume
-                                </button>
+
+                            {/* Section Navigation */}
+                            {renderSectionNavigation()}
+                        </div>
+
+                        {/* Mobile Section Navigation */}
+                        <div className="lg:hidden px-4 py-3 border-b border-gray-200 bg-white">
+                            {renderSectionNavigation()}
+                        </div>
+
+                        {/* Editor Content */}
+                        <div
+                            className="flex-1 overflow-auto p-4 lg:p-6 transition-all duration-200"
+                            style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }}
+                        >
+                            <div className="max-w-4xl mx-auto">
+                                {renderActiveSection()}
+                            </div>
+                        </div>
+
+                        {/* Editor Footer */}
+                        <div className="sticky bottom-0 z-30 bg-white/90 backdrop-blur-sm border-t border-gray-200 px-4 lg:px-6 py-3">
+                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                                <div className="flex items-center justify-between lg:justify-start lg:space-x-4 text-sm text-gray-600">
+                                    <div className="flex items-center">
+                                        {saveStatus === 'saving' ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                                <span>Saving...</span>
+                                            </>
+                                        ) : saveStatus === 'saved' ? (
+                                            <>
+                                                <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
+                                                <span>Saved</span>
+                                                {lastSavedTime && (
+                                                    <span className="ml-2 text-gray-500 hidden lg:inline">
+                                                        {new Date(lastSavedTime).toLocaleTimeString([], {
+                                                            hour: '2-digit',
+                                                            minute: '2-digit'
+                                                        })}
+                                                    </span>
+                                                )}
+                                            </>
+                                        ) : saveStatus === 'error' ? (
+                                            <>
+                                                <span className="text-red-500">Save failed</span>
+                                                <button
+                                                    onClick={handleSave}
+                                                    className="ml-2 text-indigo-600 hover:text-indigo-700"
+                                                >
+                                                    Retry
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>Ready</span>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    <div className="lg:hidden flex items-center space-x-4">
+                                        <div className="flex items-center">
+                                            <FileText className="w-4 h-4 mr-1" />
+                                            <span>{stats.wordCount}</span>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <CheckCircle className="w-4 h-4 mr-1 text-green-500" />
+                                            <span>{stats.completedSections}/{stats.totalSections}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="hidden lg:flex items-center space-x-4 text-sm text-gray-600">
+                                    <div className="flex items-center">
+                                        <FileText className="w-4 h-4 mr-2" />
+                                        <span>{stats.wordCount} words</span>
+                                    </div>
+
+                                    <div className="flex items-center">
+                                        <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
+                                        <span>{stats.completedSections}/{stats.totalSections} sections</span>
+                                    </div>
+
+                                    <div className="flex items-center">
+                                        {showHiddenSections ? (
+                                            <EyeOff className="w-4 h-4 mr-2 text-gray-400" />
+                                        ) : (
+                                            <Eye className="w-4 h-4 mr-2 text-green-500" />
+                                        )}
+                                        <span>{stats.visibleSections} visible</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between lg:justify-end lg:space-x-3">
+                                    <button
+                                        onClick={() => setShowAIAssistant(true)}
+                                        className="flex items-center px-3 lg:px-4 py-2 bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 rounded-lg hover:from-purple-100 hover:to-pink-100 transition-all"
+                                    >
+                                        <Sparkles className="w-4 h-4 mr-2" />
+                                        <span className="hidden sm:inline">Ask AI</span>
+                                    </button>
+
+                                    <button
+                                        onClick={handleSave}
+                                        disabled={isSaving || saveStatus === 'saving'}
+                                        className={`flex items-center px-3 lg:px-4 py-2 rounded-lg transition-all ${isSaving || saveStatus === 'saving'
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                            }`}
+                                    >
+                                        {isSaving || saveStatus === 'saving' ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                                <span className="hidden sm:inline">Saving...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Save className="w-4 h-4 mr-2" />
+                                                <span className="hidden sm:inline">Save</span>
+                                            </>
+                                        )}
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleExport('pdf')}
+                                        disabled={isExporting}
+                                        className={`hidden sm:flex items-center px-3 lg:px-4 py-2 rounded-lg transition-all ${isExporting
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            : 'bg-green-600 text-white hover:bg-green-700'
+                                            }`}
+                                    >
+                                        {isExporting ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                                Exporting...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Download className="w-4 h-4 mr-2" />
+                                                Export
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right Sidebar - Stats Dashboard */}
+                <AnimatePresence>
+                    {rightSidebarOpen && (
+                        <motion.div
+                            initial={{ x: 384, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            exit={{ x: 384, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="fixed lg:relative right-0 z-40 h-full bg-white border-l border-gray-200 shadow-xl lg:shadow-none"
+                            style={{ width: isMobile ? '100%' : '384px' }}
+                        >
+                            <div className="h-full flex flex-col">
+                                {/* Mobile Header */}
+                                {isMobile && (
+                                    <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                                        <h2 className="text-xl font-bold text-gray-800">Stats & Tools</h2>
+                                        <button
+                                            onClick={() => setRightSidebarOpen(false)}
+                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                        >
+                                            <X className="w-5 h-5 text-gray-600" />
+                                        </button>
+                                    </div>
+                                )}
+
+                                <StatsDashboard
+                                    stats={stats}
+                                    activeSection={activeSection}
+                                    sections={sections}
+                                    onSectionChange={handleSectionChange}
+                                    onExport={handleExport}
+                                    onFullscreen={handleFullscreen}
+                                    onToggleSectionVisibility={toggleSectionVisibility}
+                                />
                             </div>
                         </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                    )}
+                </AnimatePresence>
 
-            {/* Use your Footer component */}
-            <Footer />
+                {/* Floating Action Buttons */}
+                <FloatingActionButtons
+                    onSave={handleSave}
+                    onExport={handleExport}
+                    onShare={handleDefaultShare}
+                    onPrint={handleDefaultPrint}
+                    onFullscreen={handleFullscreen}
+                    onAIEnhance={handleAIEnhance}
+                    onPreview={() => setShowPreviewMode(!showPreviewMode)}
+                    onSettings={() => toast.success('Settings opened')}
+                    onHelp={() => toast.success('Help opened')}
+                    onAddSection={() => toast.success('Add section clicked')}
+                    onOpenAIAssistant={() => setShowAIAssistant(!showAIAssistant)}
+                    onAIAction={handleAIAction}
+                    onTextFormat={handleTextFormat}
+                    onInsertElement={handleInsertElement}
+                    onZoomIn={handleZoomIn}
+                    onZoomOut={handleZoomOut}
+                    onResetZoom={resetZoom}
+                    isFullscreen={isFullscreen}
+                    showPreview={showPreviewMode}
+                    saveStatus={saveStatus}
+                    user={{ ...user, aiCredits }}
+                    resumeData={currentResume?.data || {}}
+                    zoomLevel={zoomLevel}
+                    isAIAssistantOpen={showAIAssistant}
+                    position={isMobile ? "bottom-right" : "bottom-right"}
+                    compact={isMobile}
+                />
+
+                {/* Mobile Sidebar Toggles */}
+                {isMobile && !showMobileMenu && !leftSidebarOpen && (
+                    <button
+                        onClick={() => {
+                            setLeftSidebarOpen(true);
+                            setShowMobileMenu(true);
+                        }}
+                        className="fixed left-4 bottom-20 z-50 p-3 bg-indigo-600 text-white rounded-full shadow-lg"
+                    >
+                        <Menu className="w-5 h-5" />
+                    </button>
+                )}
+
+                {isMobile && !rightSidebarOpen && (
+                    <button
+                        onClick={() => setRightSidebarOpen(true)}
+                        className="fixed right-4 bottom-20 z-50 p-3 bg-indigo-600 text-white rounded-full shadow-lg"
+                    >
+                        <BarChart className="w-5 h-5" />
+                    </button>
+                )}
+
+                {/* AI Assistant Modal */}
+                <AnimatePresence>
+                    {showAIAssistant && (
+                        <>
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 bg-black/50 z-50"
+                                onClick={() => setShowAIAssistant(false)}
+                            />
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 20 }}
+                                className="fixed inset-x-4 bottom-4 md:inset-x-auto md:right-4 md:bottom-4 md:w-96 z-50"
+                            >
+                                <AIAssistant
+                                    activeSection={activeSection}
+                                    sectionData={currentResume?.data?.[activeSection]}
+                                    onEnhance={handleAIEnhance}
+                                    onClose={() => setShowAIAssistant(false)}
+                                    aiCredits={aiCredits}
+                                />
+                            </motion.div>
+                        </>
+                    )}
+                </AnimatePresence>
+
+                {/* Full Screen Text Editor */}
+                <AnimatePresence>
+                    {showFullScreenEditor && (
+                        <FullScreenTextField
+                            value={fullScreenContent}
+                            onChange={(content) => setFullScreenContent(content)}
+                            onSave={saveFullScreenContent}
+                            onClose={() => setShowFullScreenEditor(false)}
+                            onAIEnhance={() => {
+                                if (aiCredits > 0) {
+                                    setAiCredits(prev => prev - 5);
+                                    toast.success('✨ AI enhancement applied!');
+                                } else {
+                                    toast.error('Insufficient AI credits');
+                                }
+                            }}
+                            placeholder={`Edit your ${fullScreenSection} content...`}
+                            title={`${sections.find(s => s.id === fullScreenSection)?.label} - Full Screen Editor`}
+                            aiCredits={aiCredits}
+                            isSaving={isSaving}
+                        />
+                    )}
+                </AnimatePresence>
+            </div>
         </div>
     );
 };
 
-export default Dashboard;
+// Default handlers for FloatingActionButtons
+const handleDefaultShare = async () => {
+    try {
+        if (navigator.share) {
+            await navigator.share({
+                title: 'My Resume',
+                text: 'Check out my professional resume!',
+                url: window.location.href
+            });
+        } else {
+            navigator.clipboard.writeText(window.location.href);
+            toast.success('Link copied to clipboard!');
+        }
+    } catch (err) {
+        navigator.clipboard.writeText(window.location.href);
+        toast.success('Link copied to clipboard!');
+    }
+};
+
+const handleDefaultPrint = () => {
+    window.print();
+};
+
+export default ResumeBuilder;

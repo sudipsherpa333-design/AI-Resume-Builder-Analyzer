@@ -1,626 +1,455 @@
-import React, { useState, useEffect } from 'react';
-
-const PersonalInfoPage = ({ resumeData, onInputChange, isStepValid }) => {
-    const { personalInfo = {} } = resumeData;
-
-    // Initialize state for form
-    const [formData, setFormData] = useState({
-        firstName: personalInfo.firstName || '',
-        lastName: personalInfo.lastName || '',
-        email: personalInfo.email || '',
-        phone: personalInfo.phone || '',
-        address: personalInfo.address || '',
-        city: personalInfo.city || '',
-        state: personalInfo.state || '',
-        zipCode: personalInfo.zipCode || '',
-        country: personalInfo.country || '',
-        linkedin: personalInfo.linkedin || '',
-        portfolio: personalInfo.portfolio || '',
-        summary: personalInfo.summary || ''
-    });
-
-    // Update local state when resumeData changes
-    useEffect(() => {
-        setFormData({
-            firstName: personalInfo.firstName || '',
-            lastName: personalInfo.lastName || '',
-            email: personalInfo.email || '',
-            phone: personalInfo.phone || '',
-            address: personalInfo.address || '',
-            city: personalInfo.city || '',
-            state: personalInfo.state || '',
-            zipCode: personalInfo.zipCode || '',
-            country: personalInfo.country || '',
-            linkedin: personalInfo.linkedin || '',
-            portfolio: personalInfo.portfolio || '',
-            summary: personalInfo.summary || ''
-        });
-    }, [personalInfo]);
-
-    // Handle input changes
-    const handleChange = (field, value) => {
-        // Update local state
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
-
-        // Call parent's onInputChange with the updated field
-        // Pass the entire personalInfo object with the update
-        const updatedPersonalInfo = {
-            ...personalInfo,
-            [field]: value
-        };
-
-        // Call parent's update function
-        if (typeof onInputChange === 'function') {
-            onInputChange('personalInfo', updatedPersonalInfo);
-        }
-    };
-
-    // Check if field is filled for validation indicators
-    const isFieldFilled = (field) => {
-        return formData[field] && formData[field].trim().length > 0;
-    };
-
-    // Check if step is valid (all required fields filled)
-    const checkStepValidity = () => {
-        const requiredFields = ['firstName', 'lastName', 'email'];
-        return requiredFields.every(field => isFieldFilled(field));
-    };
-
-    return (
-        <div className="personal-info-page">
-            <div className="header">
-                <h2 className="title">Personal Information</h2>
-                <p className="subtitle">Tell us about yourself - See live updates in preview</p>
-            </div>
-
-            <div className="form">
-                {/* Name Section */}
-                <div className="form-section">
-                    <h3 className="section-title">Basic Information</h3>
-                    <div className="form-grid">
-                        <div className="input-group">
-                            <div className="label-row">
-                                <label className="label">
-                                    First Name <span className="required">*</span>
-                                </label>
-                                {isFieldFilled('firstName') && (
-                                    <span className="validation-indicator valid">✓</span>
-                                )}
-                            </div>
-                            <input
-                                type="text"
-                                value={formData.firstName}
-                                onChange={(e) => handleChange('firstName', e.target.value)}
-                                className={`input ${isFieldFilled('firstName') ? 'valid' : ''}`}
-                                placeholder="Sudipro"
-                                autoComplete="given-name"
-                            />
-                            {!isFieldFilled('firstName') && (
-                                <p className="hint-text">Required field</p>
-                            )}
-                        </div>
-
-                        <div className="input-group">
-                            <div className="label-row">
-                                <label className="label">
-                                    Last Name <span className="required">*</span>
-                                </label>
-                                {isFieldFilled('lastName') && (
-                                    <span className="validation-indicator valid">✓</span>
-                                )}
-                            </div>
-                            <input
-                                type="text"
-                                value={formData.lastName}
-                                onChange={(e) => handleChange('lastName', e.target.value)}
-                                className={`input ${isFieldFilled('lastName') ? 'valid' : ''}`}
-                                placeholder="Pro"
-                                autoComplete="family-name"
-                            />
-                            {!isFieldFilled('lastName') && (
-                                <p className="hint-text">Required field</p>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Contact Information */}
-                <div className="form-section">
-                    <h3 className="section-title">Contact Information</h3>
-                    <div className="form-grid">
-                        <div className="input-group">
-                            <div className="label-row">
-                                <label className="label">
-                                    Email <span className="required">*</span>
-                                </label>
-                                {isFieldFilled('email') && (
-                                    <span className="validation-indicator valid">✓</span>
-                                )}
-                            </div>
-                            <input
-                                type="email"
-                                value={formData.email}
-                                onChange={(e) => handleChange('email', e.target.value)}
-                                className={`input ${isFieldFilled('email') ? 'valid' : ''}`}
-                                placeholder="sudipro@example.com"
-                                autoComplete="email"
-                            />
-                            {!isFieldFilled('email') && (
-                                <p className="hint-text">Required field</p>
-                            )}
-                        </div>
-
-                        <div className="input-group">
-                            <label className="label">
-                                Phone <span className="optional">(optional)</span>
-                            </label>
-                            <input
-                                type="tel"
-                                value={formData.phone}
-                                onChange={(e) => handleChange('phone', e.target.value)}
-                                className="input"
-                                placeholder="+977 9813319818"
-                                autoComplete="tel"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Address Information */}
-                <div className="form-section">
-                    <h3 className="section-title">Address Information</h3>
-                    <div className="input-group full-width">
-                        <label className="label">Address</label>
-                        <input
-                            type="text"
-                            value={formData.address}
-                            onChange={(e) => handleChange('address', e.target.value)}
-                            className="input"
-                            placeholder="Sifal, Kathmandu"
-                            autoComplete="street-address"
-                        />
-                    </div>
-
-                    <div className="form-grid">
-                        <div className="input-group">
-                            <label className="label">City</label>
-                            <input
-                                type="text"
-                                value={formData.city}
-                                onChange={(e) => handleChange('city', e.target.value)}
-                                className="input"
-                                placeholder="Kathmandu"
-                                autoComplete="address-level2"
-                            />
-                        </div>
-
-                        <div className="input-group">
-                            <label className="label">State/Province</label>
-                            <input
-                                type="text"
-                                value={formData.state}
-                                onChange={(e) => handleChange('state', e.target.value)}
-                                className="input"
-                                placeholder="Bagmati"
-                                autoComplete="address-level1"
-                            />
-                        </div>
-
-                        <div className="input-group">
-                            <label className="label">ZIP Code</label>
-                            <input
-                                type="text"
-                                value={formData.zipCode}
-                                onChange={(e) => handleChange('zipCode', e.target.value)}
-                                className="input"
-                                placeholder="44600"
-                                autoComplete="postal-code"
-                            />
-                        </div>
-
-                        <div className="input-group">
-                            <label className="label">Country</label>
-                            <input
-                                type="text"
-                                value={formData.country}
-                                onChange={(e) => handleChange('country', e.target.value)}
-                                className="input"
-                                placeholder="Nepal"
-                                autoComplete="country-name"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Professional Links */}
-                <div className="form-section">
-                    <h3 className="section-title">Professional Links</h3>
-                    <div className="form-grid">
-                        <div className="input-group">
-                            <label className="label">
-                                LinkedIn <span className="optional">(optional)</span>
-                            </label>
-                            <div className="input-with-icon">
-                                <span className="input-icon">🔗</span>
-                                <input
-                                    type="url"
-                                    value={formData.linkedin}
-                                    onChange={(e) => handleChange('linkedin', e.target.value)}
-                                    className="input with-icon"
-                                    placeholder="https://linkedin.com/in/sudipro"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="input-group">
-                            <label className="label">
-                                Portfolio <span className="optional">(optional)</span>
-                            </label>
-                            <div className="input-with-icon">
-                                <span className="input-icon">🌐</span>
-                                <input
-                                    type="url"
-                                    value={formData.portfolio}
-                                    onChange={(e) => handleChange('portfolio', e.target.value)}
-                                    className="input with-icon"
-                                    placeholder="https://sudipro.dev"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Professional Summary */}
-                <div className="form-section">
-                    <h3 className="section-title">Professional Summary</h3>
-                    <div className="input-group">
-                        <label className="label">
-                            Summary <span className="optional">(optional)</span>
-                        </label>
-                        <textarea
-                            value={formData.summary}
-                            onChange={(e) => handleChange('summary', e.target.value)}
-                            className="textarea"
-                            placeholder="Experienced software developer from Nepal with expertise in modern web technologies. Passionate about creating scalable solutions and contributing to the tech community..."
-                            rows={4}
-                            maxLength={500}
-                        />
-                        <div className="char-count">
-                            {formData.summary.length}/500 characters
-                        </div>
-                        <p className="hint-text">
-                            This will appear at the top of your resume. Keep it concise and professional.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Validation Status */}
-            <div className={`validation-section ${checkStepValidity() ? 'valid' : 'invalid'}`}>
-                <div className="validation-header">
-                    <div className="status-indicator">
-                        <div className={`status-dot ${checkStepValidity() ? 'valid' : 'invalid'}`}></div>
-                        <span className="status-text">
-                            {checkStepValidity() ? 'All Requirements Met' : 'Requirements Pending'}
-                        </span>
-                    </div>
-                </div>
-                <div className="validation-message">
-                    {checkStepValidity() ? (
-                        <span className="message valid">
-                            ✓ All required fields completed. You can proceed to the next step.
-                        </span>
-                    ) : (
-                        <span className="message invalid">
-                            ⚠ Please fill in all required fields (First Name, Last Name, and Email) to continue.
-                        </span>
-                    )}
-                </div>
-            </div>
-
-            <style jsx>{`
-                .personal-info-page {
-                    padding: 0;
-                    max-width: 100%;
-                    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-                    background: #ffffff;
-                    min-height: 100%;
-                }
-
-                .header {
-                    text-align: center;
-                    margin-bottom: 2.5rem;
-                    padding: 1rem;
-                    background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-                    border-radius: 12px;
-                }
-
-                .title {
-                    font-size: 2.25rem;
-                    font-weight: 800;
-                    color: #000000;
-                    margin-bottom: 0.5rem;
-                    letter-spacing: -0.5px;
-                }
-
-                .subtitle {
-                    font-size: 1.125rem;
-                    color: #4a5568;
-                    font-weight: 400;
-                    line-height: 1.5;
-                }
-
-                .form-section {
-                    margin-bottom: 2.5rem;
-                    padding-bottom: 2rem;
-                    border-bottom: 1px solid #e2e8f0;
-                }
-
-                .section-title {
-                    font-size: 1.25rem;
-                    font-weight: 700;
-                    color: #000000;
-                    margin-bottom: 1.25rem;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                }
-
-                .section-title::before {
-                    content: '';
-                    width: 4px;
-                    height: 20px;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    border-radius: 2px;
-                }
-
-                .form-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-                    gap: 1.5rem;
-                }
-
-                .input-group {
-                    display: flex;
-                    flex-direction: column;
-                }
-
-                .full-width {
-                    grid-column: 1 / -1;
-                }
-
-                .label-row {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 0.5rem;
-                }
-
-                .label {
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    color: #000000;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                }
-
-                .required {
-                    color: #e53e3e;
-                    font-weight: 700;
-                }
-
-                .optional {
-                    color: #718096;
-                    font-size: 0.75rem;
-                    font-weight: 400;
-                    text-transform: none;
-                }
-
-                .validation-indicator {
-                    font-size: 0.875rem;
-                    font-weight: 700;
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 20px;
-                    height: 20px;
-                    background: #38a169;
-                    color: white;
-                    border-radius: 50%;
-                }
-
-                .validation-indicator.valid {
-                    color: #ffffff;
-                }
-
-                .input, .textarea {
-                    padding: 0.875rem 1rem;
-                    border: 2px solid #e2e8f0;
-                    border-radius: 8px;
-                    font-size: 1rem;
-                    transition: all 0.2s ease;
-                    background: #ffffff;
-                    outline: none;
-                    color: #000000;
-                    font-family: inherit;
-                    width: 100%;
-                    box-sizing: border-box;
-                }
-
-                .input:focus, .textarea:focus {
-                    border-color: #4299e1;
-                    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15);
-                    transform: translateY(-1px);
-                }
-
-                .input.valid, .textarea.valid {
-                    border-color: #38a169;
-                    background-color: #f0fff4;
-                }
-
-                .input-with-icon {
-                    position: relative;
-                }
-
-                .input-icon {
-                    position: absolute;
-                    left: 1rem;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    font-size: 1rem;
-                    color: #718096;
-                    z-index: 1;
-                }
-
-                .input.with-icon {
-                    padding-left: 3rem;
-                }
-
-                .textarea {
-                    resize: vertical;
-                    min-height: 120px;
-                    line-height: 1.6;
-                    font-family: inherit;
-                }
-
-                .hint-text {
-                    font-size: 0.75rem;
-                    color: #718096;
-                    margin-top: 0.375rem;
-                    font-style: italic;
-                }
-
-                .char-count {
-                    font-size: 0.75rem;
-                    color: #718096;
-                    text-align: right;
-                    margin-top: 0.375rem;
-                }
-
-                .validation-section {
-                    margin-top: 2.5rem;
-                    padding: 1.5rem;
-                    border-radius: 10px;
-                    background: #f7fafc;
-                    border: 1px solid #e2e8f0;
-                    animation: fadeIn 0.3s ease;
-                }
-
-                .validation-section.valid {
-                    background: #f0fff4;
-                    border-color: #c6f6d5;
-                }
-
-                .validation-section.invalid {
-                    background: #fff5f5;
-                    border-color: #fed7d7;
-                }
-
-                .validation-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 0.75rem;
-                }
-
-                .status-indicator {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                }
-
-                .status-dot {
-                    width: 10px;
-                    height: 10px;
-                    border-radius: 50%;
-                }
-
-                .status-dot.valid {
-                    background-color: #38a169;
-                    box-shadow: 0 0 0 3px rgba(56, 161, 105, 0.2);
-                }
-
-                .status-dot.invalid {
-                    background-color: #e53e3e;
-                    box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.2);
-                }
-
-                .status-text {
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    color: #000000;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                }
-
-                .validation-message {
-                    font-size: 0.875rem;
-                    line-height: 1.5;
-                }
-
-                .message {
-                    display: flex;
-                    align-items: flex-start;
-                    gap: 0.5rem;
-                }
-
-                .message.valid {
-                    color: #276749;
-                }
-
-                .message.invalid {
-                    color: #c53030;
-                }
-
-                @keyframes fadeIn {
-                    from {
-                        opacity: 0;
-                        transform: translateY(10px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
-                }
-
-                @media (max-width: 768px) {
-                    .title {
-                        font-size: 1.75rem;
-                    }
-
-                    .subtitle {
-                        font-size: 1rem;
-                    }
-
-                    .form-grid {
-                        grid-template-columns: 1fr;
-                        gap: 1rem;
-                    }
-
-                    .section-title {
-                        font-size: 1.125rem;
-                    }
-                }
-
-                @media (max-width: 480px) {
-                    .validation-section {
-                        padding: 1rem;
-                    }
-
-                    .title {
-                        font-size: 1.5rem;
-                    }
-                    
-                    .header {
-                        padding: 1rem 0.5rem;
-                    }
-                }
-            `}</style>
+// src/components/builder/PersonalInfoPage.jsx (Enhanced)
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  User, Mail, Phone, MapPin, Link, Briefcase, Check,
+  Sparkles, Eye, EyeOff, Copy, ExternalLink, AlertCircle,
+  Loader2
+} from 'lucide-react';
+import { debounce } from 'lodash';
+
+const PersonalInfoPage = ({ data, onUpdate, isSectionComplete, onAIEnhance }) => {
+  const [formData, setFormData] = useState({
+    fullName: data?.fullName || '',
+    email: data?.email || '',
+    phone: data?.phone || '',
+    location: data?.location || '',
+    title: data?.title || '',
+    linkedin: data?.linkedin || '',
+    github: data?.github || '',
+    portfolio: data?.portfolio || '',
+  });
+
+  const [showPreview, setShowPreview] = useState(true);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  // Debounced update to prevent too many re-renders
+  const debouncedUpdate = useCallback(
+    debounce((data) => onUpdate(data), 500),
+    [onUpdate]
+  );
+
+  useEffect(() => {
+    debouncedUpdate(formData);
+    validateFields();
+  }, [formData, debouncedUpdate]);
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error for this field when user starts typing
+    if (fieldErrors[field]) {
+      setFieldErrors(prev => ({ ...prev, [field]: null }));
+    }
+  };
+
+  const validateFields = () => {
+    const errors = {};
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    if (formData.phone && !/^[\d\s\-\+\(\)]{10,}$/.test(formData.phone.replace(/\s/g, ''))) {
+      errors.phone = 'Please enter a valid phone number';
+    }
+
+    if (formData.linkedin && !formData.linkedin.includes('linkedin.com')) {
+      errors.linkedin = 'Please enter a valid LinkedIn URL';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleAIEnhance = async () => {
+    setIsEnhancing(true);
+    try {
+      await onAIEnhance();
+    } finally {
+      setTimeout(() => setIsEnhancing(false), 1000);
+    }
+  };
+
+  const fields = [
+    {
+      id: 'fullName',
+      icon: User,
+      label: 'Full Name',
+      placeholder: 'John Doe',
+      required: true,
+      type: 'text'
+    },
+    {
+      id: 'email',
+      icon: Mail,
+      label: 'Email',
+      placeholder: 'john@example.com',
+      required: true,
+      type: 'email'
+    },
+    {
+      id: 'phone',
+      icon: Phone,
+      label: 'Phone',
+      placeholder: '+1 (555) 123-4567',
+      type: 'tel'
+    },
+    {
+      id: 'location',
+      icon: MapPin,
+      label: 'Location',
+      placeholder: 'New York, NY',
+      type: 'text'
+    },
+    {
+      id: 'title',
+      icon: Briefcase,
+      label: 'Title',
+      placeholder: 'Software Engineer',
+      type: 'text'
+    },
+    {
+      id: 'linkedin',
+      icon: Link,
+      label: 'LinkedIn',
+      placeholder: 'https://linkedin.com/in/username',
+      type: 'url'
+    },
+    {
+      id: 'github',
+      icon: Link,
+      label: 'GitHub',
+      placeholder: 'https://github.com/username',
+      type: 'url'
+    },
+    {
+      id: 'portfolio',
+      icon: Link,
+      label: 'Portfolio',
+      placeholder: 'https://yourwebsite.com',
+      type: 'url'
+    },
+  ];
+
+  const requiredFields = fields.filter(f => f.required);
+  const filledRequired = requiredFields.filter(f => formData[f.id].trim()).length;
+  const progress = (filledRequired / requiredFields.length) * 100;
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6 md:space-y-8 p-4 md:p-6"
+    >
+      {/* Header with Toggle */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Personal Information</h2>
+          <p className="text-gray-600 mt-1 md:mt-2">Let's start with the basics</p>
         </div>
-    );
+
+        <button
+          onClick={() => setShowPreview(!showPreview)}
+          className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors self-start md:self-auto"
+        >
+          {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          {showPreview ? 'Hide Preview' : 'Show Preview'}
+        </button>
+      </div>
+
+      {/* Progress Card */}
+      <motion.div
+        layout
+        className="bg-white rounded-2xl p-4 md:p-6 border border-gray-200 shadow-sm"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <div>
+            <h3 className="font-semibold text-gray-900">Resume Progress</h3>
+            <p className="text-sm text-gray-600">Personal Information Section</p>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <span className="text-sm font-medium text-gray-700">Completion</span>
+              <span className="text-lg font-bold text-blue-600 ml-2">{Math.round(progress)}%</span>
+            </div>
+
+            <div className={`px-3 py-1 rounded-full text-sm font-medium ${filledRequired === requiredFields.length
+                ? 'bg-green-100 text-green-800'
+                : 'bg-amber-100 text-amber-800'
+              }`}>
+              {filledRequired}/{requiredFields.length}
+            </div>
+          </div>
+        </div>
+
+        <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.7, type: "spring" }}
+            className={`h-full rounded-full ${progress === 100
+                ? 'bg-gradient-to-r from-green-400 to-green-500'
+                : 'bg-gradient-to-r from-blue-500 to-purple-500'
+              }`}
+          />
+        </div>
+
+        <div className="flex justify-between mt-2 text-xs text-gray-500">
+          <span>0%</span>
+          <span>50%</span>
+          <span>100%</span>
+        </div>
+      </motion.div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+        {/* Form Section */}
+        <motion.div
+          layout
+          className="space-y-6"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Your Details</h3>
+            <span className="text-sm text-gray-500">* Required fields</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+            {fields.map((field, index) => (
+              <motion.div
+                key={field.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className={`space-y-2 ${field.id === 'fullName' || field.id === 'title' ? 'sm:col-span-2' : ''}`}
+              >
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">
+                    {field.label}
+                    {field.required && <span className="text-red-500 ml-1">*</span>}
+                  </label>
+
+                  {formData[field.id] && (
+                    <button
+                      onClick={() => copyToClipboard(formData[field.id])}
+                      className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                      title="Copy to clipboard"
+                    >
+                      <Copy className="w-3 h-3" />
+                      Copy
+                    </button>
+                  )}
+                </div>
+
+                <div className="relative group">
+                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors">
+                    <field.icon className="w-5 h-5" />
+                  </div>
+
+                  <input
+                    type={field.type}
+                    value={formData[field.id]}
+                    onChange={(e) => handleChange(field.id, e.target.value)}
+                    className={`w-full pl-11 pr-10 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${fieldErrors[field.id]
+                        ? 'border-red-300 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-blue-500 focus:border-transparent'
+                      }`}
+                    placeholder={field.placeholder}
+                  />
+
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
+                    {fieldErrors[field.id] && (
+                      <div className="group relative">
+                        <AlertCircle className="w-5 h-5 text-red-500 cursor-help" />
+                        <div className="absolute right-0 top-full mt-1 hidden group-hover:block">
+                          <div className="bg-red-500 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+                            {fieldErrors[field.id]}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {formData[field.id] && !fieldErrors[field.id] && (
+                      <Check className="w-5 h-5 text-green-500" />
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Preview Section */}
+        <AnimatePresence>
+          {showPreview && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 p-6 shadow-sm"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-bold text-gray-900 text-lg">Live Preview</h3>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-sm text-gray-600">Auto-saving</span>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* Name & Title */}
+                <div className="text-center">
+                  {formData.fullName ? (
+                    <h3 className="text-2xl md:text-3xl font-bold text-gray-900">{formData.fullName}</h3>
+                  ) : (
+                    <div className="h-8 bg-gray-200 rounded animate-pulse mx-auto max-w-xs" />
+                  )}
+
+                  {formData.title ? (
+                    <p className="text-lg text-blue-600 mt-2 font-medium">{formData.title}</p>
+                  ) : (
+                    <div className="h-6 bg-gray-200 rounded animate-pulse mx-auto max-w-xs mt-2" />
+                  )}
+                </div>
+
+                {/* Contact Info */}
+                <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 md:gap-4">
+                  {formData.email && (
+                    <a
+                      href={`mailto:${formData.email}`}
+                      className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors group"
+                    >
+                      <Mail className="w-4 h-4" />
+                      <span className="text-sm md:text-base truncate max-w-[200px]">{formData.email}</span>
+                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </a>
+                  )}
+
+                  {formData.phone && (
+                    <a
+                      href={`tel:${formData.phone.replace(/\D/g, '')}`}
+                      className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors group"
+                    >
+                      <Phone className="w-4 h-4" />
+                      <span className="text-sm md:text-base">{formData.phone}</span>
+                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </a>
+                  )}
+
+                  {formData.location && (
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <MapPin className="w-4 h-4" />
+                      <span className="text-sm md:text-base">{formData.location}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Links */}
+                {(formData.linkedin || formData.github || formData.portfolio) && (
+                  <div className="pt-6 border-t border-gray-100">
+                    <div className="flex flex-wrap justify-center gap-3">
+                      {formData.linkedin && (
+                        <a
+                          href={formData.linkedin}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-all group"
+                        >
+                          <Link className="w-4 h-4" />
+                          <span className="font-medium">LinkedIn</span>
+                          <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </a>
+                      )}
+
+                      {formData.github && (
+                        <a
+                          href={formData.github}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg transition-all group"
+                        >
+                          <Link className="w-4 h-4" />
+                          <span className="font-medium">GitHub</span>
+                          <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </a>
+                      )}
+
+                      {formData.portfolio && (
+                        <a
+                          href={formData.portfolio}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg transition-all group"
+                        >
+                          <Link className="w-4 h-4" />
+                          <span className="font-medium">Portfolio</span>
+                          <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Action Footer */}
+      <motion.div
+        layout
+        className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-gray-200"
+      >
+        <div className="flex items-center gap-4">
+          <div className={`w-4 h-4 rounded-full flex items-center justify-center ${filledRequired === requiredFields.length
+              ? 'bg-green-500'
+              : 'bg-amber-500'
+            }`}>
+            {filledRequired === requiredFields.length && (
+              <Check className="w-3 h-3 text-white" />
+            )}
+          </div>
+
+          <div>
+            <p className="font-semibold text-gray-900">
+              {filledRequired === requiredFields.length
+                ? '✓ All required fields completed!'
+                : 'Complete required fields to continue'}
+            </p>
+            <p className="text-sm text-gray-600">
+              {filledRequired === requiredFields.length
+                ? 'Your personal information is ready'
+                : `${requiredFields.length - filledRequired} more required ${requiredFields.length - filledRequired === 1 ? 'field' : 'fields'} to go`
+              }
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleAIEnhance}
+          disabled={isEnhancing}
+          className="group relative px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity" />
+
+          <div className="flex items-center gap-2 relative">
+            {isEnhancing ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Sparkles className="w-5 h-5" />
+            )}
+            <span className="font-medium">
+              {isEnhancing ? 'Enhancing...' : 'Enhance with AI'}
+            </span>
+          </div>
+        </button>
+      </motion.div>
+    </motion.div>
+  );
 };
 
 export default PersonalInfoPage;

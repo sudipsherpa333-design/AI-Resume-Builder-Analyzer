@@ -1,10 +1,13 @@
-// src/pages/Home.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, useAnimation } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
+
+// Components
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+
+// Icons
 import {
     FaBolt,
     FaChartBar,
@@ -12,27 +15,19 @@ import {
     FaPalette,
     FaRocket,
     FaBriefcase,
-    FaMoneyBillWave,
-    FaStar,
     FaArrowRight,
     FaChevronDown,
     FaPlayCircle,
     FaShieldAlt,
-    FaCloudDownload,
     FaMobileAlt,
-    FaDesktop
+    FaDesktop,
+    FaFileDownload,
+    FaStar,
+    FaGoogle
 } from "react-icons/fa";
-import {
-    FcGoogle,
-    FcIdea,
-    FcStatistics,
-    FcFeedback,
-    FcCollaboration,
-    FcLike
-} from "react-icons/fc";
 
 const Home = () => {
-    const { isAuthenticated, user, isLoading } = useAuth();
+    const { isAuthenticated, isLoading } = useAuth();
     const navigate = useNavigate();
     const controls = useAnimation();
     const [activeFeature, setActiveFeature] = useState(0);
@@ -59,7 +54,7 @@ const Home = () => {
                     }
                     setStats(prev => ({
                         ...prev,
-                        [key]: Math.floor(current)
+                        [key]: key === 'rating' ? parseFloat(current.toFixed(1)) : Math.floor(current)
                     }));
                 }, duration / steps);
             };
@@ -101,28 +96,28 @@ const Home = () => {
         {
             icon: <FaBolt className="text-3xl" />,
             title: "AI-Powered Builder",
-            description: "Craft stunning professional resumes instantly with smart AI suggestions and real-time formatting.",
+            description: "Instantly craft professional resumes with AI advice and real-time formatting.",
             color: "from-blue-500 to-cyan-500",
             highlights: ["Smart Suggestions", "Real-time Formatting", "Auto-correction"]
         },
         {
             icon: <FaChartBar className="text-3xl" />,
             title: "Deep Resume Analysis",
-            description: "Get detailed improvement insights, keyword optimization, and ATS compatibility scoring.",
+            description: "Gain insights, keyword optimization and ATS compatibility scoring.",
             color: "from-purple-500 to-pink-500",
             highlights: ["ATS Scoring", "Keyword Analysis", "Improvement Tips"]
         },
         {
             icon: <FaCheckCircle className="text-3xl" />,
             title: "ATS Optimized",
-            description: "Maximize your resume's success rate with built-in Applicant Tracking System compatibility.",
+            description: "Maximize your success rate with Applicant Tracking System optimization.",
             color: "from-green-500 to-emerald-500",
             highlights: ["100% ATS Friendly", "Formatting Guide", "Industry Standards"]
         },
         {
             icon: <FaPalette className="text-3xl" />,
-            title: "Premium Templates",
-            description: "Choose from dozens of modern, professional templates designed by career experts.",
+            title: "Modern Templates",
+            description: "Dozens of stylish templates designed by career experts for all roles.",
             color: "from-orange-500 to-red-500",
             highlights: ["50+ Templates", "Customizable", "Mobile Friendly"]
         }
@@ -131,45 +126,15 @@ const Home = () => {
     const benefits = [
         {
             icon: <FaRocket className="text-4xl" />,
-            title: "3x Faster",
-            description: "Create professional resumes in minutes instead of hours",
+            title: "Create Faster",
+            description: "Build eye-catching professional resumes in just minutes.",
             metric: "Save 5+ hours/week"
         },
         {
             icon: <FaBriefcase className="text-4xl" />,
-            title: "More Interviews",
-            description: "Get 40% more interview calls with optimized resumes",
+            title: "Get More Interviews",
+            description: "Boost your interview calls with optimized resumes.",
             metric: "+40% Response Rate"
-        },
-        {
-            icon: <FaMoneyBillWave className="text-4xl" />,
-            title: "Higher Salary",
-            description: "Negotiate better offers with compelling resume presentation",
-            metric: "15-25% Higher Offers"
-        }
-    ];
-
-    const testimonials = [
-        {
-            name: "Sarah Johnson",
-            role: "Software Engineer at Google",
-            content: "I landed my dream job at Google thanks to ResumeCraft! The AI suggestions were spot-on and helped me highlight the right skills.",
-            rating: 5,
-            avatar: "SG"
-        },
-        {
-            name: "Michael Chen",
-            role: "Marketing Director at HubSpot",
-            content: "The ATS optimization feature is a game-changer. Got 3x more interview calls after optimizing my resume!",
-            rating: 5,
-            avatar: "MC"
-        },
-        {
-            name: "David Miller",
-            role: "Product Manager at Airbnb",
-            content: "From career change to job offer in 2 weeks. Best investment in my career! The templates are beautiful and professional.",
-            rating: 5,
-            avatar: "DM"
         }
     ];
 
@@ -177,33 +142,28 @@ const Home = () => {
         {
             icon: <FaShieldAlt className="text-2xl" />,
             title: "Secure & Private",
-            description: "Your data is encrypted and never shared with third parties"
+            description: "Your data is encrypted and stays with you."
         },
         {
-            icon: <FaCloudDownload className="text-2xl" />,
+            icon: <FaFileDownload className="text-2xl" />,
             title: "Instant Downloads",
-            description: "Download in PDF, Word, or plain text formats instantly"
+            description: "Download PDF, Word, or plain text instantly."
         },
         {
             icon: <FaMobileAlt className="text-2xl" />,
             title: "Mobile Friendly",
-            description: "Create and edit resumes on any device, anywhere"
+            description: "Create and edit on any device, anywhere."
         },
         {
             icon: <FaDesktop className="text-2xl" />,
             title: "Auto-sync",
-            description: "Your progress is saved automatically across devices"
+            description: "Your progress stays in sync across devices."
         }
     ];
 
     const containerVariants = {
         hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: {
-                staggerChildren: 0.1
-            }
-        }
+        visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
     };
 
     const itemVariants = {
@@ -211,29 +171,18 @@ const Home = () => {
         visible: {
             opacity: 1,
             y: 0,
-            transition: {
-                duration: 0.6,
-                ease: "easeOut"
-            }
+            transition: { duration: 0.6, ease: "easeOut" }
         }
     };
 
     const fadeInUp = {
         hidden: { opacity: 0, y: 30 },
-        visible: {
-            opacity: 1,
-            y: 0,
-            transition: { duration: 0.6 }
-        }
+        visible: { opacity: 1, y: 0, transition: { duration: 0.6 } }
     };
 
     const scaleIn = {
         hidden: { opacity: 0, scale: 0.8 },
-        visible: {
-            opacity: 1,
-            scale: 1,
-            transition: { duration: 0.5 }
-        }
+        visible: { opacity: 1, scale: 1, transition: { duration: 0.5 } }
     };
 
     if (isLoading) {
@@ -272,6 +221,31 @@ const Home = () => {
         }
     };
 
+    // Simple icon components for missing ones
+    const FcIdea = () => (
+        <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+        </svg>
+    );
+
+    const FcStatistics = () => (
+        <svg className="w-12 h-12 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H5zm9 4a1 1 0 10-2 0v6a1 1 0 102 0V7zm-3 2a1 1 0 10-2 0v4a1 1 0 102 0V9zm-3 3a1 1 0 10-2 0v1a1 1 0 102 0v-1z" clipRule="evenodd" />
+        </svg>
+    );
+
+    const FcCollaboration = () => (
+        <svg className="w-12 h-12 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+        </svg>
+    );
+
+    const FcLike = () => (
+        <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+        </svg>
+    );
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden relative">
             {/* Background Elements */}
@@ -302,8 +276,8 @@ const Home = () => {
                             variants={itemVariants}
                             className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full text-white text-sm font-semibold mb-8"
                         >
-                            <FcIdea className="mr-2" />
-                            Trusted by 10,000+ professionals
+                            <FcIdea />
+                            <span className="ml-2">Trusted by 10,000+ professionals</span>
                         </motion.div>
 
                         {/* Main Headline */}
@@ -363,11 +337,11 @@ const Home = () => {
                         >
                             <div className="flex items-center gap-2">
                                 <FaStar className="text-yellow-500" />
-                                <span className="font-semibold">4.8/5 Rating</span>
+                                <span className="font-semibold">4.8/5 Rated</span>
                             </div>
                             <div className="hidden sm:block w-px h-6 bg-gray-300"></div>
                             <div className="flex items-center gap-2">
-                                <FcGoogle />
+                                <FaGoogle className="text-blue-500" />
                                 <span className="font-semibold">Google Sign-in</span>
                             </div>
                             <div className="hidden sm:block w-px h-6 bg-gray-300"></div>
@@ -470,19 +444,15 @@ const Home = () => {
                                     onClick={() => setActiveFeature(index)}
                                 >
                                     <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-5 transition-opacity duration-500 rounded-2xl`}></div>
-
                                     <div className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${feature.color} text-white mb-4 group-hover:scale-110 transition-transform duration-300`}>
                                         {feature.icon}
                                     </div>
-
                                     <h3 className="text-xl font-bold text-gray-900 mb-2">
                                         {feature.title}
                                     </h3>
-
                                     <p className="text-gray-600 mb-4 text-sm md:text-base">
                                         {feature.description}
                                     </p>
-
                                     <div className="flex flex-wrap gap-2">
                                         {feature.highlights.map((highlight, i) => (
                                             <span key={i} className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-medium">
@@ -514,26 +484,22 @@ const Home = () => {
                                         {features[activeFeature].description}
                                     </p>
                                 </div>
-
-                                {/* Feature Preview Image */}
                                 <div className="relative h-64 bg-gradient-to-br from-white to-gray-100 rounded-2xl overflow-hidden border border-gray-200">
                                     <div className="absolute inset-0 flex items-center justify-center">
                                         <div className="text-center">
-                                            <FcStatistics className="text-6xl mb-4 mx-auto" />
-                                            <p className="text-gray-500 font-medium">Live Preview</p>
+                                            <FcStatistics />
+                                            <p className="text-gray-500 font-medium mt-4">Live Preview</p>
                                         </div>
                                     </div>
                                 </div>
-
-                                {/* Feature Indicator Dots */}
                                 <div className="flex justify-center gap-2 mt-6">
                                     {features.map((_, index) => (
                                         <button
                                             key={index}
                                             onClick={() => setActiveFeature(index)}
                                             className={`w-2 h-2 rounded-full transition-all ${activeFeature === index
-                                                    ? 'w-8 bg-gradient-to-r from-blue-500 to-purple-500'
-                                                    : 'bg-gray-300 hover:bg-gray-400'
+                                                ? 'w-8 bg-gradient-to-r from-blue-500 to-purple-500'
+                                                : 'bg-gray-300 hover:bg-gray-400'
                                                 }`}
                                         />
                                     ))}
@@ -546,7 +512,7 @@ const Home = () => {
 
             {/* Benefits Section */}
             <section className="py-16 md:py-24 px-4 sm:px-6 lg:px-8">
-                <div className="max-w-7xl mx-auto">
+                <div className="max-w-5xl mx-auto">
                     <motion.div
                         variants={fadeInUp}
                         initial="hidden"
@@ -555,14 +521,14 @@ const Home = () => {
                         className="text-center mb-12 md:mb-16"
                     >
                         <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-                            Why Professionals Choose
+                            Why ResumeCraft?
                             <span className="block bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                                ResumeCraft
+                                Effortless. Effective. Elegant.
                             </span>
                         </h2>
                     </motion.div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         {benefits.map((benefit, index) => (
                             <motion.div
                                 key={index}
@@ -584,58 +550,6 @@ const Home = () => {
                                 </p>
                                 <div className="inline-flex items-center px-4 py-2 bg-blue-50 text-blue-600 rounded-full font-semibold">
                                     {benefit.metric}
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* Testimonials */}
-            <section className="py-16 md:py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-gray-50 to-white">
-                <div className="max-w-7xl mx-auto">
-                    <motion.div
-                        variants={fadeInUp}
-                        initial="hidden"
-                        whileInView="visible"
-                        viewport={{ once: true }}
-                        className="text-center mb-12 md:mb-16"
-                    >
-                        <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-                            Loved by
-                            <span className="block bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                                Job Seekers Worldwide
-                            </span>
-                        </h2>
-                    </motion.div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-                        {testimonials.map((testimonial, index) => (
-                            <motion.div
-                                key={index}
-                                variants={fadeInUp}
-                                initial="hidden"
-                                whileInView="visible"
-                                viewport={{ once: true }}
-                                transition={{ delay: index * 0.1 }}
-                                className="bg-white p-6 md:p-8 rounded-3xl shadow-lg border border-gray-100"
-                            >
-                                <div className="flex items-center gap-1 mb-4">
-                                    {[...Array(5)].map((_, i) => (
-                                        <FaStar key={i} className="text-yellow-500" />
-                                    ))}
-                                </div>
-                                <p className="text-gray-700 italic mb-6">
-                                    "{testimonial.content}"
-                                </p>
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-400 to-purple-400 flex items-center justify-center text-white font-bold">
-                                        {testimonial.avatar}
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold text-gray-900">{testimonial.name}</div>
-                                        <div className="text-sm text-gray-600">{testimonial.role}</div>
-                                    </div>
                                 </div>
                             </motion.div>
                         ))}
@@ -685,12 +599,12 @@ const Home = () => {
                         className="text-center"
                     >
                         <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl p-8 md:p-12 text-white shadow-2xl">
-                            <FcCollaboration className="text-5xl mx-auto mb-6" />
-                            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                            <FcCollaboration />
+                            <h2 className="text-3xl md:text-4xl font-bold mb-4 mt-6">
                                 Ready to Transform Your Career?
                             </h2>
                             <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-                                Join thousands of professionals who landed their dream jobs with our AI-powered resume builder.
+                                Join thousands who achieved their career goals with our AI-powered builder.
                             </p>
                             <div className="flex flex-col sm:flex-row gap-4 justify-center">
                                 <button
@@ -708,9 +622,11 @@ const Home = () => {
                                     </Link>
                                 )}
                             </div>
-                            <p className="mt-8 text-blue-200 text-sm">
-                                <FcLike className="inline mr-2" />
-                                No credit card required • Free forever plan available • 30-day money-back guarantee
+                            <p className="mt-8 text-blue-200 text-sm flex items-center justify-center">
+                                <FcLike />
+                                <span className="ml-2">
+                                    No credit card required • Free to start • Cancel any time
+                                </span>
                             </p>
                         </div>
                     </motion.div>

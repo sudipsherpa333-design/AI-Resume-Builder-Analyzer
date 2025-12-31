@@ -1,7 +1,18 @@
+# node
 node_modules/
 dist/
+frontend/dist/
+
+# env
 .env
 .env.local
-.vscode/
-.idea/
-*.log
+
+# python
+__pycache__/
+*.pyc
+
+# build
+coverage/
+
+# misc
+.DS_Store

@@ -1,16 +1,15 @@
-/* Tailwind CSS Directives - ADD THESE AT THE TOP */
+/* src/index.css */
+/* Add these at the VERY TOP of the file */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* OR use the standard directives (both work) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Your existing custom CSS below */
-/* Reset and base styles */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
+/* Your custom CSS below */
 :root {
   --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   --secondary-color: #64748b;

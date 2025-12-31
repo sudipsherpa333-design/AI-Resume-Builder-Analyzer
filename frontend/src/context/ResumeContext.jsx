@@ -1,354 +1,486 @@
 // src/context/ResumeContext.jsx
-import React, { createContext, useState, useContext, useCallback } from 'react';
-import toast from 'react-hot-toast';
+import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 
-const ResumeContext = createContext({});
+const ResumeContext = createContext();
 
 export const useResume = () => useContext(ResumeContext);
 
 export const ResumeProvider = ({ children }) => {
-    const [resumes, setResumes] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+  // Main resume data structure
+  const [currentResume, setCurrentResume] = useState({
+    id: 'resume-1',
+    title: 'My Professional Resume',
+    template: 'modern',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    metadata: {
+      aiEnhancements: 0,
+      atsScore: 85,
+      completeness: 0,
+      lastAnalyzed: null,
+      version: 1
+    },
+    data: {
+      personalInfo: {
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        location: '',
+        title: '',
+        website: '',
+        linkedin: '',
+        github: '',
+        photo: null,
+        summary: ''
+      },
+      summary: {
+        content: '',
+        aiEnhanced: false,
+        tone: 'professional',
+        keywords: []
+      },
+      experience: [],
+      education: [],
+      skills: [],
+      projects: [],
+      certifications: [],
+      languages: [],
+      references: []
+    }
+  });
 
-    // Mock data for development
-    const mockResumes = [
-        {
-            id: '1',
-            title: 'Software Engineer Resume',
-            template: 'modern',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            content: {
-                personalInfo: {
-                    firstName: 'John',
-                    lastName: 'Doe',
-                    email: 'john.doe@example.com'
-                },
-                summary: 'Experienced software engineer with 5+ years in full-stack development.',
-                experience: [
-                    { title: 'Senior Developer', company: 'Tech Corp', duration: '2020-Present' }
-                ],
-                education: [
-                    { degree: 'BSc Computer Science', university: 'State University', year: '2019' }
-                ],
-                skills: ['JavaScript', 'React', 'Node.js', 'Python'],
-                projects: [
-                    { name: 'E-commerce Platform', description: 'Built a full-stack e-commerce solution' }
-                ],
-                certifications: [
-                    { name: 'AWS Certified Developer', issuer: 'Amazon' }
-                ]
-            }
-        },
-        {
-            id: '2',
-            title: 'Marketing Manager Resume',
-            template: 'professional',
-            createdAt: new Date(Date.now() - 86400000).toISOString(), // Yesterday
-            updatedAt: new Date(Date.now() - 86400000).toISOString(),
-            content: {
-                personalInfo: {
-                    firstName: 'Jane',
-                    lastName: 'Smith',
-                    email: 'jane.smith@example.com'
-                },
-                summary: 'Marketing professional with expertise in digital marketing strategies.',
-                experience: [
-                    { title: 'Marketing Manager', company: 'Digital Agency', duration: '2018-2020' }
-                ],
-                education: [
-                    { degree: 'MBA Marketing', university: 'Business School', year: '2017' }
-                ],
-                skills: ['SEO', 'Social Media', 'Content Strategy', 'Analytics'],
-                projects: [],
-                certifications: []
-            }
+  // UI states
+  const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
+  const [isLoading, setIsLoading] = useState(false);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const [lastSaveTime, setLastSaveTime] = useState(null);
+  const [resumeStats, setResumeStats] = useState({
+    wordCount: 0,
+    characterCount: 0,
+    sectionCount: 0,
+    completeness: 0
+  });
+
+  // Calculate resume statistics
+  const calculateStatistics = useCallback((resumeData) => {
+    let wordCount = 0;
+    let characterCount = 0;
+    let completedSections = 0;
+    const totalRequiredSections = 5; // personalInfo, summary, experience, education, skills
+
+    // Calculate word and character counts
+    Object.values(resumeData.data).forEach(section => {
+      if (typeof section === 'object' && section !== null) {
+        if (Array.isArray(section)) {
+          section.forEach(item => {
+            const text = JSON.stringify(item);
+            characterCount += text.length;
+            wordCount += text.split(/\s+/).filter(w => w.length > 0).length;
+          });
+        } else {
+          const text = JSON.stringify(section);
+          characterCount += text.length;
+          wordCount += text.split(/\s+/).filter(w => w.length > 0).length;
         }
+      }
+    });
+
+    // Calculate section completeness
+    const requiredSections = ['personalInfo', 'summary', 'experience', 'education', 'skills'];
+    completedSections = requiredSections.filter(sectionId => {
+      const section = resumeData.data[sectionId];
+      return isSectionComplete(sectionId, section);
+    }).length;
+
+    const completeness = Math.round((completedSections / totalRequiredSections) * 100);
+
+    // Calculate ATS score (simplified version)
+    const atsScore = calculateATSScore(resumeData.data);
+
+    return {
+      wordCount,
+      characterCount,
+      sectionCount: completedSections,
+      completeness,
+      atsScore
+    };
+  }, []);
+
+  // Check if a section is complete
+  const isSectionComplete = useCallback((sectionId, sectionData = currentResume.data[sectionId]) => {
+    const requiredFields = {
+      personalInfo: ['firstName', 'lastName', 'email', 'phone', 'title'],
+      summary: ['content'],
+      experience: (data) => Array.isArray(data) && data.length > 0 &&
+        data.every(exp => exp.company && exp.position && exp.startDate),
+      education: (data) => Array.isArray(data) && data.length > 0 &&
+        data.every(edu => edu.school && edu.degree && edu.startDate),
+      skills: (data) => Array.isArray(data) && data.length > 0,
+      projects: (data) => Array.isArray(data) && data.length > 0,
+      certifications: () => true, // Optional
+      languages: () => true, // Optional
+      references: () => true  // Optional
+    };
+
+    const validator = requiredFields[sectionId];
+
+    if (typeof validator === 'function') {
+      return validator(sectionData);
+    } else if (Array.isArray(validator)) {
+      return validator.every(field => sectionData[field] && sectionData[field].trim().length > 0);
+    }
+
+    return false;
+  }, [currentResume]);
+
+  // Calculate ATS score
+  const calculateATSScore = useCallback((data) => {
+    let score = 60; // Base score
+
+    // Keywords analysis
+    const keywords = [
+      // Technical skills
+      'javascript', 'react', 'node', 'python', 'java', 'sql', 'aws', 'docker', 'kubernetes',
+      // Action verbs
+      'developed', 'implemented', 'managed', 'led', 'created', 'improved', 'optimized',
+      // Soft skills
+      'communication', 'leadership', 'teamwork', 'problem-solving', 'adaptability',
+      // Quantifiers
+      'increased', 'decreased', 'reduced', 'improved', 'achieved'
     ];
 
-    const fetchResumes = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const token = localStorage.getItem('token');
+    const content = JSON.stringify(data).toLowerCase();
+    const foundKeywords = keywords.filter(keyword => content.includes(keyword));
 
-            // If no token, use mock data
-            if (!token) {
-                console.log('No token found, using mock data');
-                setResumes(mockResumes);
-                return mockResumes;
-            }
+    // Add points for found keywords (max 20 points)
+    score += Math.min(foundKeywords.length * 2, 20);
 
-            const response = await fetch('/api/resumes', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+    // Check for metrics (numbers, percentages, etc.)
+    const hasMetrics = /\d+%|\$\d+|\d+\+|\d+x/.test(content);
+    if (hasMetrics) score += 10;
 
-            // Check if response is JSON
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                // Server returned HTML/error page, use mock data
-                console.warn('Server returned non-JSON response, using mock data');
-                setResumes(mockResumes);
-                return mockResumes;
-            }
+    // Check for proper formatting
+    const hasBulletPoints = content.includes('•') || content.includes('-');
+    if (hasBulletPoints) score += 5;
 
-            if (!response.ok) {
-                throw new Error(`Server error: ${response.status}`);
-            }
+    // Check for action verbs at beginning
+    const actionVerbs = /(developed|created|implemented|managed|led|improved)\s/.test(content);
+    if (actionVerbs) score += 5;
 
-            const data = await response.json();
+    return Math.min(score, 100);
+  }, []);
 
-            // Validate response structure
-            if (!data || !Array.isArray(data.resumes)) {
-                console.warn('Invalid response structure, using mock data');
-                setResumes(mockResumes);
-                return mockResumes;
-            }
-
-            setResumes(data.resumes || []);
-            return data.resumes || [];
-        } catch (err) {
-            console.warn('Error fetching resumes, using mock data:', err.message);
-            // Use mock data as fallback
-            setResumes(mockResumes);
-            return mockResumes;
-        } finally {
-            setLoading(false);
+  // Update section data
+  const updateSection = useCallback((sectionId, data) => {
+    setCurrentResume(prev => {
+      const updated = {
+        ...prev,
+        updatedAt: new Date().toISOString(),
+        metadata: {
+          ...prev.metadata,
+          version: prev.metadata.version + 1
+        },
+        data: {
+          ...prev.data,
+          [sectionId]: Array.isArray(prev.data[sectionId]) && Array.isArray(data)
+            ? data
+            : { ...prev.data[sectionId], ...data }
         }
-    }, []);
+      };
 
-    const createResume = async (resumeData) => {
-        try {
-            // For now, create mock resume
-            const newResume = {
-                id: Date.now().toString(),
-                title: resumeData.title || 'New Resume',
-                template: resumeData.template || 'modern',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                content: {
-                    personalInfo: {},
-                    summary: '',
-                    experience: [],
-                    education: [],
-                    skills: [],
-                    projects: [],
-                    certifications: []
-                }
-            };
+      // Update statistics
+      setResumeStats(calculateStatistics(updated));
 
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 500));
+      return updated;
+    });
 
-            setResumes(prev => [newResume, ...prev]);
-            toast.success('Resume created successfully!');
-            return newResume;
-        } catch (err) {
-            toast.error('Failed to create resume');
-            throw err;
+    // Trigger auto-save if enabled
+    if (autoSaveEnabled) {
+      debouncedSave();
+    }
+  }, [autoSaveEnabled, calculateStatistics]);
+
+  // Enhanced AI content generation
+  const enhanceWithAI = useCallback(async (sectionId, instruction, options = {}) => {
+    setIsLoading(true);
+
+    try {
+      const sectionData = currentResume.data[sectionId];
+      const enhancedContent = await generateAIContent(sectionId, sectionData, instruction, options);
+
+      updateSection(sectionId, enhancedContent);
+
+      // Update AI enhancements count
+      setCurrentResume(prev => ({
+        ...prev,
+        metadata: {
+          ...prev.metadata,
+          aiEnhancements: (prev.metadata.aiEnhancements || 0) + 1,
+          lastAnalyzed: new Date().toISOString()
         }
+      }));
+
+      toast.success('AI enhancement applied successfully!');
+      return enhancedContent;
+    } catch (error) {
+      toast.error('Failed to apply AI enhancement');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentResume, updateSection]);
+
+  // Simulate AI content generation
+  const generateAIContent = useCallback(async (sectionId, data, instruction, options) => {
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    const generators = {
+      summary: () => ({
+        content: `Results-driven ${data.title || 'professional'} with extensive experience in delivering innovative solutions. Proven track record of leading cross-functional teams and driving business growth through strategic planning and execution. Strong analytical skills combined with excellent communication abilities.`,
+        aiEnhanced: true,
+        keywords: ['leadership', 'strategy', 'innovation', 'analytical', 'communication']
+      }),
+      experience: (data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          return data.map(exp => ({
+            ...exp,
+            description: exp.description || `• Led initiatives that increased efficiency by 30%\n• Managed budgets up to $500,000\n• Mentored 5+ team members\n• Implemented new processes that reduced costs by 25%`,
+            achievements: exp.achievements || ['Increased team productivity by 40%', 'Reduced operational costs by 25%', 'Improved customer satisfaction scores by 35%']
+          }));
+        }
+        return data;
+      },
+      skills: (data) => {
+        const enhancedSkills = [
+          'JavaScript (ES6+)',
+          'React & React Hooks',
+          'Node.js & Express',
+          'TypeScript',
+          'Python',
+          'AWS Cloud Services',
+          'Docker & Kubernetes',
+          'MongoDB & PostgreSQL',
+          'Git & CI/CD',
+          'Agile/Scrum Methodology'
+        ];
+        return Array.isArray(data) ? [...data, ...enhancedSkills.filter(s => !data.includes(s))] : enhancedSkills;
+      }
     };
 
-    const deleteResume = async (resumeId) => {
-        try {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 300));
+    const generator = generators[sectionId];
+    return generator ? generator(data) : data;
+  }, []);
 
-            setResumes(prev => prev.filter(resume => resume.id !== resumeId));
-            toast.success('Resume deleted successfully');
-        } catch (err) {
-            toast.error('Failed to delete resume');
-            throw err;
-        }
+  // Export resume in various formats
+  const exportResume = useCallback(async (format = 'pdf', options = {}) => {
+    setIsLoading(true);
+
+    try {
+      let result;
+
+      switch (format) {
+        case 'pdf':
+          result = await generatePDF(currentResume, options);
+          break;
+        case 'docx':
+          result = await generateDOCX(currentResume, options);
+          break;
+        case 'json':
+          result = {
+            data: currentResume,
+            fileName: `${currentResume.title.replace(/\s+/g, '-').toLowerCase()}.json`,
+            mimeType: 'application/json'
+          };
+          break;
+        case 'txt':
+          result = await generateText(currentResume, options);
+          break;
+        default:
+          throw new Error(`Unsupported format: ${format}`);
+      }
+
+      toast.success(`Resume exported as ${format.toUpperCase()}`);
+      return result;
+    } catch (error) {
+      toast.error(`Failed to export resume: ${error.message}`);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentResume]);
+
+  // Generate PDF (simulated)
+  const generatePDF = useCallback(async (resume, options) => {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    return {
+      blob: new Blob([JSON.stringify(resume)], { type: 'application/pdf' }),
+      fileName: `${resume.title.replace(/\s+/g, '-').toLowerCase()}.pdf`,
+      mimeType: 'application/pdf'
     };
+  }, []);
 
-    const duplicateResume = async (resumeId) => {
-        try {
-            const originalResume = resumes.find(r => r.id === resumeId);
-            if (!originalResume) {
-                throw new Error('Resume not found');
-            }
+  // Save resume to backend
+  const saveResume = useCallback(async () => {
+    if (saveStatus === 'saving') return;
 
-            const duplicatedResume = {
-                ...originalResume,
-                id: Date.now().toString(),
-                title: `${originalResume.title} (Copy)`,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
+    setSaveStatus('saving');
 
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 300));
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-            setResumes(prev => [duplicatedResume, ...prev]);
-            toast.success('Resume duplicated successfully');
-        } catch (err) {
-            toast.error('Failed to duplicate resume');
-            throw err;
-        }
-    };
+      // In a real app, you would send to your backend:
+      // await api.saveResume(currentResume);
 
-    const exportResume = async (resumeId, format = 'json') => {
-        try {
-            const resume = resumes.find(r => r.id === resumeId);
-            if (!resume) {
-                throw new Error('Resume not found');
-            }
+      setSaveStatus('saved');
+      setLastSaveTime(new Date());
 
-            // Create and download JSON file
-            const dataStr = JSON.stringify(resume, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      // Update statistics
+      setResumeStats(calculateStatistics(currentResume));
 
-            const url = window.URL.createObjectURL(dataBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `resume-${resumeId}.${format}`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
+      return { success: true, message: 'Resume saved successfully' };
+    } catch (error) {
+      setSaveStatus('error');
+      toast.error('Failed to save resume');
+      throw error;
+    }
+  }, [currentResume, saveStatus, calculateStatistics]);
 
-            toast.success('Resume exported successfully!');
-        } catch (err) {
-            toast.error('Failed to export resume');
-            throw err;
-        }
-    };
+  // Debounced save function
+  const debouncedSave = useCallback(() => {
+    const timeout = setTimeout(() => {
+      if (autoSaveEnabled) {
+        saveResume();
+      }
+    }, 2000);
 
-    const getResumeStats = async () => {
-        try {
-            // Calculate stats from local data
-            const total = resumes.length;
+    return () => clearTimeout(timeout);
+  }, [autoSaveEnabled, saveResume]);
 
-            const recent = resumes.filter(r => {
-                const date = r.updatedAt || r.createdAt;
-                if (!date) return false;
-                const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-                return new Date(date) > weekAgo;
-            }).length;
+  // Load resume from storage
+  const loadResume = useCallback(async (resumeId) => {
+    setIsLoading(true);
 
-            const completed = resumes.filter(r => {
-                const data = r.content || {};
-                return data.summary && data.summary.trim().length > 50 &&
-                    data.experience && data.experience.length > 0;
-            }).length;
+    try {
+      // Simulate loading from localStorage/backend
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-            const templates = resumes.reduce((acc, r) => {
-                const template = r.template || 'unknown';
-                acc[template] = (acc[template] || 0) + 1;
-                return acc;
-            }, {});
+      const savedResume = localStorage.getItem(`resume_${resumeId}`);
 
-            // Calculate average progress
-            const averageScore = resumes.length > 0
-                ? resumes.reduce((acc, r) => {
-                    const data = r.content || {};
-                    let completed = 0;
-                    let total = 7;
+      if (savedResume) {
+        const parsed = JSON.parse(savedResume);
+        setCurrentResume(parsed);
+        setResumeStats(calculateStatistics(parsed));
+        toast.success('Resume loaded successfully');
+      } else {
+        toast.info('No saved resume found, starting fresh');
+      }
+    } catch (error) {
+      toast.error('Failed to load resume');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [calculateStatistics]);
 
-                    if (data.personalInfo?.firstName && data.personalInfo?.email) completed++;
-                    if (data.summary && data.summary.trim().length > 50) completed++;
-                    if (data.experience && data.experience.length > 0) completed++;
-                    if (data.education && data.education.length > 0) completed++;
-                    if (data.skills && data.skills.length > 0) completed++;
-                    if (data.projects && data.projects.length > 0) completed++;
-                    if (data.certifications && data.certifications.length > 0) completed++;
+  // Reset resume to default
+  const resetResume = useCallback(() => {
+    setCurrentResume({
+      id: 'resume-' + Date.now(),
+      title: 'My Professional Resume',
+      template: 'modern',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      metadata: {
+        aiEnhancements: 0,
+        atsScore: 85,
+        completeness: 0,
+        lastAnalyzed: null,
+        version: 1
+      },
+      data: {
+        personalInfo: {
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          location: '',
+          title: '',
+          website: '',
+          linkedin: '',
+          github: '',
+          photo: null,
+          summary: ''
+        },
+        summary: { content: '', aiEnhanced: false, tone: 'professional', keywords: [] },
+        experience: [],
+        education: [],
+        skills: [],
+        projects: [],
+        certifications: [],
+        languages: [],
+        references: []
+      }
+    });
 
-                    return acc + (completed / total) * 100;
-                }, 0) / resumes.length
-                : 0;
+    toast.success('Resume reset to default');
+  }, []);
 
-            return {
-                total,
-                recent,
-                completed,
-                templates,
-                averageScore: Math.round(averageScore)
-            };
-        } catch (err) {
-            console.error('Error calculating stats:', err);
-            return {
-                total: resumes.length,
-                recent: 0,
-                completed: 0,
-                templates: {},
-                averageScore: 0
-            };
-        }
-    };
+  // Calculate completeness percentage
+  const calculateCompleteness = useCallback(() => {
+    const sections = ['personalInfo', 'summary', 'experience', 'education', 'skills'];
+    const completed = sections.filter(section => isSectionComplete(section));
+    return Math.round((completed.length / sections.length) * 100);
+  }, [isSectionComplete]);
 
-    const searchResumes = async (query, filter, sortBy) => {
-        try {
-            let filtered = [...resumes];
+  // Auto-save resume on changes
+  useEffect(() => {
+    if (autoSaveEnabled) {
+      const timeout = setTimeout(() => {
+        saveResume();
+      }, 30000); // Auto-save every 30 seconds
 
-            if (query) {
-                const lowerQuery = query.toLowerCase();
-                filtered = filtered.filter(resume => {
-                    const data = resume.content || {};
-                    return (
-                        (resume.title || '').toLowerCase().includes(lowerQuery) ||
-                        (data.personalInfo?.firstName || '').toLowerCase().includes(lowerQuery) ||
-                        (data.personalInfo?.lastName || '').toLowerCase().includes(lowerQuery) ||
-                        (data.summary || '').toLowerCase().includes(lowerQuery)
-                    );
-                });
-            }
+      return () => clearTimeout(timeout);
+    }
+  }, [currentResume, autoSaveEnabled, saveResume]);
 
-            if (filter !== 'all') {
-                filtered = filtered.filter(resume => resume.template === filter);
-            }
+  // Initialize statistics
+  useEffect(() => {
+    setResumeStats(calculateStatistics(currentResume));
+  }, [currentResume, calculateStatistics]);
 
-            // Apply sorting
-            filtered.sort((a, b) => {
-                const getDate = (resume) => {
-                    if (resume.updatedAt) return new Date(resume.updatedAt);
-                    if (resume.createdAt) return new Date(resume.createdAt);
-                    return new Date(0);
-                };
+  const value = {
+    // Data
+    currentResume,
+    saveStatus,
+    isLoading,
+    autoSaveEnabled,
+    lastSaveTime,
+    resumeStats,
 
-                switch (sortBy) {
-                    case 'title':
-                        return (a.title || '').localeCompare(b.title || '');
-                    case 'created':
-                        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-                    case 'updated':
-                    default:
-                        return getDate(b) - getDate(a);
-                }
-            });
+    // Actions
+    updateSection,
+    saveResume,
+    loadResume,
+    resetResume,
+    exportResume,
+    enhanceWithAI,
 
-            return filtered;
-        } catch (err) {
-            console.error('Search error:', err);
-            return resumes;
-        }
-    };
+    // Utilities
+    isSectionComplete,
+    calculateCompleteness,
+    setAutoSaveEnabled,
 
-    // Fetch resumes on mount
-    React.useEffect(() => {
-        fetchResumes();
-    }, [fetchResumes]);
+    // Enhanced
+    calculateStatistics,
+    generateAIContent
+  };
 
-    return (
-        <ResumeContext.Provider
-            value={{
-                resumes,
-                loading,
-                error,
-                fetchResumes,
-                createResume,
-                deleteResume,
-                duplicateResume,
-                exportResume,
-                getResumeStats,
-                searchResumes,
-                refreshResumes: fetchResumes
-            }}
-        >
-            {children}
-        </ResumeContext.Provider>
-    );
+  return (
+    <ResumeContext.Provider value={value}>
+      {children}
+    </ResumeContext.Provider>
+  );
 };

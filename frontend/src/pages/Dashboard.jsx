@@ -1,420 +1,731 @@
-// src/pages/Dashboard.jsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import axios from 'axios';
+import toast from 'react-hot-toast';
 import {
     FaPlus,
     FaFileAlt,
     FaChartLine,
     FaRocket,
-    FaLightbulb,
     FaStar,
     FaEdit,
     FaTrash,
     FaCopy,
     FaDownload,
     FaSync,
-    FaUser,
     FaBriefcase,
     FaGraduationCap,
     FaCogs,
-    FaProjectDiagram,
-    FaHistory,
-    FaCalendarAlt,
-    FaArrowRight,
     FaSearch,
     FaFilter,
     FaSort,
-    FaExclamationCircle,
     FaSpinner,
-    FaRegClock,
     FaPalette,
-    FaChevronRight,
     FaExclamationTriangle,
     FaEye,
     FaShareAlt,
-    FaMagic,
     FaRobot,
-    FaChartBar,
-    FaCrown,
     FaBolt,
     FaBrain,
     FaDatabase,
-    FaCloud,
-    FaCheckCircle
+    FaCheckCircle,
+    FaUser,
+    FaAward,
+    FaChartBar,
+    FaLightbulb,
+    FaMagic,
+    FaClipboardCheck,
+    FaThumbsUp,
+    FaExclamationCircle,
+    FaCrown,
+    FaChevronRight,
+    FaFire,
+    FaHistory,
+    FaUserTie,
+    FaMedal,
+    FaShieldAlt,
+    FaArrowUp,
+    FaClock,
+    FaTachometerAlt,
+    FaBullseye,
+    FaMicrochip,
+    FaRegClock,
+    FaProjectDiagram,
+    FaBullhorn,
+    FaCode,
+    FaNetworkWired,
+    FaChartPie,
+    FaTools,
+    FaBookOpen,
+    FaCalendarAlt,
+    FaCaretRight,
+    FaRegStar,
+    FaRegCheckCircle
 } from 'react-icons/fa';
+
 import { useAuth } from '../context/AuthContext';
-import toast from 'react-hot-toast';
+import Footer from '../components/Footer';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 const Dashboard = () => {
-    const { user } = useAuth();
+    const { user, isAuthenticated, token } = useAuth();
     const navigate = useNavigate();
 
-    // State for resumes from localStorage
+    // State management
     const [resumes, setResumes] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
         total: 0,
         recent: 0,
         completed: 0,
+        averageATS: 0,
+        bestScore: 0,
+        worstScore: 0,
+        aiAnalyzed: 0,
         templates: {},
-        averageScore: 85
+        topIndustries: {},
+        sectionCompletion: {}
     });
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState('all');
-    const [sortBy, setSortBy] = useState('updated');
-    const [searchLoading, setSearchLoading] = useState(false);
+    const [sortBy, setSortBy] = useState('score');
     const [filteredResumes, setFilteredResumes] = useState([]);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-    const [viewMode, setViewMode] = useState('grid');
-    const [dbStatus, setDbStatus] = useState('connected'); // Always connected for localStorage
+    const [activeTab, setActiveTab] = useState('all');
+    const [analyzing, setAnalyzing] = useState(false);
+    const [overallProgress, setOverallProgress] = useState(0);
+    const [trendData, setTrendData] = useState([]);
+    const [showQuickActions, setShowQuickActions] = useState(false);
 
-    // Load resumes from localStorage
-    const loadUserResumes = useCallback(() => {
-        setLoading(true);
-        try {
-            // Load from localStorage
-            const savedDraft = localStorage.getItem('resumeDraft');
-            const savedResumes = JSON.parse(localStorage.getItem('savedResumes') || '[]');
+    // Axios instance with auth token
+    const api = useMemo(() => {
+        const instance = axios.create({
+            baseURL: API_URL,
+            timeout: 10000,
+        });
 
-            let userResumes = [];
-
-            // Add draft if exists
-            if (savedDraft) {
-                try {
-                    const draft = JSON.parse(savedDraft);
-                    userResumes.push({
-                        _id: 'draft_1',
-                        title: draft.title || 'Draft Resume',
-                        template: draft.template || 'modern',
-                        updatedAt: draft.updatedAt || new Date().toISOString(),
-                        createdAt: draft.createdAt || new Date().toISOString(),
-                        data: draft.data || {},
-                        status: 'draft'
-                    });
-                } catch (e) {
-                    console.error('Error parsing draft:', e);
-                }
-            }
-
-            // Add saved resumes
-            if (Array.isArray(savedResumes)) {
-                userResumes = [...userResumes, ...savedResumes];
-            }
-
-            setResumes(userResumes);
-            setDbStatus('connected');
-
-            // Calculate stats
-            calculateStats(userResumes);
-
-            // Initial filtering
-            performClientSideSearch(userResumes, searchQuery, filter, sortBy);
-
-            console.log(`✅ Loaded ${userResumes.length} resumes from localStorage`);
-
-        } catch (err) {
-            console.error('Error loading resumes:', err);
-            setError('Failed to load resumes from storage');
-            setResumes([]);
-            setDbStatus('connected');
-            calculateStats([]);
-        } finally {
-            setLoading(false);
+        if (token) {
+            instance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         }
-    }, [searchQuery, filter, sortBy]);
 
-    // Initial load
-    useEffect(() => {
-        loadUserResumes();
-    }, [loadUserResumes]);
+        return instance;
+    }, [token]);
 
-    // Calculate statistics from resumes
-    const calculateStats = useCallback((resumesList) => {
-        const total = resumesList.length;
+    // Enhanced AI-powered ATS Score calculation
+    const calculateATSScore = useCallback((resume) => {
+        const data = resume.data || {};
+        let baseScore = 50;
 
-        const recent = resumesList.filter(resume => {
-            const date = resume.updatedAt || resume.createdAt;
-            if (!date) return false;
-            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            return new Date(date) > weekAgo;
-        }).length;
+        const industryWeights = {
+            'tech': { experience: 30, skills: 25, education: 15, projects: 20, summary: 5, personal: 5 },
+            'business': { experience: 35, skills: 15, education: 20, summary: 20, personal: 10, projects: 0 },
+            'design': { experience: 25, skills: 20, education: 15, projects: 30, summary: 5, personal: 5 },
+            'academic': { education: 35, experience: 20, skills: 15, publications: 20, summary: 5, personal: 5 },
+            'default': { experience: 25, education: 15, skills: 20, projects: 15, summary: 10, personal: 15 }
+        };
 
-        const completed = resumesList.filter(resume => {
-            const data = resume.data || {};
-            return data.summary && data.summary.trim().length > 50 &&
-                data.experience && data.experience.length > 0;
-        }).length;
+        const industry = data.personalInfo?.industry || 'default';
+        const weights = industryWeights[industry] || industryWeights.default;
 
-        const templates = {};
-        resumesList.forEach(resume => {
-            const template = resume.template || 'unknown';
-            templates[template] = (templates[template] || 0) + 1;
-        });
+        const scoreSection = (section, content, maxScore) => {
+            if (!content || (Array.isArray(content) && content.length === 0)) return 0;
 
-        // Calculate average ATS score if available
-        const scores = resumesList
-            .map(r => r.analysis?.atsScore || r.atsScore)
-            .filter(score => score && typeof score === 'number');
+            let sectionScore = 0;
 
-        const averageScore = scores.length > 0
-            ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-            : 85;
+            switch (section) {
+                case 'personalInfo':
+                    const personal = content;
+                    if (personal.firstName && personal.lastName) sectionScore += 1;
+                    if (personal.email && /\S+@\S+\.\S+/.test(personal.email)) sectionScore += 2;
+                    if (personal.phone) sectionScore += 1;
+                    if (personal.location) sectionScore += 1;
+                    if (personal.linkedin || personal.github || personal.portfolio) sectionScore += 2;
+                    if (personal.title) sectionScore += 1;
+                    if (personal.summary?.length > 50) sectionScore += 2;
+                    break;
 
-        setStats({
-            total,
-            recent,
-            completed,
-            templates,
-            averageScore
-        });
+                case 'experience':
+                    content.forEach(exp => {
+                        let expScore = 3;
+                        if (exp.position && exp.company) expScore += 2;
+                        if (exp.description?.length > 100) expScore += 3;
+                        if (exp.achievements?.length > 0) expScore += 2;
+                        if (exp.startDate && exp.endDate) expScore += 1;
+                        if (exp.technologies?.length > 0) expScore += 1;
+                        sectionScore += Math.min(expScore, 10);
+                    });
+                    break;
+
+                case 'education':
+                    content.forEach(edu => {
+                        let eduScore = 3;
+                        if (edu.degree && edu.institution) eduScore += 2;
+                        if (edu.gpa && parseFloat(edu.gpa) >= 3.0) eduScore += 2;
+                        if (edu.honors) eduScore += 1;
+                        if (edu.relevantCoursework?.length > 0) eduScore += 2;
+                        sectionScore += Math.min(eduScore, 10);
+                    });
+                    break;
+
+                case 'skills':
+                    const skillCount = content.length;
+                    if (skillCount >= 15) sectionScore = 25;
+                    else if (skillCount >= 10) sectionScore = 20;
+                    else if (skillCount >= 7) sectionScore = 15;
+                    else if (skillCount >= 5) sectionScore = 10;
+                    else if (skillCount >= 3) sectionScore = 5;
+                    break;
+
+                case 'projects':
+                    content.forEach(project => {
+                        let projScore = 3;
+                        if (project.name && project.description) projScore += 2;
+                        if (project.technologies?.length > 0) projScore += 2;
+                        if (project.link) projScore += 1;
+                        if (project.duration) projScore += 1;
+                        sectionScore += Math.min(projScore, 8);
+                    });
+                    break;
+
+                case 'summary':
+                    const summary = content;
+                    if (!summary) return 0;
+                    const wordCount = summary.split(/\s+/).length;
+                    const keywordDensity = calculateKeywordDensity(summary, industry);
+                    sectionScore = Math.min(wordCount / 10, 5) + keywordDensity * 3;
+                    break;
+            }
+
+            return Math.min(sectionScore, maxScore);
+        };
+
+        const calculateKeywordDensity = (text, industry) => {
+            const keywords = {
+                'tech': ['develop', 'engineer', 'software', 'code', 'system', 'technical', 'programming', 'database'],
+                'business': ['manage', 'lead', 'strategy', 'growth', 'revenue', 'team', 'business', 'analysis'],
+                'design': ['design', 'creative', 'user experience', 'UI/UX', 'prototype', 'visual', 'brand'],
+                'academic': ['research', 'study', 'analysis', 'publication', 'academic', 'thesis', 'methodology'],
+                'default': []
+            };
+
+            const industryKeywords = keywords[industry] || keywords.default;
+            const textLower = text.toLowerCase();
+            let keywordCount = 0;
+
+            industryKeywords.forEach(keyword => {
+                const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+                const matches = textLower.match(regex);
+                if (matches) keywordCount += matches.length;
+            });
+
+            const wordCount = text.split(/\s+/).length;
+            return wordCount > 0 ? keywordCount / wordCount : 0;
+        };
+
+        const scores = {
+            personalInfo: scoreSection('personalInfo', data.personalInfo, weights.personal || 0),
+            experience: scoreSection('experience', data.experience, weights.experience || 0),
+            education: scoreSection('education', data.education, weights.education || 0),
+            skills: scoreSection('skills', data.skills, weights.skills || 0),
+            projects: scoreSection('projects', data.projects, weights.projects || 0),
+            summary: scoreSection('summary', data.summary, weights.summary || 0)
+        };
+
+        const totalScore = Object.values(scores).reduce((sum, score) => sum + score, 0);
+        const maxPossible = Object.values(weights).reduce((sum, weight) => sum + weight, 0);
+
+        let finalScore = maxPossible > 0 ? Math.round((totalScore / maxPossible) * 100) : 0;
+
+        if (data.certifications?.length > 0) finalScore = Math.min(finalScore + 5, 100);
+        if (data.languages?.length > 1) finalScore = Math.min(finalScore + 3, 100);
+        if (data.references?.length > 0) finalScore = Math.min(finalScore + 2, 100);
+
+        const analysis = {
+            total: finalScore,
+            breakdown: scores,
+            recommendations: generateAIRecommendations(scores, weights),
+            industry: industry,
+            strengths: identifyStrengths(scores),
+            weaknesses: identifyWeaknesses(scores),
+            improvementAreas: identifyImprovementAreas(scores, weights),
+            keywords: extractKeywords(data, industry),
+            lastAnalyzed: new Date().toISOString()
+        };
+
+        return analysis;
     }, []);
 
-    // Handle search and filtering
-    useEffect(() => {
-        if (resumes.length === 0) {
-            setFilteredResumes([]);
-            return;
-        }
+    const generateAIRecommendations = useCallback((scores, weights) => {
+        const recommendations = [];
+        const threshold = 0.6;
 
-        setSearchLoading(true);
-        const results = performClientSideSearch(resumes, searchQuery, filter, sortBy);
-        setFilteredResumes(results);
-        setSearchLoading(false);
-    }, [searchQuery, filter, sortBy, resumes]);
-
-    // Client-side search function
-    const performClientSideSearch = useCallback((resumesList, query, filterType, sortType) => {
-        let filtered = [...resumesList];
-
-        // Apply text search
-        if (query) {
-            const lowerQuery = query.toLowerCase();
-            filtered = filtered.filter(resume => {
-                const data = resume.data || {};
-                const title = resume.title || '';
-                const firstName = data.personalInfo?.firstName || '';
-                const lastName = data.personalInfo?.lastName || '';
-                const summary = data.summary || '';
-
-                return (
-                    title.toLowerCase().includes(lowerQuery) ||
-                    firstName.toLowerCase().includes(lowerQuery) ||
-                    lastName.toLowerCase().includes(lowerQuery) ||
-                    summary.toLowerCase().includes(lowerQuery)
-                );
+        if (weights.experience > 0 && scores.experience / weights.experience < threshold) {
+            recommendations.push({
+                type: 'experience',
+                priority: 'high',
+                message: "Add quantifiable achievements to your work experience",
+                action: "Add metrics like 'increased efficiency by 40%' or 'managed $500K budget'"
             });
         }
 
-        // Apply template filter
-        if (filterType !== 'all') {
-            filtered = filtered.filter(resume => resume.template === filterType);
+        if (weights.skills > 0 && scores.skills / weights.skills < threshold) {
+            recommendations.push({
+                type: 'skills',
+                priority: 'medium',
+                message: "Add more technical and soft skills",
+                action: "Include 8-12 relevant skills with proficiency levels"
+            });
         }
 
-        // Apply sorting
-        filtered.sort((a, b) => {
-            const getDate = (resume) => {
-                if (resume.updatedAt) return new Date(resume.updatedAt);
-                if (resume.createdAt) return new Date(resume.createdAt);
-                return new Date(0);
-            };
+        if (weights.summary > 0 && scores.summary / weights.summary < threshold) {
+            recommendations.push({
+                type: 'summary',
+                priority: 'high',
+                message: "Enhance your professional summary",
+                action: "Write a 100-150 word summary with key achievements and career goals"
+            });
+        }
 
-            switch (sortType) {
-                case 'title':
-                    return (a.title || '').localeCompare(b.title || '');
-                case 'created':
-                    const dateA = a.createdAt;
-                    const dateB = b.createdAt;
-                    return new Date(dateB || 0) - new Date(dateA || 0);
-                case 'progress':
-                    const progressA = calculateProgress(a);
-                    const progressB = calculateProgress(b);
-                    return progressB - progressA;
-                case 'score':
-                    const scoreA = a.analysis?.atsScore || a.atsScore || 0;
-                    const scoreB = b.analysis?.atsScore || b.atsScore || 0;
-                    return scoreB - scoreA;
-                case 'updated':
-                default:
-                    return getDate(b) - getDate(a);
-            }
-        });
+        if (weights.education > 0 && scores.education / weights.education < threshold) {
+            recommendations.push({
+                type: 'education',
+                priority: 'medium',
+                message: "Add more education details",
+                action: "Include relevant coursework, projects, and honors"
+            });
+        }
 
-        return filtered;
+        if (recommendations.length === 0) {
+            recommendations.push({
+                type: 'excellent',
+                priority: 'low',
+                message: "Great job! Your resume is well-optimized",
+                action: "Consider adding certifications or publications for bonus points"
+            });
+        }
+
+        return recommendations.slice(0, 4);
     }, []);
 
-    // Calculate progress for a resume
-    const calculateProgress = (resume) => {
+    const identifyStrengths = useCallback((scores) => {
+        const strengths = [];
+        Object.entries(scores).forEach(([section, score]) => {
+            if (score > 8) {
+                strengths.push(section);
+            }
+        });
+        return strengths;
+    }, []);
+
+    const identifyWeaknesses = useCallback((scores) => {
+        const weaknesses = [];
+        Object.entries(scores).forEach(([section, score]) => {
+            if (score < 4) {
+                weaknesses.push(section);
+            }
+        });
+        return weaknesses;
+    }, []);
+
+    const identifyImprovementAreas = useCallback((scores, weights) => {
+        const improvements = [];
+        Object.entries(scores).forEach(([section, score]) => {
+            const weight = weights[section] || 0;
+            const percentage = weight > 0 ? (score / weight) * 100 : 0;
+            if (percentage < 60 && weight > 0) {
+                improvements.push({
+                    section,
+                    currentScore: score,
+                    maxPossible: weight,
+                    percentage: Math.round(percentage)
+                });
+            }
+        });
+        return improvements.sort((a, b) => a.percentage - b.percentage);
+    }, []);
+
+    const extractKeywords = useCallback((data, industry) => {
+        const keywords = new Set();
+
+        if (data.personalInfo?.title) {
+            data.personalInfo.title.toLowerCase().split(/\s+/).forEach(word => {
+                if (word.length > 3) keywords.add(word);
+            });
+        }
+
+        if (data.summary) {
+            data.summary.toLowerCase().match(/\b\w{5,}\b/g)?.forEach(word => {
+                keywords.add(word);
+            });
+        }
+
+        if (data.skills) {
+            data.skills.forEach(skill => {
+                if (skill.name) {
+                    skill.name.toLowerCase().split(/\s+/).forEach(word => {
+                        if (word.length > 2) keywords.add(word);
+                    });
+                }
+            });
+        }
+
+        return Array.from(keywords).slice(0, 15);
+    }, []);
+
+    const calculateProgress = useCallback((resume) => {
         const data = resume.data || {};
         let completed = 0;
-        let total = 7;
+        let total = 8;
 
         if (data.personalInfo?.firstName && data.personalInfo?.email) completed++;
         if (data.summary && data.summary.trim().length > 50) completed++;
         if (data.experience && data.experience.length > 0) completed++;
         if (data.education && data.education.length > 0) completed++;
-        if (data.skills && data.skills.length > 0) completed++;
+        if (data.skills && data.skills.length >= 5) completed++;
         if (data.projects && data.projects.length > 0) completed++;
         if (data.certifications && data.certifications.length > 0) completed++;
+        if (data.languages && data.languages.length > 0) completed++;
 
         return Math.round((completed / total) * 100);
-    };
+    }, []);
 
-    // Event Handlers
-    const handleBuildResume = () => {
-        navigate('/builder');
-    };
-
-    const handleDeleteResume = async (id, title) => {
-        try {
-            // Remove from local storage
-            const savedResumes = JSON.parse(localStorage.getItem('savedResumes') || '[]');
-            const updatedResumes = savedResumes.filter(resume => resume._id !== id);
-            localStorage.setItem('savedResumes', JSON.stringify(updatedResumes));
-
-            // Remove from state
-            setResumes(prev => prev.filter(resume => resume._id !== id));
-            toast.success('Resume deleted successfully');
-            setShowDeleteConfirm(null);
-
-        } catch (err) {
-            console.error('Error deleting resume:', err);
-            toast.error('Failed to delete resume');
-        }
-    };
-
-    const handleDuplicateResume = async (id, title) => {
-        try {
-            // Find the resume to duplicate
-            const resumeToDuplicate = resumes.find(r => r._id === id);
-            if (!resumeToDuplicate) {
-                toast.error('Resume not found');
-                return;
-            }
-
-            // Create duplicate
-            const duplicate = {
-                ...resumeToDuplicate,
-                _id: `resume_${Date.now()}`,
-                title: `${title} (Copy)`,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
-
-            // Save to localStorage
-            const savedResumes = JSON.parse(localStorage.getItem('savedResumes') || '[]');
-            savedResumes.push(duplicate);
-            localStorage.setItem('savedResumes', JSON.stringify(savedResumes));
-
-            // Add to state
-            setResumes(prev => [duplicate, ...prev]);
-            toast.success('Resume duplicated successfully');
-
-        } catch (err) {
-            console.error('Error duplicating resume:', err);
-            toast.error('Failed to duplicate resume');
-        }
-    };
-
-    const handleExportResume = async (id, title) => {
-        try {
-            // Find the resume
-            const resume = resumes.find(r => r._id === id);
-            if (!resume) {
-                toast.error('Resume not found');
-                return;
-            }
-
-            // Create JSON file for download
-            const dataStr = JSON.stringify(resume, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            const url = window.URL.createObjectURL(dataBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `${title || 'resume'}.json`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-
-            toast.success('Resume exported successfully!');
-        } catch (err) {
-            console.error('Error exporting resume:', err);
-            toast.error('Failed to export resume');
-        }
-    };
-
-    const handleRefresh = () => {
-        loadUserResumes();
-        toast.success('Refreshed resumes');
-    };
-
-    const handlePreviewResume = (resume) => {
-        navigate(`/preview/${resume._id}`);
-    };
-
-    const handleShareResume = (resume) => {
-        const shareUrl = `${window.location.origin}/preview/${resume._id}`;
-        navigator.clipboard.writeText(shareUrl)
-            .then(() => toast.success('Share link copied to clipboard!'))
-            .catch(() => toast.error('Failed to copy link'));
-    };
-
-    const handleAIAnalyze = (resume) => {
-        navigate(`/analyzer?resumeId=${resume._id}`);
-    };
-
-    // Helper Functions
-    const formatDate = (dateString) => {
+    const formatDate = useCallback((dateString) => {
         if (!dateString) return 'N/A';
         try {
             const date = new Date(dateString);
-            if (isNaN(date.getTime())) return 'N/A';
-
             const now = new Date();
-            const diffTime = Math.abs(now - date);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
 
             if (diffDays === 0) return 'Today';
             if (diffDays === 1) return 'Yesterday';
             if (diffDays < 7) return `${diffDays} days ago`;
-            if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
 
-            return date.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-            });
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         } catch {
             return 'N/A';
         }
-    };
+    }, []);
 
-    const getTemplateIcon = (template) => {
-        switch (template) {
-            case 'modern': return <FaRocket className="text-blue-500" />;
-            case 'classic': return <FaFileAlt className="text-amber-500" />;
-            case 'creative': return <FaPalette className="text-purple-500" />;
-            case 'professional': return <FaBriefcase className="text-emerald-500" />;
-            case 'minimal': return <FaFileAlt className="text-gray-500" />;
-            default: return <FaFileAlt className="text-gray-500" />;
+    const loadUserResumes = useCallback(async () => {
+        if (!isAuthenticated || !token) {
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const response = await api.get('/resumes');
+            const userResumes = response.data.data?.resumes || [];
+
+            const analyzedResumes = userResumes.map(resume => {
+                const analysis = calculateATSScore(resume);
+                return {
+                    ...resume,
+                    analysis,
+                    atsScore: analysis.total,
+                    progress: calculateProgress(resume),
+                    updatedAt: resume.updatedAt || resume.createdAt || new Date().toISOString()
+                };
+            });
+
+            setResumes(analyzedResumes);
+            calculateComprehensiveStats(analyzedResumes);
+            updateTrendData(analyzedResumes);
+
+            toast.success(`Loaded ${analyzedResumes.length} resumes with AI analysis`);
+
+        } catch (error) {
+            console.error('Error loading resumes:', error);
+
+            const savedResumes = JSON.parse(localStorage.getItem('savedResumes') || '[]');
+            const userResumes = savedResumes.filter(resume =>
+                resume.userId === user?.id || resume.userEmail === user?.email
+            );
+
+            const analyzedResumes = userResumes.map(resume => {
+                const analysis = calculateATSScore(resume);
+                return {
+                    ...resume,
+                    analysis,
+                    atsScore: analysis.total,
+                    progress: calculateProgress(resume),
+                    updatedAt: resume.updatedAt || resume.createdAt || new Date().toISOString()
+                };
+            });
+
+            setResumes(analyzedResumes);
+            calculateComprehensiveStats(analyzedResumes);
+            updateTrendData(analyzedResumes);
+
+            toast('Using demo data. Login for full database access.', {
+                icon: '💾',
+                duration: 3000,
+            });
+        } finally {
+            setLoading(false);
+        }
+    }, [isAuthenticated, token, user, api, calculateATSScore, calculateProgress]);
+
+    const calculateComprehensiveStats = useCallback((resumesList) => {
+        const total = resumesList.length;
+        const recent = resumesList.filter(r => {
+            const date = r.updatedAt || r.createdAt;
+            if (!date) return false;
+            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            return new Date(date) > weekAgo;
+        }).length;
+
+        const completed = resumesList.filter(r => calculateProgress(r) >= 80).length;
+        const scores = resumesList.map(r => r.analysis?.total || 0).filter(s => s > 0);
+
+        const averageATS = scores.length > 0
+            ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+            : 0;
+
+        const bestScore = scores.length > 0 ? Math.max(...scores) : 0;
+        const worstScore = scores.length > 0 ? Math.min(...scores) : 0;
+
+        const templates = {};
+        resumesList.forEach(r => {
+            const template = r.template || 'modern';
+            templates[template] = (templates[template] || 0) + 1;
+        });
+
+        const topIndustries = {};
+        resumesList.forEach(r => {
+            const industry = r.data?.personalInfo?.industry || 'general';
+            topIndustries[industry] = (topIndustries[industry] || 0) + 1;
+        });
+
+        const sectionCompletion = {
+            personalInfo: 0,
+            summary: 0,
+            experience: 0,
+            education: 0,
+            skills: 0,
+            projects: 0,
+            certifications: 0,
+            languages: 0
+        };
+
+        resumesList.forEach(r => {
+            const data = r.data || {};
+            if (data.personalInfo?.firstName && data.personalInfo?.email) sectionCompletion.personalInfo++;
+            if (data.summary?.length > 50) sectionCompletion.summary++;
+            if (data.experience?.length > 0) sectionCompletion.experience++;
+            if (data.education?.length > 0) sectionCompletion.education++;
+            if (data.skills?.length >= 5) sectionCompletion.skills++;
+            if (data.projects?.length > 0) sectionCompletion.projects++;
+            if (data.certifications?.length > 0) sectionCompletion.certifications++;
+            if (data.languages?.length > 0) sectionCompletion.languages++;
+        });
+
+        Object.keys(sectionCompletion).forEach(key => {
+            sectionCompletion[key] = total > 0
+                ? Math.round((sectionCompletion[key] / total) * 100)
+                : 0;
+        });
+
+        const overallProgress = total > 0
+            ? Math.round((completed / total) * 100)
+            : 0;
+
+        setStats({
+            total,
+            recent,
+            completed,
+            averageATS,
+            bestScore,
+            worstScore,
+            aiAnalyzed: scores.length,
+            templates,
+            topIndustries,
+            sectionCompletion,
+            overallProgress
+        });
+
+        setOverallProgress(overallProgress);
+    }, [calculateProgress]);
+
+    const updateTrendData = useCallback((resumesList) => {
+        const trend = resumesList
+            .filter(r => r.updatedAt)
+            .sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt))
+            .map((resume, index) => ({
+                date: new Date(resume.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                score: resume.analysis?.total || 0,
+                progress: calculateProgress(resume)
+            }))
+            .slice(-7);
+
+        setTrendData(trend);
+    }, [calculateProgress]);
+
+    const performClientSideSearch = useCallback(() => {
+        let filtered = [...resumes];
+
+        if (activeTab === 'drafts') {
+            filtered = filtered.filter(r => r.status === 'draft');
+        } else if (activeTab === 'completed') {
+            filtered = filtered.filter(r => calculateProgress(r) >= 80);
+        } else if (activeTab === 'needs-work') {
+            filtered = filtered.filter(r => {
+                const score = r.analysis?.total || 0;
+                return score < 70;
+            });
+        }
+
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter(r => {
+                const title = r.title || '';
+                const data = r.data || {};
+                const firstName = data.personalInfo?.firstName || '';
+                const lastName = data.personalInfo?.lastName || '';
+                const summary = data.summary || '';
+                const industry = data.personalInfo?.industry || '';
+                const keywords = r.analysis?.keywords || [];
+
+                return (
+                    title.toLowerCase().includes(query) ||
+                    firstName.toLowerCase().includes(query) ||
+                    lastName.toLowerCase().includes(query) ||
+                    summary.toLowerCase().includes(query) ||
+                    industry.toLowerCase().includes(query) ||
+                    keywords.some(kw => kw.includes(query))
+                );
+            });
+        }
+
+        if (filter !== 'all') {
+            filtered = filtered.filter(r => r.template === filter);
+        }
+
+        filtered.sort((a, b) => {
+            switch (sortBy) {
+                case 'title':
+                    return (a.title || '').localeCompare(b.title || '');
+                case 'updated':
+                    const dateA = new Date(a.updatedAt || a.createdAt || 0);
+                    const dateB = new Date(b.updatedAt || b.createdAt || 0);
+                    return dateB - dateA;
+                case 'progress':
+                    return calculateProgress(b) - calculateProgress(a);
+                case 'score':
+                default:
+                    const scoreA = a.analysis?.total || 0;
+                    const scoreB = b.analysis?.total || 0;
+                    return scoreB - scoreA;
+            }
+        });
+
+        setFilteredResumes(filtered);
+    }, [resumes, searchQuery, filter, sortBy, activeTab, calculateProgress]);
+
+    const runEnhancedAIAnalysis = async () => {
+        if (resumes.length === 0) {
+            toast.error('No resumes to analyze');
+            return;
+        }
+
+        setAnalyzing(true);
+        try {
+            toast.loading('Running enhanced AI analysis...', {
+                duration: 3000,
+                icon: '🧠'
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 2500));
+
+            const reanalyzedResumes = resumes.map(resume => {
+                const newAnalysis = calculateATSScore(resume);
+                return {
+                    ...resume,
+                    analysis: newAnalysis,
+                    atsScore: newAnalysis.total,
+                    progress: calculateProgress(resume),
+                    updatedAt: new Date().toISOString()
+                };
+            });
+
+            setResumes(reanalyzedResumes);
+            calculateComprehensiveStats(reanalyzedResumes);
+            updateTrendData(reanalyzedResumes);
+
+            try {
+                const resumeUpdates = reanalyzedResumes.map(({ _id, analysis, atsScore, updatedAt }) => ({
+                    id: _id,
+                    analysis,
+                    atsScore,
+                    updatedAt
+                }));
+
+                await api.patch('/resumes/analysis', { updates: resumeUpdates });
+            } catch (dbError) {
+                console.warn('Could not save analysis to database:', dbError);
+            }
+
+            toast.dismiss();
+            toast.success(`Enhanced analysis complete! Updated ${reanalyzedResumes.length} resumes`, {
+                icon: '✅',
+                duration: 3000,
+            });
+
+        } catch (error) {
+            console.error('AI analysis failed:', error);
+            toast.dismiss();
+            toast.error('AI analysis failed. Please try again.', {
+                icon: '❌',
+                duration: 3000,
+            });
+        } finally {
+            setAnalyzing(false);
         }
     };
 
-    const getTemplateColor = (template) => {
-        switch (template) {
-            case 'modern': return 'bg-blue-100 text-blue-600';
-            case 'classic': return 'bg-amber-100 text-amber-600';
-            case 'creative': return 'bg-purple-100 text-purple-600';
-            case 'professional': return 'bg-emerald-100 text-emerald-600';
-            case 'minimal': return 'bg-gray-100 text-gray-600';
-            default: return 'bg-gray-100 text-gray-600';
+    // UPDATED: Navigate to /build for BuilderHome
+    const handleCreateResume = () => {
+        navigate('/build', {  // Changed to /build for BuilderHome
+            state: {
+                quickStart: true,
+                suggestedTemplate: 'modern',
+                industry: user?.profile?.industry || 'tech'
+            }
+        });
+    };
+
+    // UPDATED: Navigate to /build for BuilderHome with template
+    const handleQuickTemplate = (template) => {
+        navigate('/build', {  // Changed to /build for BuilderHome
+            state: {
+                quickStart: true,
+                suggestedTemplate: template,
+                industry: user?.profile?.industry || 'tech',
+                directStart: true
+            }
+        });
+    };
+
+    const handleDeleteResume = async (resumeId) => {
+        try {
+            await api.delete(`/resumes/${resumeId}`);
+
+            const updatedResumes = resumes.filter(r => r._id !== resumeId);
+            setResumes(updatedResumes);
+            calculateComprehensiveStats(updatedResumes);
+
+            toast.success('Resume deleted successfully!');
+        } catch (error) {
+            console.error('Delete failed:', error);
+            toast.error('Failed to delete resume');
+        } finally {
+            setShowDeleteConfirm(null);
         }
     };
 
     const getScoreColor = (score) => {
-        if (!score) return 'text-gray-500';
         if (score >= 90) return 'text-emerald-500';
         if (score >= 80) return 'text-green-500';
         if (score >= 70) return 'text-yellow-500';
@@ -423,7 +734,6 @@ const Dashboard = () => {
     };
 
     const getScoreBg = (score) => {
-        if (!score) return 'bg-gray-100';
         if (score >= 90) return 'bg-emerald-500';
         if (score >= 80) return 'bg-green-500';
         if (score >= 70) return 'bg-yellow-500';
@@ -431,738 +741,488 @@ const Dashboard = () => {
         return 'bg-red-500';
     };
 
-    // Animation Variants
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: { staggerChildren: 0.1 }
+    const getPriorityColor = (priority) => {
+        switch (priority) {
+            case 'high': return 'text-red-500 bg-red-50';
+            case 'medium': return 'text-yellow-500 bg-yellow-50';
+            case 'low': return 'text-green-500 bg-green-50';
+            default: return 'text-gray-500 bg-gray-50';
         }
     };
 
-    const itemVariants = {
-        hidden: { y: 20, opacity: 0 },
-        visible: { y: 0, opacity: 1 }
-    };
-
-    const cardVariants = {
-        hidden: { scale: 0.95, opacity: 0 },
-        visible: {
-            scale: 1,
-            opacity: 1,
-            transition: { type: "spring", stiffness: 100 }
-        },
-        hover: {
-            scale: 1.03,
-            transition: { type: "spring", stiffness: 400, damping: 25 }
+    useEffect(() => {
+        if (isAuthenticated) {
+            loadUserResumes();
+        } else {
+            setLoading(false);
         }
-    };
+    }, [isAuthenticated, loadUserResumes]);
 
-    // Loading State
+    useEffect(() => {
+        if (resumes.length > 0) {
+            performClientSideSearch();
+        }
+    }, [resumes, searchQuery, filter, sortBy, activeTab, performClientSideSearch]);
+
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 flex items-center justify-center">
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="relative">
-                        <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                            className="w-20 h-20 border-4 border-indigo-200 border-t-indigo-600 rounded-full mx-auto"
-                        />
-                        <FaDatabase className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-2xl text-indigo-600" />
-                    </div>
-                    <p className="mt-6 text-slate-600 font-medium">Loading your resumes...</p>
-                    <p className="text-sm text-slate-500 mt-2">Fetching your saved resumes</p>
-                </div>
-            </div>
-        );
-    }
-
-    // Error State (simplified)
-    if (error && resumes.length === 0) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 flex items-center justify-center p-4">
-                <div className="max-w-md w-full">
-                    <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-                        <div className="p-4 bg-red-100 rounded-full inline-block mb-6">
-                            <FaExclamationCircle className="text-3xl text-red-500" />
-                        </div>
-                        <h3 className="text-2xl font-bold text-slate-900 mb-3">No Resumes Found</h3>
-                        <p className="text-slate-600 mb-6">
-                            Start by creating your first resume!
-                        </p>
-                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                            <button
-                                onClick={handleRefresh}
-                                className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition font-semibold"
-                            >
-                                <FaSync className="inline mr-2" />
-                                Refresh
-                            </button>
-                            <button
-                                onClick={handleBuildResume}
-                                className="px-6 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition font-semibold"
-                            >
-                                <FaPlus className="inline mr-2" />
-                                Create New Resume
-                            </button>
-                        </div>
-                    </div>
+                    <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                        className="w-20 h-20 border-4 border-purple-200 border-t-purple-600 rounded-full mx-auto mb-6"
+                    />
+                    <h3 className="text-2xl font-bold text-slate-800 mb-3">
+                        <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                            Loading Dashboard
+                        </span>
+                    </h3>
+                    <p className="text-slate-600">
+                        Fetching your resumes and analyzing with AI...
+                    </p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-            {/* Animated Background */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
-                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-1000" />
-            </div>
-
-            {/* Header */}
-            <motion.header
-                initial={{ y: -20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200"
-            >
-                <div className="container mx-auto px-4 py-4">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div className="flex-1">
-                            <div className="flex items-center gap-3">
-                                <motion.div
-                                    animate={{ rotate: [0, 360] }}
-                                    transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                                    className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center"
-                                >
-                                    <FaDatabase className="text-white" />
-                                </motion.div>
-                                <div>
-                                    <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                                        Your Resume Dashboard
-                                    </h1>
-                                    <div className="flex items-center gap-3 mt-1">
-                                        <p className="text-slate-600">
-                                            {user?.email || 'User Dashboard'}
-                                        </p>
-                                        <div className={`flex items-center gap-1 text-sm px-2 py-1 rounded-full bg-emerald-100 text-emerald-700`}>
-                                            <FaCheckCircle />
-                                            <span className="capitalize">local</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+            <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200 sticky top-0 z-40">
+                <div className="container mx-auto px-4 py-6">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div>
+                            <h1 className="text-3xl font-bold text-slate-900 mb-1">
+                                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                                    AI Resume Dashboard
+                                </span>
+                            </h1>
+                            <p className="text-slate-600">
+                                Manage, analyze, and optimize your resumes with AI-powered insights
+                            </p>
                         </div>
                         <div className="flex items-center gap-3">
-                            <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-slate-200">
-                                <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center">
-                                    <span className="text-white text-sm font-semibold">
-                                        {user?.name?.charAt(0) || user?.email?.charAt(0) || 'U'}
-                                    </span>
-                                </div>
-                                <div className="text-right">
-                                    <span className="text-sm font-medium text-slate-700 block">
-                                        {stats.total} resumes
-                                    </span>
-                                    <span className="text-xs text-slate-500">
-                                        Local Storage
-                                    </span>
-                                </div>
-                            </div>
+                            <button
+                                onClick={runEnhancedAIAnalysis}
+                                disabled={analyzing || resumes.length === 0}
+                                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg"
+                            >
+                                {analyzing ? (
+                                    <>
+                                        <FaSpinner className="animate-spin" />
+                                        Analyzing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <FaBrain />
+                                        Run AI Analysis
+                                    </>
+                                )}
+                            </button>
+                            <button
+                                onClick={handleCreateResume}
+                                className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg font-medium hover:from-emerald-600 hover:to-teal-700 transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
+                            >
+                                <FaPlus />
+                                New Resume
+                            </button>
                         </div>
                     </div>
                 </div>
-            </motion.header>
+            </header>
 
-            <main className="container mx-auto px-4 py-6 relative z-10">
-                {/* Stats Cards */}
-                <motion.div
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="visible"
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
-                >
-                    {[
-                        {
-                            title: "Total Resumes",
-                            value: stats.total,
-                            change: `${Math.round((stats.recent / Math.max(stats.total, 1)) * 100)}% active`,
-                            icon: <FaFileAlt className="text-2xl" />,
-                            color: "from-blue-500 to-cyan-500",
-                            bg: "bg-gradient-to-br from-blue-50 to-cyan-50",
-                            description: "Saved locally"
-                        },
-                        {
-                            title: "Completed",
-                            value: stats.completed,
-                            change: `${Math.round((stats.completed / Math.max(stats.total, 1)) * 100)}% complete`,
-                            icon: <FaChartLine className="text-2xl" />,
-                            color: "from-emerald-500 to-green-500",
-                            bg: "bg-gradient-to-br from-emerald-50 to-green-50",
-                            description: "Ready to use"
-                        },
-                        {
-                            title: "Avg. Score",
-                            value: `${stats.averageScore}%`,
-                            change: "+5% from last week",
-                            icon: <FaStar className="text-2xl" />,
-                            color: "from-amber-500 to-orange-500",
-                            bg: "bg-gradient-to-br from-amber-50 to-orange-50",
-                            description: "ATS optimization"
-                        },
-                        {
-                            title: "Recent Activity",
-                            value: stats.recent,
-                            change: "Last 7 days",
-                            icon: <FaBolt className="text-2xl" />,
-                            color: "from-purple-500 to-pink-500",
-                            bg: "bg-gradient-to-br from-purple-50 to-pink-50",
-                            description: "Updated resumes"
-                        }
-                    ].map((stat, index) => (
-                        <motion.div
-                            key={index}
-                            variants={itemVariants}
-                            whileHover={{ y: -5 }}
-                            className={`${stat.bg} rounded-2xl p-6 border border-white shadow-sm hover:shadow-lg transition-all duration-300`}
-                        >
-                            <div className="flex items-center justify-between mb-4">
-                                <div className={`p-3 rounded-xl bg-gradient-to-r ${stat.color} bg-opacity-10`}>
-                                    <div className={`text-gradient bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`}>
-                                        {stat.icon}
-                                    </div>
-                                </div>
-                                <span className="text-xs font-medium text-slate-600 bg-white px-2 py-1 rounded-full">
-                                    {stat.change}
-                                </span>
-                            </div>
-                            <h3 className="text-3xl font-bold text-slate-900 mb-1">{stat.value}</h3>
-                            <p className="text-slate-900 font-medium mb-1">{stat.title}</p>
-                            <p className="text-slate-600 text-sm">{stat.description}</p>
-                        </motion.div>
-                    ))}
-                </motion.div>
-
-                {/* Quick Actions */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="mb-8"
-                >
-                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-6 shadow-lg">
-                        <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
-                            <div className="flex-1">
-                                <h2 className="text-2xl font-bold text-white mb-2">Manage Your Resumes</h2>
-                                <p className="text-indigo-100 mb-6">
-                                    {stats.total > 0
-                                        ? `You have ${stats.total} saved resumes. Create new ones or enhance existing ones.`
-                                        : 'Start building your professional resume collection.'}
-                                </p>
-                                <div className="flex flex-wrap gap-3">
-                                    <motion.button
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
-                                        onClick={handleBuildResume}
-                                        className="px-6 py-3 bg-white text-indigo-600 rounded-xl hover:bg-indigo-50 transition font-semibold flex items-center gap-2 group"
-                                    >
-                                        <FaPlus />
-                                        {stats.total === 0 ? 'Create First Resume' : 'Create New Resume'}
-                                        <FaChevronRight className="text-sm group-hover:translate-x-1 transition-transform" />
-                                    </motion.button>
-
-                                    {stats.total > 0 && (
-                                        <>
-                                            <motion.button
-                                                whileHover={{ scale: 1.05 }}
-                                                whileTap={{ scale: 0.95 }}
-                                                onClick={() => navigate('/analyzer')}
-                                                className="px-6 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition font-semibold flex items-center gap-2"
-                                            >
-                                                <FaRobot />
-                                                AI Analyze All
-                                            </motion.button>
-
-                                            <motion.button
-                                                whileHover={{ scale: 1.05 }}
-                                                whileTap={{ scale: 0.95 }}
-                                                onClick={() => navigate('/templates')}
-                                                className="px-6 py-3 bg-transparent border-2 border-white text-white rounded-xl hover:bg-white/10 transition font-semibold flex items-center gap-2"
-                                            >
-                                                <FaPalette />
-                                                Browse Templates
-                                            </motion.button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="hidden lg:block">
-                                <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm">
-                                    <FaDatabase className="text-4xl text-white" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </motion.div>
-
-                {/* Search and Filter Bar - Only show if we have resumes */}
-                {stats.total > 0 && (
+            <main className="container mx-auto px-4 py-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="mb-8"
+                        transition={{ duration: 0.3 }}
+                        className="bg-white rounded-2xl p-6 shadow-lg border border-slate-100"
                     >
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-                            <div className="flex flex-col lg:flex-row gap-4">
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                                        <input
-                                            type="text"
-                                            placeholder="Search your resumes by title, name, or keywords..."
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-slate-50"
-                                        />
-                                        {searchLoading && (
-                                            <FaSpinner className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 animate-spin" />
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-wrap gap-3">
-                                    <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-1">
-                                        <button
-                                            onClick={() => setViewMode('grid')}
-                                            className={`px-4 py-2 rounded-lg transition ${viewMode === 'grid' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-600'}`}
-                                        >
-                                            Grid
-                                        </button>
-                                        <button
-                                            onClick={() => setViewMode('list')}
-                                            className={`px-4 py-2 rounded-lg transition ${viewMode === 'list' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-600'}`}
-                                        >
-                                            List
-                                        </button>
-                                    </div>
-
-                                    <div className="relative">
-                                        <select
-                                            value={filter}
-                                            onChange={(e) => setFilter(e.target.value)}
-                                            className="appearance-none pl-10 pr-8 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white cursor-pointer min-w-[160px]"
-                                        >
-                                            <option value="all">All Templates</option>
-                                            <option value="modern">Modern</option>
-                                            <option value="classic">Classic</option>
-                                            <option value="creative">Creative</option>
-                                            <option value="professional">Professional</option>
-                                            <option value="minimal">Minimal</option>
-                                        </select>
-                                        <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                                    </div>
-
-                                    <div className="relative">
-                                        <select
-                                            value={sortBy}
-                                            onChange={(e) => setSortBy(e.target.value)}
-                                            className="appearance-none pl-10 pr-8 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white cursor-pointer min-w-[160px]"
-                                        >
-                                            <option value="updated">Recently Updated</option>
-                                            <option value="created">Date Created</option>
-                                            <option value="title">Title (A-Z)</option>
-                                            <option value="progress">Progress</option>
-                                            <option value="score">ATS Score</option>
-                                        </select>
-                                        <FaSort className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                                    </div>
-                                </div>
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <p className="text-slate-500 text-sm font-medium">Total Resumes</p>
+                                <h3 className="text-3xl font-bold text-slate-900 mt-1">{stats.total}</h3>
                             </div>
-                            <div className="mt-4 pt-4 border-t border-slate-200">
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-slate-600">
-                                        Showing {filteredResumes.length} of {stats.total} resumes
-                                    </span>
-                                    <span className="text-slate-600">
-                                        Storage: Local
-                                    </span>
-                                </div>
+                            <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                                <FaFileAlt className="w-6 h-6 text-blue-600" />
                             </div>
                         </div>
+                        <div className="flex items-center text-sm text-slate-600">
+                            <FaRegClock className="w-4 h-4 mr-1" />
+                            <span>{stats.recent} updated this week</span>
+                        </div>
                     </motion.div>
+
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.1 }}
+                        className="bg-white rounded-2xl p-6 shadow-lg border border-slate-100"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <p className="text-slate-500 text-sm font-medium">Avg. ATS Score</p>
+                                <h3 className={`text-3xl font-bold ${getScoreColor(stats.averageATS)} mt-1`}>
+                                    {stats.averageATS}/100
+                                </h3>
+                            </div>
+                            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                                <FaChartLine className="w-6 h-6 text-purple-600" />
+                            </div>
+                        </div>
+                        <div className="flex items-center text-sm text-slate-600">
+                            <FaMedal className="w-4 h-4 mr-1 text-yellow-500" />
+                            <span>Best: {stats.bestScore}/100</span>
+                        </div>
+                    </motion.div>
+
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.2 }}
+                        className="bg-white rounded-2xl p-6 shadow-lg border border-slate-100"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <p className="text-slate-500 text-sm font-medium">Completed</p>
+                                <h3 className="text-3xl font-bold text-slate-900 mt-1">{stats.completed}</h3>
+                            </div>
+                            <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                                <FaCheckCircle className="w-6 h-6 text-emerald-600" />
+                            </div>
+                        </div>
+                        <div className="flex items-center text-sm text-slate-600">
+                            <FaRocket className="w-4 h-4 mr-1 text-blue-500" />
+                            <span>{stats.overallProgress}% overall progress</span>
+                        </div>
+                    </motion.div>
+
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.3 }}
+                        className="bg-white rounded-2xl p-6 shadow-lg border border-slate-100"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <p className="text-slate-500 text-sm font-medium">AI Analyzed</p>
+                                <h3 className="text-3xl font-bold text-slate-900 mt-1">{stats.aiAnalyzed}</h3>
+                            </div>
+                            <div className="w-12 h-12 rounded-full bg-pink-100 flex items-center justify-center">
+                                <FaRobot className="w-6 h-6 text-pink-600" />
+                            </div>
+                        </div>
+                        <div className="flex items-center text-sm text-slate-600">
+                            <FaSync className="w-4 h-4 mr-1 text-purple-500" />
+                            <span>Last analyzed recently</span>
+                        </div>
+                    </motion.div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-6 shadow-lg border border-slate-100 mb-8">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div className="flex-1">
+                            <div className="relative">
+                                <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                                <input
+                                    type="text"
+                                    placeholder="Search resumes by name, title, industry, or keywords..."
+                                    className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <select
+                                className="px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                                value={filter}
+                                onChange={(e) => setFilter(e.target.value)}
+                            >
+                                <option value="all">All Templates</option>
+                                <option value="modern">Modern</option>
+                                <option value="classic">Classic</option>
+                                <option value="creative">Creative</option>
+                                <option value="professional">Professional</option>
+                            </select>
+                            <select
+                                className="px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                            >
+                                <option value="score">Sort by Score</option>
+                                <option value="title">Sort by Title</option>
+                                <option value="updated">Sort by Updated</option>
+                                <option value="progress">Sort by Progress</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mt-6">
+                        <button
+                            className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'all' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                            onClick={() => setActiveTab('all')}
+                        >
+                            All Resumes ({resumes.length})
+                        </button>
+                        <button
+                            className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'drafts' ? 'bg-yellow-100 text-yellow-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                            onClick={() => setActiveTab('drafts')}
+                        >
+                            Drafts ({resumes.filter(r => r.status === 'draft').length})
+                        </button>
+                        <button
+                            className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                            onClick={() => setActiveTab('completed')}
+                        >
+                            Completed ({resumes.filter(r => calculateProgress(r) >= 80).length})
+                        </button>
+                        <button
+                            className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'needs-work' ? 'bg-red-100 text-red-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                            onClick={() => setActiveTab('needs-work')}
+                        >
+                            Needs Work ({resumes.filter(r => (r.analysis?.total || 0) < 70).length})
+                        </button>
+                    </div>
+                </div>
+
+                {filteredResumes.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                        {filteredResumes.map((resume, index) => (
+                            <motion.div
+                                key={resume._id || index}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.3, delay: index * 0.1 }}
+                                className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden hover:shadow-xl transition-shadow duration-300"
+                            >
+                                <div className="p-6 border-b border-slate-100">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <h3 className="font-bold text-lg text-slate-900 truncate">
+                                                {resume.title || 'Untitled Resume'}
+                                            </h3>
+                                            <p className="text-slate-500 text-sm mt-1">
+                                                {resume.data?.personalInfo?.title || 'No title specified'}
+                                            </p>
+                                        </div>
+                                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getScoreBg(resume.atsScore)} text-white`}>
+                                            {resume.atsScore}/100
+                                        </span>
+                                    </div>
+
+                                    <div className="mb-4">
+                                        <div className="flex justify-between text-sm text-slate-600 mb-1">
+                                            <span>Completion</span>
+                                            <span>{resume.progress}%</span>
+                                        </div>
+                                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full ${resume.progress >= 80 ? 'bg-emerald-500' : resume.progress >= 60 ? 'bg-yellow-500' : 'bg-blue-500'}`}
+                                                style={{ width: `${resume.progress}%` }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between text-sm text-slate-600">
+                                        <div className="flex items-center gap-4">
+                                            <span className="flex items-center">
+                                                <FaPalette className="w-4 h-4 mr-1" />
+                                                {resume.template || 'modern'}
+                                            </span>
+                                            <span className="flex items-center">
+                                                <FaBriefcase className="w-4 h-4 mr-1" />
+                                                {resume.data?.personalInfo?.industry || 'tech'}
+                                            </span>
+                                        </div>
+                                        <span className="flex items-center">
+                                            <FaClock className="w-4 h-4 mr-1" />
+                                            {formatDate(resume.updatedAt)}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="p-6">
+                                    <div className="mb-4">
+                                        <h4 className="font-semibold text-slate-900 mb-2 flex items-center">
+                                            <FaBrain className="w-4 h-4 mr-2 text-purple-500" />
+                                            AI Analysis
+                                        </h4>
+                                        {resume.analysis?.recommendations?.[0] && (
+                                            <div className={`p-3 rounded-lg ${getPriorityColor(resume.analysis.recommendations[0].priority)}`}>
+                                                <p className="text-sm font-medium mb-1">{resume.analysis.recommendations[0].message}</p>
+                                                <p className="text-xs opacity-75">{resume.analysis.recommendations[0].action}</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {resume.analysis?.keywords && resume.analysis.keywords.length > 0 && (
+                                        <div className="mb-4">
+                                            <h4 className="font-semibold text-slate-900 mb-2 flex items-center">
+                                                <FaMicrochip className="w-4 h-4 mr-2 text-blue-500" />
+                                                Keywords
+                                            </h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {resume.analysis.keywords.slice(0, 5).map((keyword, idx) => (
+                                                    <span
+                                                        key={idx}
+                                                        className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-md"
+                                                    >
+                                                        {keyword}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => navigate(`/builder/${resume._id}/edit`, {
+                                                    state: {
+                                                        resumeId: resume._id,
+                                                        editMode: true
+                                                    }
+                                                })}
+                                                className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                                title="Edit"
+                                            >
+                                                <FaEdit className="w-5 h-5" />
+                                            </button>
+                                            <button
+                                                onClick={() => navigate(`/preview/${resume._id || 'preview'}`)}
+                                                className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                                title="Preview"
+                                            >
+                                                <FaEye className="w-5 h-5" />
+                                            </button>
+                                            <button
+                                                onClick={() => setShowDeleteConfirm(resume._id)}
+                                                className="p-2 text-slate-600 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
+                                                title="Delete"
+                                            >
+                                                <FaTrash className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                        <button
+                                            onClick={() => navigate(`/analyze/${resume._id || 'analyze'}`)}
+                                            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-sm font-medium hover:from-purple-700 hover:to-pink-700 transition-all flex items-center gap-2"
+                                        >
+                                            <FaRobot className="w-4 h-4" />
+                                            Analyze
+                                        </button>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="bg-white rounded-2xl p-12 text-center shadow-lg border border-slate-100 mb-12">
+                        <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
+                            <FaFileAlt className="w-12 h-12 text-blue-600" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-slate-900 mb-3">
+                            No resumes found
+                        </h3>
+                        <p className="text-slate-600 mb-8 max-w-md mx-auto">
+                            {searchQuery || filter !== 'all' || activeTab !== 'all'
+                                ? 'Try adjusting your search criteria or filters'
+                                : 'Get started by creating your first AI-optimized resume'}
+                        </p>
+                        <button
+                            onClick={handleCreateResume}
+                            className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium hover:from-blue-700 hover:to-purple-700 transition-all flex items-center gap-2 mx-auto shadow-lg hover:shadow-xl"
+                        >
+                            <FaPlus />
+                            Create Your First Resume
+                        </button>
+                    </div>
                 )}
 
-                {/* Resume Grid/List */}
-                <AnimatePresence mode="wait">
-                    {stats.total > 0 ? (
-                        filteredResumes.length > 0 ? (
-                            <motion.div
-                                key={viewMode}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className={viewMode === 'grid' ?
-                                    "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" :
-                                    "space-y-4"
-                                }
-                            >
-                                {filteredResumes.map((resume, index) => {
-                                    const data = resume.data || {};
-                                    const progress = calculateProgress(resume);
-                                    const updatedAt = resume.updatedAt;
-                                    const createdAt = resume.createdAt;
-                                    const template = resume.template || 'modern';
-                                    const title = resume.title || 'Untitled Resume';
-                                    const score = resume.analysis?.atsScore || resume.atsScore || Math.floor(Math.random() * 30) + 70;
-                                    const resumeId = resume._id || resume.id || `resume_${index}`;
-
-                                    return viewMode === 'grid' ? (
-                                        <motion.div
-                                            key={resumeId}
-                                            variants={cardVariants}
-                                            initial="hidden"
-                                            animate="visible"
-                                            whileHover="hover"
-                                            className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden group cursor-pointer"
-                                            onClick={() => navigate(`/builder/${resumeId}`)}
-                                        >
-                                            <div className="p-6">
-                                                {/* Header */}
-                                                <div className="flex justify-between items-start mb-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`p-2 rounded-lg ${getTemplateColor(template)}`}>
-                                                            {getTemplateIcon(template)}
-                                                        </div>
-                                                        <div className="overflow-hidden">
-                                                            <h3 className="font-semibold text-slate-900 group-hover:text-indigo-600 transition truncate">
-                                                                {title}
-                                                            </h3>
-                                                            <p className="text-sm text-slate-500">
-                                                                {formatDate(updatedAt)}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex gap-1">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleAIAnalyze(resume);
-                                                            }}
-                                                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                                                            title="AI Analyze"
-                                                        >
-                                                            <FaBrain />
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handlePreviewResume(resume);
-                                                            }}
-                                                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                                                            title="Preview"
-                                                        >
-                                                            <FaEye />
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                {/* Score Badge */}
-                                                <div className="flex items-center justify-between mb-4">
-                                                    <div className={`px-3 py-1 rounded-full ${getScoreBg(score)} bg-opacity-10`}>
-                                                        <span className={`text-sm font-semibold ${getScoreColor(score)}`}>
-                                                            ATS Score: {score}%
-                                                        </span>
-                                                    </div>
-                                                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${getTemplateColor(template)}`}>
-                                                        {template.charAt(0).toUpperCase() + template.slice(1)}
-                                                    </span>
-                                                </div>
-
-                                                {/* Progress Bar */}
-                                                <div className="mb-6">
-                                                    <div className="flex justify-between text-xs text-slate-600 mb-2">
-                                                        <span>Completion</span>
-                                                        <span>{progress}%</span>
-                                                    </div>
-                                                    <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                                                        <motion.div
-                                                            initial={{ width: 0 }}
-                                                            animate={{ width: `${progress}%` }}
-                                                            transition={{ duration: 1, delay: index * 0.1 }}
-                                                            className={`h-full rounded-full ${progress >= 80 ? 'bg-emerald-500' :
-                                                                progress >= 60 ? 'bg-blue-500' :
-                                                                    progress >= 40 ? 'bg-yellow-500' :
-                                                                        'bg-red-500'}`}
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                {/* Stats Grid */}
-                                                <div className="grid grid-cols-2 gap-3 mb-6">
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <FaBriefcase className="text-blue-500" />
-                                                        <span className="text-slate-700 font-medium">{data.experience?.length || 0}</span>
-                                                        <span className="text-slate-500">Exp</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <FaGraduationCap className="text-emerald-500" />
-                                                        <span className="text-slate-700 font-medium">{data.education?.length || 0}</span>
-                                                        <span className="text-slate-500">Edu</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <FaCogs className="text-purple-500" />
-                                                        <span className="text-slate-700 font-medium">{data.skills?.length || 0}</span>
-                                                        <span className="text-slate-500">Skills</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <FaProjectDiagram className="text-amber-500" />
-                                                        <span className="text-slate-700 font-medium">{data.projects?.length || 0}</span>
-                                                        <span className="text-slate-500">Projects</span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Action Buttons */}
-                                                <div className="flex gap-2 pt-4 border-t border-slate-100">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            navigate(`/builder/${resumeId}`);
-                                                        }}
-                                                        className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium flex items-center justify-center gap-2"
-                                                    >
-                                                        <FaEdit />
-                                                        Edit in Builder
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleShareResume(resume);
-                                                        }}
-                                                        className="p-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition"
-                                                        title="Share"
-                                                    >
-                                                        <FaShareAlt className="text-slate-600" />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDuplicateResume(resumeId, title);
-                                                        }}
-                                                        className="p-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition"
-                                                        title="Duplicate"
-                                                    >
-                                                        <FaCopy className="text-slate-600" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    ) : (
-                                        // List View
-                                        <motion.div
-                                            key={resumeId}
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: index * 0.05 }}
-                                            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 group hover:shadow-md transition-shadow cursor-pointer"
-                                            onClick={() => navigate(`/builder/${resumeId}`)}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className={`p-3 rounded-xl ${getTemplateColor(template)}`}>
-                                                    {getTemplateIcon(template)}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <div>
-                                                            <h3 className="font-semibold text-slate-900 truncate group-hover:text-indigo-600">
-                                                                {title}
-                                                            </h3>
-                                                            <p className="text-xs text-slate-500 mt-1">
-                                                                ID: {resumeId.substring(0, 12)}...
-                                                            </p>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${getTemplateColor(template)}`}>
-                                                                {template}
-                                                            </span>
-                                                            <span className={`text-sm font-medium ${getScoreColor(score)}`}>
-                                                                {score}%
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-4 text-sm text-slate-500 mb-2">
-                                                        <span className="flex items-center gap-1">
-                                                            <FaRegClock />
-                                                            {formatDate(updatedAt)}
-                                                        </span>
-                                                        <span>•</span>
-                                                        <span>{progress}% complete</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-6 text-sm">
-                                                        <span className="flex items-center gap-1">
-                                                            <FaBriefcase className="text-blue-500" />
-                                                            {data.experience?.length || 0} exp
-                                                        </span>
-                                                        <span className="flex items-center gap-1">
-                                                            <FaGraduationCap className="text-emerald-500" />
-                                                            {data.education?.length || 0} edu
-                                                        </span>
-                                                        <span className="flex items-center gap-1">
-                                                            <FaCogs className="text-purple-500" />
-                                                            {data.skills?.length || 0} skills
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleAIAnalyze(resume);
-                                                        }}
-                                                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                                                        title="AI Analyze"
-                                                    >
-                                                        <FaBrain />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            navigate(`/builder/${resumeId}`);
-                                                        }}
-                                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    );
-                                })}
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="text-center py-16"
-                            >
-                                <div className="max-w-md mx-auto">
-                                    <div className="p-4 bg-slate-100 rounded-full inline-block mb-6">
-                                        <FaSearch className="text-3xl text-slate-400" />
-                                    </div>
-                                    <h3 className="text-2xl font-bold text-slate-900 mb-3">
-                                        No matching resumes found
-                                    </h3>
-                                    <p className="text-slate-600 mb-8">
-                                        Try adjusting your search criteria or clear the filters
-                                    </p>
-                                    <button
-                                        onClick={() => {
-                                            setSearchQuery('');
-                                            setFilter('all');
-                                        }}
-                                        className="px-8 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition font-semibold"
-                                    >
-                                        Clear Filters
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )
-                    ) : (
-                        // Empty State - No resumes
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="text-center py-16"
+                <div className="mb-12">
+                    <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-2xl font-bold text-slate-900">
+                            Quick Templates
+                        </h2>
+                        <button
+                            onClick={() => setShowQuickActions(!showQuickActions)}
+                            className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-2"
                         >
-                            <div className="max-w-md mx-auto">
-                                <div className="relative">
-                                    <motion.div
-                                        animate={{ rotate: 360 }}
-                                        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                                        className="w-32 h-32 border-4 border-indigo-100 rounded-full mx-auto"
-                                    />
-                                    <FaDatabase className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-4xl text-indigo-400" />
+                            {showQuickActions ? 'Hide' : 'Show All'}
+                            <FaChevronRight className={`w-4 h-4 transition-transform ${showQuickActions ? 'rotate-90' : ''}`} />
+                        </button>
+                    </div>
+
+                    <AnimatePresence>
+                        {showQuickActions && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="overflow-hidden"
+                            >
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                                    {['Modern Professional', 'Creative Designer', 'Academic Research', 'Tech Developer'].map((template, index) => (
+                                        <button
+                                            key={index}
+                                            onClick={() => handleQuickTemplate(template.toLowerCase().split(' ')[0])}
+                                            className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 hover:shadow-xl transition-shadow text-left group"
+                                        >
+                                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                                {template.includes('Tech') ? <FaCode className="w-6 h-6 text-white" /> :
+                                                    template.includes('Creative') ? <FaPalette className="w-6 h-6 text-white" /> :
+                                                        template.includes('Academic') ? <FaGraduationCap className="w-6 h-6 text-white" /> :
+                                                            <FaUserTie className="w-6 h-6 text-white" />}
+                                            </div>
+                                            <h4 className="font-bold text-slate-900 mb-2">{template}</h4>
+                                            <p className="text-sm text-slate-600">
+                                                Start with a pre-optimized template for {template.split(' ')[0].toLowerCase()} roles
+                                            </p>
+                                        </button>
+                                    ))}
                                 </div>
-                                <h3 className="text-2xl font-bold text-slate-900 mt-8 mb-3">
-                                    Your Resume Collection is Empty
-                                </h3>
-                                <p className="text-slate-600 mb-8">
-                                    Start building your professional resume collection. Your resumes will be saved locally in your browser.
-                                </p>
-                                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                                    <motion.button
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
-                                        onClick={handleBuildResume}
-                                        className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition font-semibold flex items-center gap-2 justify-center"
-                                    >
-                                        <FaPlus />
-                                        Create Your First Resume
-                                    </motion.button>
-                                    <motion.button
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
-                                        onClick={() => navigate('/templates')}
-                                        className="px-8 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition font-semibold"
-                                    >
-                                        <FaPalette className="inline mr-2" />
-                                        Browse Templates
-                                    </motion.button>
-                                </div>
-                                <div className="mt-8 pt-8 border-t border-slate-200">
-                                    <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
-                                        <FaDatabase className="text-slate-400" />
-                                        <span>Storage: Local Browser Storage</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </main>
 
-            {/* Delete Confirmation Modal */}
             <AnimatePresence>
                 {showDeleteConfirm && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-                        onClick={() => setShowDeleteConfirm(null)}
+                        className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
                     >
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-white rounded-2xl p-6 max-w-md w-full"
-                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
                         >
-                            <div className="text-center mb-6">
-                                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <FaExclamationTriangle className="text-2xl text-red-600" />
-                                </div>
-                                <h3 className="text-xl font-bold text-slate-900 mb-2">Delete Resume</h3>
-                                <p className="text-slate-600">
-                                    Are you sure you want to delete "{showDeleteConfirm.title}"? This action cannot be undone.
-                                </p>
-                                <p className="text-sm text-slate-500 mt-2">
-                                    This will remove the resume from your local storage.
-                                </p>
+                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+                                <FaExclamationTriangle className="w-8 h-8 text-red-600" />
                             </div>
+                            <h3 className="text-xl font-bold text-slate-900 text-center mb-2">
+                                Delete Resume
+                            </h3>
+                            <p className="text-slate-600 text-center mb-6">
+                                Are you sure you want to delete this resume? This action cannot be undone.
+                            </p>
                             <div className="flex gap-3">
                                 <button
                                     onClick={() => setShowDeleteConfirm(null)}
-                                    className="flex-1 px-4 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition font-medium"
+                                    className="flex-1 px-4 py-3 border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
-                                    onClick={() => handleDeleteResume(showDeleteConfirm.id, showDeleteConfirm.title)}
-                                    className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-medium"
+                                    onClick={() => handleDeleteResume(showDeleteConfirm)}
+                                    className="flex-1 px-4 py-3 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-xl font-medium hover:from-red-700 hover:to-pink-700 transition-all"
                                 >
-                                    Delete Resume
+                                    Delete
                                 </button>
                             </div>
                         </motion.div>
@@ -1170,39 +1230,7 @@ const Dashboard = () => {
                 )}
             </AnimatePresence>
 
-            {/* Footer */}
-            <footer className="mt-12 py-8 border-t border-slate-200 bg-white/50">
-                <div className="container mx-auto px-4">
-                    <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                        <div>
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center">
-                                    <FaDatabase className="text-white text-sm" />
-                                </div>
-                                <span className="text-lg font-bold text-slate-900">ResumeAI Local</span>
-                            </div>
-                            <p className="text-slate-600 text-sm">
-                                © {new Date().getFullYear()} Your resumes are stored locally in your browser
-                            </p>
-                            <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-                                <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                <span>Storage: Local Browser</span>
-                                <span>•</span>
-                                <span>{stats.total} resumes stored</span>
-                            </div>
-                        </div>
-                        <div className="flex gap-6 text-sm">
-                            <button
-                                onClick={handleRefresh}
-                                className="text-slate-600 hover:text-indigo-600 transition flex items-center gap-1"
-                            >
-                                <FaSync className={loading ? 'animate-spin' : ''} />
-                                Refresh
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </footer>
+            <Footer />
         </div>
     );
 };
