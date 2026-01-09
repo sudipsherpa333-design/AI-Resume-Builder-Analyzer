@@ -1,1510 +1,647 @@
+// src/components/builder/CertificationsPage.jsx
 import React, { useState, useEffect } from 'react';
-import {
-    FaCertificate,
-    FaPlus,
-    FaTrash,
-    FaEdit,
-    FaSave,
-    FaTimes,
-    FaCalendarAlt,
-    FaBuilding,
-    FaExternalLinkAlt,
-    FaStar,
-    FaIdCard,
-    FaCheckCircle,
-    FaRegCalendarCheck
-} from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
-import toast from 'react-hot-toast';
+import {
+    Award, Calendar, Globe, Building, ExternalLink,
+    CheckCircle, Clock, Shield, Code, Database,
+    Edit, Trash2, Plus, X, ChevronUp, ChevronDown,
+    Star, Eye, EyeOff, FileText, Target, TrendingUp,
+    Zap, CreditCard, BadgeCheck
+} from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
-const CertificationsPage = ({ resumeData, onUpdate, errors, setErrors }) => {
-    const [certifications, setCertifications] = useState(resumeData?.certifications || []);
-    const [editingIndex, setEditingIndex] = useState(-1);
-    const [isAddingNew, setIsAddingNew] = useState(false);
-    const [formData, setFormData] = useState({
+const CertificationsPage = ({ data = {}, onUpdate, onNext, onPrev, onAIEnhance, aiCredits }) => {
+    const [certifications, setCertifications] = useState(data?.items || []);
+    const [editingId, setEditingId] = useState(null);
+    const [isAdding, setIsAdding] = useState(false);
+    const [filterStatus, setFilterStatus] = useState('all');
+
+    useEffect(() => {
+        if (certifications !== data?.items) {
+            const timer = setTimeout(() => {
+                if (onUpdate) {
+                    onUpdate({ items: certifications });
+                }
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [certifications, onUpdate, data?.items]);
+
+    const categories = [
+        { id: 'technical', name: 'Technical Skills', icon: Code, color: 'bg-blue-100 text-blue-600' },
+        { id: 'cloud', name: 'Cloud & DevOps', icon: Cloud, color: 'bg-purple-100 text-purple-600' },
+        { id: 'security', name: 'Cybersecurity', icon: Shield, color: 'bg-red-100 text-red-600' },
+        { id: 'data', name: 'Data Science', icon: Database, color: 'bg-green-100 text-green-600' },
+        { id: 'project', name: 'Project Management', icon: Target, color: 'bg-amber-100 text-amber-600' },
+        { id: 'business', name: 'Business & Marketing', icon: TrendingUp, color: 'bg-indigo-100 text-indigo-600' },
+        { id: 'language', name: 'Language Proficiency', icon: Globe, color: 'bg-teal-100 text-teal-600' },
+        { id: 'soft', name: 'Soft Skills', icon: Users, color: 'bg-pink-100 text-pink-600' }
+    ];
+
+    const providers = [
+        'Microsoft',
+        'Amazon Web Services (AWS)',
+        'Google Cloud',
+        'Cisco',
+        'Oracle',
+        'IBM',
+        'Salesforce',
+        'Adobe',
+        'Project Management Institute (PMI)',
+        'Scrum Alliance',
+        'CompTIA',
+        'Red Hat',
+        'VMware',
+        'Linux Foundation',
+        'Facebook (Meta)',
+        'LinkedIn Learning',
+        'Coursera',
+        'Udemy',
+        'edX',
+        'Nepal Government',
+        'Tribhuvan University',
+        'CTEVT',
+        'Other'
+    ];
+
+    const emptyCertification = {
+        id: Date.now().toString(),
         name: '',
+        category: 'technical',
         issuer: '',
         issueDate: '',
         expirationDate: '',
-        neverExpires: false,
         credentialId: '',
         credentialUrl: '',
+        skills: [],
         description: '',
-        skills: []
+        isVisible: true,
+        isFeatured: false,
+        doesNotExpire: false
+    };
+
+    const addCertification = () => {
+        const newCert = { ...emptyCertification, id: Date.now().toString() };
+        setCertifications([newCert, ...certifications]);
+        setEditingId(newCert.id);
+        setIsAdding(true);
+    };
+
+    const updateCertification = (id, updates) => {
+        setCertifications(certifications.map(cert =>
+            cert.id === id ? { ...cert, ...updates } : cert
+        ));
+    };
+
+    const deleteCertification = (id) => {
+        setCertifications(certifications.filter(cert => cert.id !== id));
+        toast.success('Certification deleted');
+    };
+
+    const moveCertification = (id, direction) => {
+        const index = certifications.findIndex(cert => cert.id === id);
+        if (
+            (direction === 'up' && index > 0) ||
+            (direction === 'down' && index < certifications.length - 1)
+        ) {
+            const newCerts = [...certifications];
+            const newIndex = direction === 'up' ? index - 1 : index + 1;
+            [newCerts[index], newCerts[newIndex]] =
+                [newCerts[newIndex], newCerts[index]];
+            setCertifications(newCerts);
+        }
+    };
+
+    const toggleVisibility = (id) => {
+        updateCertification(id, { isVisible: !certifications.find(c => c.id === id).isVisible });
+    };
+
+    const toggleFeatured = (id) => {
+        updateCertification(id, { isFeatured: !certifications.find(c => c.id === id).isFeatured });
+    };
+
+    const getExpirationStatus = (expirationDate, doesNotExpire) => {
+        if (doesNotExpire) return { status: 'valid', text: 'Does not expire', color: 'bg-green-100 text-green-700' };
+
+        if (!expirationDate) return { status: 'unknown', text: 'No expiration', color: 'bg-gray-100 text-gray-700' };
+
+        const today = new Date();
+        const expireDate = new Date(expirationDate);
+        const monthsUntilExpiry = (expireDate - today) / (1000 * 60 * 60 * 24 * 30);
+
+        if (monthsUntilExpiry < 0) return { status: 'expired', text: 'Expired', color: 'bg-red-100 text-red-700' };
+        if (monthsUntilExpiry < 3) return { status: 'expiring', text: 'Expiring soon', color: 'bg-yellow-100 text-yellow-700' };
+        return { status: 'valid', text: 'Valid', color: 'bg-green-100 text-green-700' };
+    };
+
+    const renderCertificationCard = (cert, index) => {
+        const isEditing = editingId === cert.id;
+        const category = categories.find(c => c.id === cert.category);
+        const expirationStatus = getExpirationStatus(cert.expirationDate, cert.doesNotExpire);
+        const issueYear = cert.issueDate ? new Date(cert.issueDate).getFullYear() : '';
+
+        return (
+            <motion.div
+                key={cert.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className={`bg-white rounded-xl border ${cert.isFeatured ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200'} overflow-hidden`}
+            >
+                {/* Header */}
+                <div className="p-6">
+                    <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                            <div className="flex items-start gap-3 mb-3">
+                                <div className={`w-12 h-12 ${category?.color.split(' ')[0]} rounded-xl flex items-center justify-center flex-shrink-0`}>
+                                    {category && React.createElement(category.icon, { className: "w-5 h-5" })}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-start justify-between mb-2">
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                                                {cert.name || 'Certification Name'}
+                                            </h3>
+                                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                                                <span className="flex items-center gap-1 text-sm text-gray-600">
+                                                    <Building className="w-3 h-3" />
+                                                    {cert.issuer || 'Issuing Organization'}
+                                                </span>
+                                                {issueYear && (
+                                                    <>
+                                                        <span className="text-gray-300">•</span>
+                                                        <span className="flex items-center gap-1 text-sm text-gray-600">
+                                                            <Calendar className="w-3 h-3" />
+                                                            Issued {issueYear}
+                                                        </span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-2">
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${expirationStatus.color}`}>
+                                                {expirationStatus.text}
+                                            </span>
+                                            {cert.isFeatured && (
+                                                <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
+                                                    Featured
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Credential ID */}
+                                    {cert.credentialId && !isEditing && (
+                                        <div className="mb-3">
+                                            <span className="text-sm text-gray-700 font-medium">Credential ID:</span>
+                                            <span className="ml-2 text-sm text-gray-600 font-mono">
+                                                {cert.credentialId}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {/* Description */}
+                                    {cert.description && !isEditing && (
+                                        <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                                            {cert.description}
+                                        </p>
+                                    )}
+
+                                    {/* Skills */}
+                                    {cert.skills && cert.skills.length > 0 && !isEditing && (
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {cert.skills.slice(0, 5).map((skill, idx) => (
+                                                <span
+                                                    key={idx}
+                                                    className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs"
+                                                >
+                                                    {skill}
+                                                </span>
+                                            ))}
+                                            {cert.skills.length > 5 && (
+                                                <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs">
+                                                    +{cert.skills.length - 5} more
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-col gap-2 ml-4">
+                            <button
+                                onClick={() => toggleVisibility(cert.id)}
+                                className={`p-2 rounded-lg ${cert.isVisible ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}
+                                title={cert.isVisible ? 'Visible on resume' : 'Hidden from resume'}
+                            >
+                                {cert.isVisible ? (
+                                    <Eye className="w-4 h-4" />
+                                ) : (
+                                    <EyeOff className="w-4 h-4" />
+                                )}
+                            </button>
+                            <button
+                                onClick={() => toggleFeatured(cert.id)}
+                                className={`p-2 rounded-lg ${cert.isFeatured ? 'text-yellow-500 hover:bg-yellow-50' : 'text-gray-400 hover:bg-gray-100'}`}
+                                title={cert.isFeatured ? 'Featured certification' : 'Mark as featured'}
+                            >
+                                <Star className={`w-4 h-4 ${cert.isFeatured ? 'fill-current' : ''}`} />
+                            </button>
+                            <button
+                                onClick={() => moveCertification(cert.id, 'up')}
+                                disabled={index === 0}
+                                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg disabled:opacity-50"
+                                title="Move up"
+                            >
+                                <ChevronUp className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => moveCertification(cert.id, 'down')}
+                                disabled={index === certifications.length - 1}
+                                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg disabled:opacity-50"
+                                title="Move down"
+                            >
+                                <ChevronDown className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setEditingId(isEditing ? null : cert.id)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                            >
+                                {isEditing ? <X className="w-4 h-4" /> : <Edit className="w-4 h-4" />}
+                            </button>
+                            <button
+                                onClick={() => deleteCertification(cert.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Edit Form */}
+                <AnimatePresence>
+                    {isEditing && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="p-6 border-t border-gray-200 bg-gray-50"
+                        >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Certification Name *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={cert.name}
+                                        onChange={(e) => updateCertification(cert.id, { name: e.target.value })}
+                                        placeholder="e.g., AWS Certified Solutions Architect"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Issuing Organization *
+                                    </label>
+                                    <select
+                                        value={cert.issuer}
+                                        onChange={(e) => updateCertification(cert.id, { issuer: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Select issuer</option>
+                                        {providers.map(provider => (
+                                            <option key={provider} value={provider}>{provider}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Category *
+                                    </label>
+                                    <select
+                                        value={cert.category}
+                                        onChange={(e) => updateCertification(cert.id, { category: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Select category</option>
+                                        {categories.map(cat => (
+                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Issue Date *
+                                    </label>
+                                    <input
+                                        type="month"
+                                        value={cert.issueDate}
+                                        onChange={(e) => updateCertification(cert.id, { issueDate: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Expiration Date
+                                    </label>
+                                    <div className="space-y-2">
+                                        <input
+                                            type="month"
+                                            value={cert.expirationDate}
+                                            onChange={(e) => updateCertification(cert.id, {
+                                                expirationDate: e.target.value,
+                                                doesNotExpire: false
+                                            })}
+                                            disabled={cert.doesNotExpire}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                        />
+                                        <label className="flex items-center gap-2 text-sm">
+                                            <input
+                                                type="checkbox"
+                                                checked={cert.doesNotExpire}
+                                                onChange={(e) => updateCertification(cert.id, {
+                                                    doesNotExpire: e.target.checked,
+                                                    expirationDate: ''
+                                                })}
+                                                className="rounded"
+                                            />
+                                            This certification does not expire
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Credential ID
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={cert.credentialId}
+                                        onChange={(e) => updateCertification(cert.id, { credentialId: e.target.value })}
+                                        placeholder="e.g., ABC123456789"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Verification URL
+                                    </label>
+                                    <input
+                                        type="url"
+                                        value={cert.credentialUrl}
+                                        onChange={(e) => updateCertification(cert.id, { credentialUrl: e.target.value })}
+                                        placeholder="https://verify.certificate.com/abc123"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Skills Covered
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={cert.skills?.join(', ') || ''}
+                                        onChange={(e) => updateCertification(cert.id, {
+                                            skills: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                                        })}
+                                        placeholder="e.g., Cloud Computing, AWS Services, Security"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    <div className="text-xs text-gray-500 mt-1">
+                                        Separate skills with commas
+                                    </div>
+                                </div>
+
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Description
+                                    </label>
+                                    <textarea
+                                        value={cert.description}
+                                        onChange={(e) => updateCertification(cert.id, { description: e.target.value })}
+                                        placeholder="Describe what this certification validates, its significance..."
+                                        rows="3"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-between items-center">
+                                <button
+                                    onClick={() => {
+                                        if (cert.credentialUrl) {
+                                            window.open(cert.credentialUrl, '_blank');
+                                        }
+                                    }}
+                                    disabled={!cert.credentialUrl}
+                                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${!cert.credentialUrl
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                                        }`}
+                                >
+                                    <ExternalLink className="w-4 h-4" />
+                                    Verify Certificate
+                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setEditingId(null)}
+                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => setEditingId(null)}
+                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                    >
+                                        Save Certification
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
+        );
+    };
+
+    const filteredCertifications = certifications.filter(cert => {
+        if (filterStatus === 'all') return true;
+        if (filterStatus === 'featured') return cert.isFeatured;
+        if (filterStatus === 'valid') {
+            const status = getExpirationStatus(cert.expirationDate, cert.doesNotExpire);
+            return status.status === 'valid';
+        }
+        if (filterStatus === 'expired') {
+            const status = getExpirationStatus(cert.expirationDate, cert.doesNotExpire);
+            return status.status === 'expired';
+        }
+        return true;
     });
 
-    useEffect(() => {
-        if (resumeData?.certifications) {
-            setCertifications(resumeData.certifications);
-        }
-    }, [resumeData?.certifications]);
-
-    const handleUpdate = (data) => {
-        if (onUpdate) {
-            onUpdate('certifications', data);
-        }
-    };
-
-    useEffect(() => {
-        if (certifications.length > 0 || certifications.length === 0) {
-            handleUpdate(certifications);
-        }
-    }, [certifications]);
-
-    const handleInputChange = (field, value) => {
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
-    };
-
-    const handleAddSkill = () => {
-        setFormData(prev => ({
-            ...prev,
-            skills: [...prev.skills, '']
-        }));
-    };
-
-    const handleSkillChange = (index, value) => {
-        setFormData(prev => ({
-            ...prev,
-            skills: prev.skills.map((item, i) => i === index ? value : item)
-        }));
-    };
-
-    const handleRemoveSkill = (index) => {
-        setFormData(prev => ({
-            ...prev,
-            skills: prev.skills.filter((_, i) => i !== index)
-        }));
-    };
-
-    const validateForm = () => {
-        const newErrors = {};
-
-        if (!formData.name.trim()) {
-            newErrors.name = 'Certification name is required';
-        }
-        if (!formData.issuer.trim()) {
-            newErrors.issuer = 'Issuing organization is required';
-        }
-        if (!formData.issueDate) {
-            newErrors.issueDate = 'Issue date is required';
-        }
-        if (!formData.neverExpires && !formData.expirationDate) {
-            newErrors.expirationDate = 'Expiration date is required';
-        }
-
-        if (Object.keys(newErrors).length > 0) {
-            setErrors(prev => ({ ...prev, ...newErrors }));
-            return false;
-        }
-
-        setErrors({});
-        return true;
-    };
-
-    const handleAddCertification = () => {
-        if (!validateForm()) {
-            toast.error('Please fill all required fields');
-            return;
-        }
-
-        const newCertification = {
-            id: Date.now(),
-            ...formData,
-            skills: formData.skills.filter(s => s.trim() !== '')
-        };
-
-        setCertifications(prev => [...prev, newCertification]);
-        resetForm();
-        setIsAddingNew(false);
-        toast.success('Certification added successfully!');
-    };
-
-    const handleEditCertification = (index) => {
-        const certification = certifications[index];
-        setFormData({
-            name: certification.name || '',
-            issuer: certification.issuer || '',
-            issueDate: certification.issueDate || '',
-            expirationDate: certification.expirationDate || '',
-            neverExpires: certification.neverExpires || false,
-            credentialId: certification.credentialId || '',
-            credentialUrl: certification.credentialUrl || '',
-            description: certification.description || '',
-            skills: certification.skills || []
-        });
-        setEditingIndex(index);
-        setIsAddingNew(false);
-    };
-
-    const handleUpdateCertification = () => {
-        if (!validateForm()) {
-            toast.error('Please fill all required fields');
-            return;
-        }
-
-        setCertifications(prev => {
-            const updated = [...prev];
-            updated[editingIndex] = {
-                ...updated[editingIndex],
-                ...formData,
-                skills: formData.skills.filter(s => s.trim() !== '')
-            };
-            return updated;
-        });
-
-        resetForm();
-        setEditingIndex(-1);
-        toast.success('Certification updated successfully!');
-    };
-
-    const handleDeleteCertification = (index) => {
-        if (window.confirm('Are you sure you want to delete this certification?')) {
-            setCertifications(prev => prev.filter((_, i) => i !== index));
-            toast.success('Certification removed successfully');
-        }
-    };
-
-    const handleMoveCertification = (index, direction) => {
-        if ((direction === 'up' && index === 0) || (direction === 'down' && index === certifications.length - 1)) {
-            return;
-        }
-
-        setCertifications(prev => {
-            const updated = [...prev];
-            const newIndex = direction === 'up' ? index - 1 : index + 1;
-            [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
-            return updated;
-        });
-    };
-
-    const handleDuplicateCertification = (index) => {
-        const certification = certifications[index];
-        const duplicatedCertification = {
-            ...certification,
-            id: Date.now(),
-            name: `${certification.name} (Copy)`
-        };
-
-        setCertifications(prev => [...prev, duplicatedCertification]);
-        toast.success('Certification duplicated successfully!');
-    };
-
-    const resetForm = () => {
-        setFormData({
-            name: '',
-            issuer: '',
-            issueDate: '',
-            expirationDate: '',
-            neverExpires: false,
-            credentialId: '',
-            credentialUrl: '',
-            description: '',
-            skills: []
-        });
-        setErrors({});
-    };
-
-    const getExpirationStatus = (expirationDate) => {
-        if (!expirationDate) return 'no-expiry';
-        const expDate = new Date(expirationDate);
-        const today = new Date();
-
-        if (expDate < today) return 'expired';
-        const diffTime = expDate - today;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays <= 30) return 'expiring-soon';
-        if (diffDays <= 90) return 'expiring';
-        return 'valid';
-    };
-
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'expired': return '#ef4444';
-            case 'expiring-soon': return '#f59e0b';
-            case 'expiring': return '#fbbf24';
-            case 'valid': return '#10b981';
-            default: return '#6b7280';
-        }
-    };
-
-    const getStatusText = (status) => {
-        switch (status) {
-            case 'expired': return 'Expired';
-            case 'expiring-soon': return 'Expiring Soon';
-            case 'expiring': return 'Expiring';
-            case 'valid': return 'Valid';
-            case 'no-expiry': return 'No Expiry';
-            default: return 'Unknown';
-        }
-    };
-
-    const getIssuerLogo = (issuer) => {
-        const issuerLower = issuer.toLowerCase();
-        if (issuerLower.includes('aws')) return '🌩️';
-        if (issuerLower.includes('google')) return '🔍';
-        if (issuerLower.includes('microsoft')) return '🪟';
-        if (issuerLower.includes('cisco')) return '🔗';
-        if (issuerLower.includes('comptia')) return '💻';
-        if (issuerLower.includes('ibm')) return '💠';
-        if (issuerLower.includes('oracle')) return '🗃️';
-        if (issuerLower.includes('salesforce')) return '☁️';
-        return '🏢';
+    const stats = {
+        total: certifications.length,
+        valid: certifications.filter(c => {
+            const status = getExpirationStatus(c.expirationDate, c.doesNotExpire);
+            return status.status === 'valid';
+        }).length,
+        featured: certifications.filter(c => c.isFeatured).length,
+        expired: certifications.filter(c => {
+            const status = getExpirationStatus(c.expirationDate, c.doesNotExpire);
+            return status.status === 'expired';
+        }).length,
+        technical: certifications.filter(c => c.category === 'technical').length
     };
 
     return (
-        <div className="certifications-page">
+        <div className="space-y-6">
             {/* Header */}
-            <div className="page-header">
-                <div className="header-left">
-                    <div className="header-icon">
-                        <FaCertificate />
-                    </div>
-                    <div>
-                        <h2 className="page-title">Certifications</h2>
-                        <p className="page-subtitle">Showcase your professional certifications and licenses</p>
-                    </div>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Certifications</h2>
+                    <p className="text-gray-600">Add your professional certifications and credentials</p>
                 </div>
-                <div className="header-stats">
-                    <div className="stat-chip">
-                        <FaCheckCircle />
-                        <span>Certifications: {certifications.length}</span>
+                <div className="flex items-center gap-3">
+                    <div className="px-3 py-1 bg-gray-100 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700">
+                            {stats.valid} valid certifications
+                        </span>
                     </div>
                     <button
-                        className="btn-primary"
-                        onClick={() => {
-                            resetForm();
-                            setIsAddingNew(true);
-                            setEditingIndex(-1);
-                        }}
-                        type="button"
+                        onClick={addCertification}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                     >
-                        <FaPlus /> Add Certification
+                        <Plus className="w-4 h-4" />
+                        Add Certification
                     </button>
                 </div>
             </div>
 
             {/* Stats Overview */}
-            <div className="stats-overview">
-                <div className="stat-card">
-                    <div className="stat-value">{certifications.length}</div>
-                    <div className="stat-label">Total</div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-value">
-                        {certifications.filter(c => getExpirationStatus(c.expirationDate) === 'valid').length}
-                    </div>
-                    <div className="stat-label">Valid</div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-value">
-                        {certifications.filter(c => getExpirationStatus(c.expirationDate) === 'expired').length}
-                    </div>
-                    <div className="stat-label">Expired</div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-value">
-                        {certifications.filter(c => c.neverExpires || !c.expirationDate).length}
-                    </div>
-                    <div className="stat-label">No Expiry</div>
-                </div>
-            </div>
-
-            {/* Add/Edit Form */}
-            <AnimatePresence>
-                {(isAddingNew || editingIndex !== -1) && (
-                    <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="certification-form-card"
-                    >
-                        <div className="form-header">
-                            <div className="form-title">
-                                <h3>
-                                    {editingIndex !== -1 ?
-                                        <><FaEdit /> Edit Certification</> :
-                                        <><FaPlus /> Add New Certification</>
-                                    }
-                                </h3>
-                                <p className="form-subtitle">
-                                    {editingIndex !== -1 ? 'Update your certification details' : 'Add a new professional certification'}
-                                </p>
-                            </div>
-                            <button
-                                className="btn-icon"
-                                onClick={() => {
-                                    resetForm();
-                                    setIsAddingNew(false);
-                                    setEditingIndex(-1);
-                                }}
-                                type="button"
-                            >
-                                <FaTimes />
-                            </button>
+            {certifications.length > 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Certifications Overview</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="text-center p-3 bg-blue-50 rounded-lg">
+                            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+                            <div className="text-sm text-gray-600">Total Certifications</div>
                         </div>
-
-                        <div className="form-grid">
-                            {/* Certification Name */}
-                            <div className="form-group full-width">
-                                <label className="required">Certification Name *</label>
-                                <div className="input-with-status">
-                                    <FaCertificate className="field-icon" />
-                                    <input
-                                        type="text"
-                                        value={formData.name}
-                                        onChange={(e) => handleInputChange('name', e.target.value)}
-                                        placeholder="e.g., AWS Certified Solutions Architect"
-                                        className={`form-input ${errors?.name ? 'error' : ''}`}
-                                    />
-                                </div>
-                                {errors?.name && (
-                                    <div className="error-message">{errors.name}</div>
-                                )}
-                                <div className="field-tip">Full name of the certification</div>
-                            </div>
-
-                            {/* Issuer */}
-                            <div className="form-group">
-                                <label className="required">Issuing Organization *</label>
-                                <div className="input-with-status">
-                                    <FaBuilding className="field-icon" />
-                                    <input
-                                        type="text"
-                                        value={formData.issuer}
-                                        onChange={(e) => handleInputChange('issuer', e.target.value)}
-                                        placeholder="e.g., Amazon Web Services"
-                                        className={`form-input ${errors?.issuer ? 'error' : ''}`}
-                                    />
-                                </div>
-                                {errors?.issuer && (
-                                    <div className="error-message">{errors.issuer}</div>
-                                )}
-                                <div className="field-tip">Organization that issued the certification</div>
-                            </div>
-
-                            {/* Issue Date */}
-                            <div className="form-group">
-                                <label className="required">Issue Date *</label>
-                                <div className="input-with-status">
-                                    <FaCalendarAlt className="field-icon" />
-                                    <input
-                                        type="month"
-                                        value={formData.issueDate}
-                                        onChange={(e) => handleInputChange('issueDate', e.target.value)}
-                                        className={`form-input ${errors?.issueDate ? 'error' : ''}`}
-                                    />
-                                </div>
-                                {errors?.issueDate && (
-                                    <div className="error-message">{errors.issueDate}</div>
-                                )}
-                                <div className="field-tip">When the certification was issued</div>
-                            </div>
-
-                            {/* Expiration Date */}
-                            <div className="form-group">
-                                <label className={!formData.neverExpires ? 'required' : ''}>
-                                    Expiration Date {!formData.neverExpires ? '*' : ''}
-                                </label>
-                                <div className="date-container">
-                                    <div className="never-expires-checkbox">
-                                        <input
-                                            type="checkbox"
-                                            id="never-expires"
-                                            checked={formData.neverExpires}
-                                            onChange={(e) => handleInputChange('neverExpires', e.target.checked)}
-                                            className="checkbox"
-                                        />
-                                        <label htmlFor="never-expires" className="checkbox-label">
-                                            Does not expire
-                                        </label>
-                                    </div>
-                                    <div className="input-with-status">
-                                        <FaRegCalendarCheck className="field-icon" />
-                                        <input
-                                            type="month"
-                                            value={formData.neverExpires ? '' : formData.expirationDate}
-                                            onChange={(e) => handleInputChange('expirationDate', e.target.value)}
-                                            className={`form-input ${errors?.expirationDate ? 'error' : ''}`}
-                                            disabled={formData.neverExpires}
-                                            placeholder={formData.neverExpires ? 'Never expires' : ''}
-                                        />
-                                    </div>
-                                </div>
-                                {errors?.expirationDate && (
-                                    <div className="error-message">{errors.expirationDate}</div>
-                                )}
-                                <div className="field-tip">Leave empty for certifications that don't expire</div>
-                            </div>
-
-                            {/* Credential ID */}
-                            <div className="form-group">
-                                <label>Credential ID</label>
-                                <div className="input-with-status">
-                                    <FaIdCard className="field-icon" />
-                                    <input
-                                        type="text"
-                                        value={formData.credentialId}
-                                        onChange={(e) => handleInputChange('credentialId', e.target.value)}
-                                        placeholder="e.g., AWS-SOL-ARCH-12345"
-                                        className="form-input"
-                                    />
-                                </div>
-                                <div className="field-tip">Unique identifier for your certification</div>
-                            </div>
-
-                            {/* Credential URL */}
-                            <div className="form-group">
-                                <label>Credential URL</label>
-                                <div className="input-with-status">
-                                    <FaExternalLinkAlt className="field-icon" />
-                                    <input
-                                        type="url"
-                                        value={formData.credentialUrl}
-                                        onChange={(e) => handleInputChange('credentialUrl', e.target.value)}
-                                        placeholder="https://www.credly.com/badges/..."
-                                        className="form-input"
-                                    />
-                                </div>
-                                <div className="field-tip">Link to verify your certification</div>
-                            </div>
-
-                            {/* Description */}
-                            <div className="form-group full-width">
-                                <label>Description</label>
-                                <div className="input-with-status">
-                                    <textarea
-                                        value={formData.description}
-                                        onChange={(e) => handleInputChange('description', e.target.value)}
-                                        placeholder="Describe the certification, its significance, and what you learned..."
-                                        className="form-textarea"
-                                        rows={3}
-                                    />
-                                </div>
-                                <div className="field-tip">Optional description of the certification</div>
-                            </div>
-
-                            {/* Skills */}
-                            <div className="form-group full-width">
-                                <div className="section-header">
-                                    <div>
-                                        <label>Skills & Technologies</label>
-                                        <p className="field-subtitle">Skills validated by this certification</p>
-                                    </div>
-                                    <button
-                                        className="btn-small"
-                                        onClick={handleAddSkill}
-                                        type="button"
-                                    >
-                                        <FaPlus /> Add Skill
-                                    </button>
-                                </div>
-
-                                <div className="items-list">
-                                    {formData.skills.map((skill, index) => (
-                                        <div key={index} className="item">
-                                            <div className="item-number">{index + 1}</div>
-                                            <input
-                                                type="text"
-                                                value={skill}
-                                                onChange={(e) => handleSkillChange(index, e.target.value)}
-                                                placeholder="e.g., Cloud Architecture, AWS Services, Security..."
-                                                className="item-input"
-                                            />
-                                            <button
-                                                className="btn-icon danger"
-                                                onClick={() => handleRemoveSkill(index)}
-                                                type="button"
-                                                title="Remove skill"
-                                            >
-                                                <FaTrash />
-                                            </button>
-                                        </div>
-                                    ))}
-
-                                    {formData.skills.length === 0 && (
-                                        <div className="no-items">
-                                            <FaStar className="empty-icon" />
-                                            <div className="empty-content">
-                                                <h4>No skills added yet</h4>
-                                                <p>Add skills that this certification validates</p>
-                                                <button
-                                                    className="btn-small"
-                                                    onClick={handleAddSkill}
-                                                    type="button"
-                                                >
-                                                    <FaPlus /> Add First Skill
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                        <div className="text-center p-3 bg-green-50 rounded-lg">
+                            <div className="text-2xl font-bold text-green-600">{stats.valid}</div>
+                            <div className="text-sm text-gray-600">Valid</div>
                         </div>
-
-                        <div className="form-actions">
-                            <button
-                                className="btn-secondary"
-                                onClick={() => {
-                                    resetForm();
-                                    setIsAddingNew(false);
-                                    setEditingIndex(-1);
-                                }}
-                                type="button"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="btn-primary"
-                                onClick={editingIndex !== -1 ? handleUpdateCertification : handleAddCertification}
-                                type="button"
-                            >
-                                <FaSave /> {editingIndex !== -1 ? 'Update Certification' : 'Save Certification'}
-                            </button>
+                        <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                            <div className="text-2xl font-bold text-yellow-600">{stats.featured}</div>
+                            <div className="text-sm text-gray-600">Featured</div>
                         </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                        <div className="text-center p-3 bg-red-50 rounded-lg">
+                            <div className="text-2xl font-bold text-red-600">{stats.expired}</div>
+                            <div className="text-sm text-gray-600">Expired</div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Filters */}
+            {certifications.length > 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            onClick={() => setFilterStatus('all')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium ${filterStatus === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                            All Certifications ({certifications.length})
+                        </button>
+                        <button
+                            onClick={() => setFilterStatus('featured')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${filterStatus === 'featured' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                            <Star className="w-4 h-4" />
+                            Featured ({stats.featured})
+                        </button>
+                        <button
+                            onClick={() => setFilterStatus('valid')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${filterStatus === 'valid' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                            <CheckCircle className="w-4 h-4" />
+                            Valid ({stats.valid})
+                        </button>
+                        <button
+                            onClick={() => setFilterStatus('expired')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${filterStatus === 'expired' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                            <Clock className="w-4 h-4" />
+                            Expired ({stats.expired})
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Certifications List */}
-            <div className="certifications-list">
+            <div className="space-y-4">
                 {certifications.length === 0 ? (
-                    <div className="empty-state">
-                        <FaCertificate className="empty-icon" />
-                        <div className="empty-content">
-                            <h3>No certifications added yet</h3>
-                            <p>Add your professional certifications to showcase your expertise</p>
-                            <button
-                                className="btn-primary"
-                                onClick={() => setIsAddingNew(true)}
-                                type="button"
-                            >
-                                <FaPlus /> Add Your First Certification
-                            </button>
-                        </div>
+                    <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+                        <Award className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-700 mb-2">No certifications added yet</h3>
+                        <p className="text-gray-500 mb-6">Add your professional certifications to showcase your expertise</p>
+                        <button
+                            onClick={addCertification}
+                            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto"
+                        >
+                            <Plus className="w-5 h-5" />
+                            Add Your First Certification
+                        </button>
+                    </div>
+                ) : filteredCertifications.length === 0 ? (
+                    <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+                        <Award className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-700 mb-2">No certifications found</h3>
+                        <p className="text-gray-500">Try adjusting your filter criteria</p>
                     </div>
                 ) : (
-                    <AnimatePresence>
-                        {certifications.map((certification, index) => {
-                            const status = getExpirationStatus(certification.expirationDate);
-                            const statusColor = getStatusColor(status);
-
-                            return (
-                                <motion.div
-                                    key={certification.id || index}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -20 }}
-                                    className="certification-card"
-                                >
-                                    <div className="certification-header">
-                                        <div className="certification-info">
-                                            <div className="certification-main">
-                                                <div className="issuer-logo">
-                                                    {getIssuerLogo(certification.issuer)}
-                                                </div>
-                                                <div>
-                                                    <h3 className="certification-name">{certification.name}</h3>
-                                                    <div className="certification-issuer">
-                                                        <FaBuilding /> {certification.issuer}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="certification-meta">
-                                                <div className="credential-id">
-                                                    {certification.credentialId && (
-                                                        <span className="id-badge">
-                                                            <FaIdCard /> ID: {certification.credentialId}
-                                                        </span>
-                                                    )}
-                                                    <span
-                                                        className="status-badge"
-                                                        style={{
-                                                            backgroundColor: statusColor,
-                                                            color: 'white'
-                                                        }}
-                                                    >
-                                                        {getStatusText(status)}
-                                                    </span>
-                                                </div>
-                                                <div className="dates">
-                                                    <FaCalendarAlt />
-                                                    <span>
-                                                        Issued: {new Date(certification.issueDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                                                    </span>
-                                                    {certification.expirationDate && (
-                                                        <span>
-                                                            • Expires: {new Date(certification.expirationDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                                                        </span>
-                                                    )}
-                                                    {certification.neverExpires && (
-                                                        <span className="never-expires-badge">
-                                                            • No Expiry
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="certification-actions">
-                                            <button
-                                                className="btn-icon"
-                                                onClick={() => handleMoveCertification(index, 'up')}
-                                                disabled={index === 0}
-                                                title="Move up"
-                                                type="button"
-                                            >
-                                                <FaArrowUp />
-                                            </button>
-                                            <button
-                                                className="btn-icon"
-                                                onClick={() => handleMoveCertification(index, 'down')}
-                                                disabled={index === certifications.length - 1}
-                                                title="Move down"
-                                                type="button"
-                                            >
-                                                <FaArrowDown />
-                                            </button>
-                                            <button
-                                                className="btn-icon"
-                                                onClick={() => handleDuplicateCertification(index)}
-                                                title="Duplicate"
-                                                type="button"
-                                            >
-                                                <FaCopy />
-                                            </button>
-                                            <button
-                                                className="btn-icon"
-                                                onClick={() => handleEditCertification(index)}
-                                                title="Edit"
-                                                type="button"
-                                            >
-                                                <FaEdit />
-                                            </button>
-                                            <button
-                                                className="btn-icon danger"
-                                                onClick={() => handleDeleteCertification(index)}
-                                                title="Delete"
-                                                type="button"
-                                            >
-                                                <FaTrash />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {certification.description && (
-                                        <div className="certification-description">
-                                            <p>{certification.description}</p>
-                                        </div>
-                                    )}
-
-                                    {certification.skills && certification.skills.length > 0 && (
-                                        <div className="certification-skills">
-                                            <div className="section-header">
-                                                <FaStar />
-                                                <strong>Validated Skills</strong>
-                                            </div>
-                                            <div className="skill-tags">
-                                                {certification.skills.map((skill, idx) => (
-                                                    <span key={idx} className="skill-tag">{skill}</span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {(certification.credentialUrl) && (
-                                        <div className="certification-links">
-                                            <a
-                                                href={certification.credentialUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="certification-link"
-                                            >
-                                                <FaExternalLinkAlt /> Verify Certification
-                                            </a>
-                                        </div>
-                                    )}
-                                </motion.div>
-                            );
-                        })}
-                    </AnimatePresence>
+                    filteredCertifications.map((cert, index) => renderCertificationCard(cert, index))
                 )}
             </div>
 
-            {/* Certification Tips */}
-            <div className="tips-panel">
-                <div className="tips-header">
-                    <FaCheckCircle />
-                    <h4>Certification Tips</h4>
-                </div>
-                <div className="tips-content">
-                    <div className="tip">
-                        <h5>Industry Standards</h5>
-                        <p>Include certifications from recognized organizations like AWS, Google, Microsoft, Cisco, etc.</p>
-                    </div>
-                    <div className="tip">
-                        <h5>Relevance</h5>
-                        <p>Focus on certifications relevant to your target role or industry.</p>
-                    </div>
-                    <div className="tip">
-                        <h5>Verification</h5>
-                        <p>Always include credential IDs and verification URLs when available.</p>
-                    </div>
-                </div>
+            {/* Navigation */}
+            <div className="flex justify-between pt-6 border-t border-gray-200">
+                <button
+                    onClick={onPrev}
+                    className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                    ← Previous
+                </button>
+                <button
+                    onClick={onNext}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                    Next: References →
+                </button>
             </div>
-
-            <style jsx>{`
-                .certifications-page {
-                    padding: 0;
-                    max-width: 100%;
-                }
-
-                /* Header */
-                .page-header {
-                    margin-bottom: 2.5rem;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    gap: 1.5rem;
-                }
-
-                .header-left {
-                    display: flex;
-                    align-items: center;
-                    gap: 1.25rem;
-                }
-
-                .header-icon {
-                    width: 65px;
-                    height: 65px;
-                    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-                    border-radius: 15px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: white;
-                    font-size: 1.75rem;
-                    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
-                }
-
-                .page-title {
-                    font-size: 2.5rem;
-                    font-weight: 800;
-                    color: #1f2937;
-                    margin: 0 0 0.5rem 0;
-                    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                }
-
-                .page-subtitle {
-                    font-size: 1.1rem;
-                    color: #6b7280;
-                    margin: 0;
-                }
-
-                .header-stats {
-                    display: flex;
-                    align-items: center;
-                    gap: 1.5rem;
-                }
-
-                .stat-chip {
-                    background: linear-gradient(135deg, #ef4444, #dc2626);
-                    color: white;
-                    padding: 0.875rem 1.75rem;
-                    border-radius: 50px;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                    font-weight: 600;
-                    font-size: 0.95rem;
-                    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
-                }
-
-                .btn-primary {
-                    padding: 0.875rem 1.75rem;
-                    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-                    color: white;
-                    border: none;
-                    border-radius: 10px;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                }
-
-                .btn-primary:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 8px 20px rgba(239, 68, 68, 0.35);
-                }
-
-                /* Stats Overview */
-                .stats-overview {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-                    gap: 1.25rem;
-                    margin-bottom: 2.5rem;
-                }
-
-                .stat-card {
-                    background: white;
-                    border-radius: 15px;
-                    padding: 1.75rem;
-                    text-align: center;
-                    border: 2px solid #e5e7eb;
-                    transition: all 0.3s ease;
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-                }
-
-                .stat-card:hover {
-                    border-color: #ef4444;
-                    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-                    transform: translateY(-3px);
-                }
-
-                .stat-value {
-                    font-size: 2.25rem;
-                    font-weight: 800;
-                    color: #ef4444;
-                    margin-bottom: 0.5rem;
-                }
-
-                .stat-label {
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    color: #6b7280;
-                    text-transform: uppercase;
-                }
-
-                /* Form */
-                .certification-form-card {
-                    background: white;
-                    border-radius: 20px;
-                    padding: 2.5rem;
-                    margin-bottom: 2.5rem;
-                    border: 2px solid #e5e7eb;
-                    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-                }
-
-                .form-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    margin-bottom: 2rem;
-                    padding-bottom: 1.5rem;
-                    border-bottom: 2px solid #f3f4f6;
-                }
-
-                .form-title h3 {
-                    font-size: 1.75rem;
-                    font-weight: 700;
-                    color: #1f2937;
-                    margin: 0 0 0.5rem 0;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                }
-
-                .form-subtitle {
-                    font-size: 0.95rem;
-                    color: #6b7280;
-                    margin: 0;
-                }
-
-                .btn-icon {
-                    width: 45px;
-                    height: 45px;
-                    border-radius: 10px;
-                    border: 2px solid #e5e7eb;
-                    background: white;
-                    color: #4b5563;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                }
-
-                .btn-icon:hover {
-                    background: #f3f4f6;
-                    border-color: #d1d5db;
-                }
-
-                .btn-icon.danger {
-                    color: #ef4444;
-                }
-
-                .btn-icon.danger:hover {
-                    background: #fef2f2;
-                    border-color: #fecaca;
-                }
-
-                .form-grid {
-                    display: grid;
-                    grid-template-columns: repeat(2, 1fr);
-                    gap: 1.75rem;
-                    margin-bottom: 2rem;
-                }
-
-                @media (max-width: 768px) {
-                    .form-grid {
-                        grid-template-columns: 1fr;
-                    }
-                }
-
-                .full-width {
-                    grid-column: 1 / -1;
-                }
-
-                .form-group {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 0.75rem;
-                }
-
-                .form-group label {
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    color: #374151;
-                }
-
-                .required:after {
-                    content: " *";
-                    color: #ef4444;
-                }
-
-                .input-with-status {
-                    position: relative;
-                }
-
-                .field-icon {
-                    position: absolute;
-                    left: 1rem;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    color: #9ca3af;
-                    font-size: 1rem;
-                }
-
-                .form-input, .form-textarea {
-                    width: 100%;
-                    padding: 0.875rem 1rem 0.875rem 3rem;
-                    border: 2px solid #e5e7eb;
-                    border-radius: 10px;
-                    font-size: 0.95rem;
-                    color: #1f2937;
-                    background: white;
-                    transition: all 0.3s ease;
-                }
-
-                .form-input:focus, .form-textarea:focus {
-                    outline: none;
-                    border-color: #ef4444;
-                    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
-                }
-
-                .form-input.error, .form-textarea.error {
-                    border-color: #ef4444;
-                }
-
-                .form-textarea {
-                    min-height: 100px;
-                    resize: vertical;
-                    padding-left: 1rem;
-                }
-
-                .error-message {
-                    font-size: 0.75rem;
-                    color: #ef4444;
-                    font-weight: 500;
-                }
-
-                .field-tip {
-                    font-size: 0.75rem;
-                    color: #6b7280;
-                    font-style: italic;
-                }
-
-                .never-expires-checkbox {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    margin-bottom: 0.5rem;
-                }
-
-                .checkbox {
-                    width: 18px;
-                    height: 18px;
-                }
-
-                .checkbox-label {
-                    font-weight: 600;
-                    color: #4b5563;
-                    font-size: 0.875rem;
-                    cursor: pointer;
-                }
-
-                .section-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    margin-bottom: 1.5rem;
-                }
-
-                .field-subtitle {
-                    font-size: 0.75rem;
-                    color: #9ca3af;
-                    margin: 0.25rem 0 0 0;
-                }
-
-                .btn-small {
-                    padding: 0.625rem 1.25rem;
-                    background: white;
-                    border: 2px solid #ef4444;
-                    border-radius: 8px;
-                    color: #ef4444;
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    cursor: pointer;
-                }
-
-                .btn-small:hover {
-                    background: #ef4444;
-                    color: white;
-                }
-
-                .items-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1rem;
-                }
-
-                .item {
-                    display: flex;
-                    gap: 1rem;
-                    align-items: center;
-                    padding: 0.75rem;
-                    background: #f9fafb;
-                    border-radius: 8px;
-                    border: 1px solid #e5e7eb;
-                }
-
-                .item-number {
-                    width: 28px;
-                    height: 28px;
-                    background: linear-gradient(135deg, #ef4444, #dc2626);
-                    color: white;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 0.75rem;
-                    font-weight: 600;
-                }
-
-                .item-input {
-                    flex: 1;
-                    padding: 0.75rem 1rem;
-                    border: 1px solid #e5e7eb;
-                    border-radius: 6px;
-                    font-size: 0.875rem;
-                    color: #1f2937;
-                    background: white;
-                }
-
-                .no-items {
-                    padding: 2.5rem 1.5rem;
-                    text-align: center;
-                    color: #6b7280;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    gap: 1rem;
-                    background: #f9fafb;
-                    border-radius: 12px;
-                    border: 2px dashed #d1d5db;
-                }
-
-                .empty-icon {
-                    font-size: 2.5rem;
-                    color: #9ca3af;
-                }
-
-                .empty-content h4 {
-                    font-size: 1.25rem;
-                    font-weight: 600;
-                    color: #4b5563;
-                    margin: 0 0 0.5rem 0;
-                }
-
-                .empty-content p {
-                    color: #6b7280;
-                    margin: 0 0 1.5rem 0;
-                    font-size: 0.95rem;
-                }
-
-                /* Form Actions */
-                .form-actions {
-                    display: flex;
-                    justify-content: flex-end;
-                    gap: 1.25rem;
-                    padding-top: 1.5rem;
-                    border-top: 2px solid #f3f4f6;
-                }
-
-                .btn-secondary {
-                    padding: 0.875rem 2rem;
-                    border: 2px solid #e5e7eb;
-                    border-radius: 10px;
-                    background: white;
-                    color: #4b5563;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                }
-
-                .btn-secondary:hover {
-                    background: #f3f4f6;
-                    border-color: #d1d5db;
-                }
-
-                /* Certifications List */
-                .certifications-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1.5rem;
-                }
-
-                .empty-state {
-                    text-align: center;
-                    padding: 4rem 2rem;
-                    background: white;
-                    border-radius: 20px;
-                    border: 2px dashed #d1d5db;
-                }
-
-                .empty-state .empty-icon {
-                    font-size: 4rem;
-                    color: #d1d5db;
-                    margin-bottom: 1.5rem;
-                }
-
-                .empty-state h3 {
-                    font-size: 1.75rem;
-                    color: #374151;
-                    margin: 0 0 1rem 0;
-                }
-
-                .empty-state p {
-                    color: #6b7280;
-                    margin: 0 0 2rem 0;
-                    font-size: 1.05rem;
-                    max-width: 500px;
-                    margin-left: auto;
-                    margin-right: auto;
-                }
-
-                /* Certification Card */
-                .certification-card {
-                    background: white;
-                    border-radius: 18px;
-                    padding: 2rem;
-                    border: 2px solid #e5e7eb;
-                    transition: all 0.3s ease;
-                }
-
-                .certification-card:hover {
-                    border-color: #ef4444;
-                    box-shadow: 0 8px 30px rgba(239, 68, 68, 0.15);
-                }
-
-                .certification-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    margin-bottom: 1.5rem;
-                    gap: 1.5rem;
-                }
-
-                .certification-info {
-                    flex: 1;
-                }
-
-                .certification-main {
-                    display: flex;
-                    align-items: center;
-                    gap: 1.25rem;
-                    margin-bottom: 1rem;
-                }
-
-                .issuer-logo {
-                    font-size: 2.5rem;
-                    width: 65px;
-                    height: 65px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background: #fef2f2;
-                    border-radius: 12px;
-                    color: #ef4444;
-                }
-
-                .certification-name {
-                    font-size: 1.5rem;
-                    font-weight: 700;
-                    color: #1f2937;
-                    margin: 0 0 0.5rem 0;
-                }
-
-                .certification-issuer {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    font-size: 1rem;
-                    color: #4b5563;
-                }
-
-                .certification-meta {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 0.75rem;
-                }
-
-                .credential-id {
-                    display: flex;
-                    align-items: center;
-                    gap: 1rem;
-                }
-
-                .id-badge {
-                    background: #f3f4f6;
-                    color: #4b5563;
-                    padding: 0.375rem 1rem;
-                    border-radius: 20px;
-                    font-size: 0.8rem;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                }
-
-                .status-badge {
-                    padding: 0.375rem 1rem;
-                    border-radius: 20px;
-                    font-size: 0.8rem;
-                    font-weight: 600;
-                }
-
-                .dates {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                    font-size: 0.95rem;
-                    color: #6b7280;
-                }
-
-                .never-expires-badge {
-                    color: #10b981;
-                    font-weight: 600;
-                }
-
-                .certification-actions {
-                    display: flex;
-                    gap: 0.5rem;
-                    flex-wrap: wrap;
-                }
-
-                .certification-description {
-                    color: #4b5563;
-                    line-height: 1.7;
-                    margin-bottom: 1.5rem;
-                }
-
-                .certification-skills {
-                    margin: 1.5rem 0;
-                    padding: 1.25rem;
-                    background: #fef2f2;
-                    border-radius: 12px;
-                    border-left: 4px solid #ef4444;
-                }
-
-                .section-header {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                    margin-bottom: 1rem;
-                }
-
-                .section-header svg {
-                    color: #ef4444;
-                    font-size: 1.1rem;
-                }
-
-                .section-header strong {
-                    font-size: 1.1rem;
-                    color: #1f2937;
-                    font-weight: 600;
-                }
-
-                .skill-tags {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 0.75rem;
-                }
-
-                .skill-tag {
-                    background: white;
-                    color: #ef4444;
-                    padding: 0.5rem 1rem;
-                    border-radius: 20px;
-                    font-size: 0.85rem;
-                    font-weight: 500;
-                    border: 1px solid #fecaca;
-                }
-
-                .certification-links {
-                    display: flex;
-                    gap: 1rem;
-                    margin-top: 1.5rem;
-                }
-
-                .certification-link {
-                    padding: 0.75rem 1.5rem;
-                    background: #ef4444;
-                    color: white;
-                    border-radius: 8px;
-                    text-decoration: none;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    transition: all 0.3s ease;
-                }
-
-                .certification-link:hover {
-                    background: #dc2626;
-                    transform: translateY(-2px);
-                }
-
-                /* Tips Panel */
-                .tips-panel {
-                    margin-top: 3rem;
-                    background: #fef2f2;
-                    border-radius: 18px;
-                    padding: 2rem;
-                    border: 2px solid #fecaca;
-                }
-
-                .tips-header {
-                    display: flex;
-                    align-items: center;
-                    gap: 1rem;
-                    margin-bottom: 1.5rem;
-                }
-
-                .tips-header svg {
-                    color: #ef4444;
-                    font-size: 1.5rem;
-                }
-
-                .tips-header h4 {
-                    font-size: 1.5rem;
-                    color: #991b1b;
-                    margin: 0;
-                }
-
-                .tips-content {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                    gap: 1.5rem;
-                }
-
-                .tip h5 {
-                    font-size: 1.1rem;
-                    color: #991b1b;
-                    margin: 0 0 0.5rem 0;
-                }
-
-                .tip p {
-                    color: #dc2626;
-                    margin: 0;
-                    font-size: 0.95rem;
-                    line-height: 1.5;
-                }
-
-                /* Responsive */
-                @media (max-width: 768px) {
-                    .page-header {
-                        flex-direction: column;
-                        align-items: flex-start;
-                        gap: 1.5rem;
-                    }
-
-                    .header-stats {
-                        width: 100%;
-                        justify-content: space-between;
-                    }
-
-                    .certification-header {
-                        flex-direction: column;
-                        gap: 1.5rem;
-                    }
-
-                    .certification-actions {
-                        width: 100%;
-                        justify-content: space-between;
-                    }
-
-                    .certification-main {
-                        flex-direction: column;
-                        align-items: flex-start;
-                        gap: 1rem;
-                    }
-
-                    .issuer-logo {
-                        width: 50px;
-                        height: 50px;
-                        font-size: 2rem;
-                    }
-
-                    .stats-overview {
-                        grid-template-columns: repeat(2, 1fr);
-                    }
-                }
-
-                @media (max-width: 640px) {
-                    .stats-overview {
-                        grid-template-columns: 1fr;
-                    }
-
-                    .credential-id {
-                        flex-direction: column;
-                        align-items: flex-start;
-                        gap: 0.5rem;
-                    }
-
-                    .dates {
-                        flex-direction: column;
-                        align-items: flex-start;
-                        gap: 0.5rem;
-                    }
-
-                    .certification-link {
-                        width: 100%;
-                        justify-content: center;
-                    }
-                }
-            `}</style>
         </div>
     );
 };
+
+// Helper components for icons
+const Cloud = ({ className }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4 4 0 003 15z" />
+    </svg>
+);
+
+const Users = ({ className }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5 0h-15" />
+    </svg>
+);
 
 export default CertificationsPage;

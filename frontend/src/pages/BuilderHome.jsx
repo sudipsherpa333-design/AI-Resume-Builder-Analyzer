@@ -1,321 +1,199 @@
-import React, { useRef, useState } from 'react';
+// src/pages/BuilderHome.jsx - FIXED & WORKING VERSION
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import toast from 'react-hot-toast';
-import { FaUpload, FaPlus, FaSpinner } from 'react-icons/fa';
+import {
+    FilePlus,
+    Upload,
+    FileText,
+    Sparkles,
+    ArrowRight,
+    Shield,
+    Zap
+} from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { useResume } from '../context/ResumeContext';
 
-export default function BuilderHomeResponsive() {
+const BuilderHome = () => {
     const navigate = useNavigate();
-    const fileRef = useRef(null);
-    const [isUploading, setIsUploading] = useState(false);
-    const [dragOver, setDragOver] = useState(false);
+    const { createNewResume } = useResume(); // ← Use context!
 
-    const handleFilePick = (file) => {
-        if (!file) return;
-        const allowed = ['pdf', 'doc', 'docx', 'txt'];
-        const ext = (file.name.split('.').pop() || '').toLowerCase();
-        if (!allowed.includes(ext)) {
-            toast.error('Unsupported file type. Use PDF, DOC, DOCX or TXT.');
-            return;
+    const handleCreateNew = async () => {
+        try {
+            const newResume = await createNewResume();
+            if (newResume && newResume._id) {
+                navigate(`/builder/${newResume._id}`);
+            } else {
+                toast.error('Failed to create resume');
+            }
+        } catch (error) {
+            console.error('Create error:', error);
+            toast.error('Failed to create new resume');
         }
-
-        setIsUploading(true);
-        const id = toast.loading('Importing resume...');
-
-        setTimeout(() => {
-            const parsed = {
-                personal: {
-                    firstName: 'Prabesh',
-                    lastName: 'Joshi',
-                    email: 'prabeshjoshi999@gmail.com',
-                    phone: '980123456',
-                },
-                summary: 'Experienced software developer with 5+ years in web development.',
-                experience: [{ id: Date.now(), position: 'Senior Software Engineer', company: 'Tech Solutions Inc.' }],
-                education: [{ id: Date.now(), degree: 'B.Sc. Computer Science', institution: 'Tribhuvan University' }],
-                skills: ['React', 'Node.js'],
-            };
-
-            try { sessionStorage.setItem('importedResumeData', JSON.stringify(parsed)); } catch (e) { }
-            toast.success('Resume imported', { id });
-            setIsUploading(false);
-            navigate('/builder', { state: { source: 'import', importedData: parsed } });
-        }, 1200);
     };
 
-    const onFileChange = (e) => {
-        const f = e.target.files?.[0];
-        if (f) handleFilePick(f);
+    const handleImport = () => {
+        navigate('/builder/import');
     };
 
-    const onDrop = (e) => {
-        e.preventDefault();
-        setDragOver(false);
-        const f = e.dataTransfer?.files?.[0];
-        if (f) handleFilePick(f);
+    const handleUseTemplate = () => {
+        navigate('/templates'); // or wherever your templates page is
     };
 
-    const onDragOver = (e) => {
-        e.preventDefault();
-        setDragOver(true);
-    };
-
-    const onDragLeave = () => setDragOver(false);
-
-    const startFromScratch = () => {
-        try { sessionStorage.removeItem('importedResumeData'); } catch (e) { }
-        navigate('/builder', { state: { source: 'scratch' } });
-    };
+    const options = [
+        {
+            id: 'create',
+            title: 'Create New Resume',
+            description: 'Start from scratch with a clean, professional template',
+            icon: FilePlus,
+            color: 'from-blue-500 to-cyan-500',
+            bgColor: 'bg-blue-50',
+            action: handleCreateNew,
+            features: ['Full control', 'Professional templates', 'Step-by-step guidance']
+        },
+        {
+            id: 'import',
+            title: 'Import Resume',
+            description: 'Upload your existing resume (PDF, DOCX) or import from LinkedIn',
+            icon: Upload,
+            color: 'from-green-500 to-emerald-500',
+            bgColor: 'bg-green-50',
+            action: handleImport,
+            features: ['PDF/DOCX upload', 'LinkedIn import', 'Smart parsing']
+        },
+        {
+            id: 'template',
+            title: 'Use Template',
+            description: 'Choose from professionally designed resume templates',
+            icon: FileText,
+            color: 'from-purple-500 to-pink-500',
+            bgColor: 'bg-purple-50',
+            action: handleUseTemplate,
+            features: ['20+ templates', 'Industry-specific', 'ATS-optimized']
+        }
+    ];
 
     return (
-        <div className="home-root">
-            <div className="home-bg" />
-            <div className="home-content">
-                <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, type: 'spring' }}
-                    className="home-header"
-                >
-                    <h1>Create your resume</h1>
-                    <p>Import your resume or start fresh — it's fast and mobile-friendly.</p>
-                </motion.div>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
+            {/* Hero Section */}
+            <div className="relative overflow-hidden">
+                <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))]" />
 
-                <div className="home-maincards">
-                    {/* Import Resume Card */}
-                    <motion.div
-                        whileHover={{ y: -5, boxShadow: '0 8px 32px rgba(59,130,246,0.11)' }}
-                        className={`home-card ${dragOver ? 'drag' : ''}`}
-                        tabIndex={0}
-                        style={{}}
-                    >
-                        <div>
-                            <div className="home-card-header">
-                                <div className="home-card-icon import"><FaUpload /></div>
-                                <div>
-                                    <h2>Import Resume</h2>
-                                    <div className="sub">Upload a resume and auto-extract data.</div>
-                                </div>
+                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
+                    <div className="text-center">
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5 }}
+                        >
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-100 to-cyan-100 rounded-full mb-6">
+                                <Sparkles className="w-4 h-4 text-blue-600" />
+                                <span className="text-sm font-medium text-blue-700">
+                                    AI-Powered Resume Builder
+                                </span>
                             </div>
-                            <div
-                                className={`home-dropzone ${dragOver ? 'active' : ''}`}
-                                onDrop={onDrop}
-                                onDragOver={onDragOver}
-                                onDragLeave={onDragLeave}
-                                onClick={() => fileRef.current?.click()}
-                                role="button"
-                                tabIndex={0}
-                                onKeyDown={e => { if (e.key === 'Enter') fileRef.current?.click(); }}
-                            >
-                                <input
-                                    ref={fileRef}
-                                    type="file"
-                                    accept=".pdf,.doc,.docx,.txt"
-                                    onChange={onFileChange}
-                                    style={{ display: 'none' }}
-                                />
-                                {isUploading
-                                    ? (
-                                        <div className="home-uploading">
-                                            <FaSpinner className="spin" />
-                                            <div className="bold">Analyzing resume...</div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <motion.div animate={{ y: [0, -6, 0] }} transition={{ repeat: Infinity, duration: 2 }}>
-                                                <FaUpload className="home-dropicon" />
-                                            </motion.div>
-                                            <div className="home-droptitle">Drop file or click to upload</div>
-                                            <div className="home-dropsubtitle">PDF, DOCX, TXT</div>
-                                        </>
-                                    )
-                                }
-                            </div>
-                        </div>
-                        <div className="home-cardfooter">
-                            <small>Files are processed locally in demo mode.</small>
-                        </div>
-                    </motion.div>
 
-                    {/* Start from Scratch Card */}
-                    <motion.div
-                        whileHover={{ y: -5, boxShadow: '0 8px 32px rgba(16,185,129,0.11)' }}
-                        className="home-card"
-                        tabIndex={0}
-                        style={{}}
-                    >
-                        <div>
-                            <div className="home-card-header">
-                                <div className="home-card-icon scratch"><FaPlus /></div>
-                                <div>
-                                    <h2>Start Fresh</h2>
-                                    <div className="sub">Use our guided step-by-step builder.</div>
-                                </div>
-                            </div>
-                            <div className="home-features">
-                                <ul>
-                                    <li>ATS-friendly templates</li>
-                                    <li>Smart content suggestions</li>
-                                    <li>Instant PDF download</li>
-                                </ul>
-                            </div>
-                        </div>
-                        <button className="home-actionbtn" onClick={startFromScratch}>
-                            Create From Scratch
-                        </button>
-                    </motion.div>
-                </div>
+                            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-gray-900 mb-6">
+                                Build Your Perfect
+                                <span className="block bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                                    Resume in Minutes
+                                </span>
+                            </h1>
 
-                {/* Features/Stats Row */}
-                <div className="home-feats">
-                    {['ATS Optimized', 'Fast & Free', 'Professional'].map((text, i) => (
-                        <div key={i} className="feat-card">
-                            <div className="feat-title">{text}</div>
-                        </div>
-                    ))}
+                            <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-10">
+                                Choose your starting point. Create from scratch, import your existing resume,
+                                or start with a professionally designed template.
+                            </p>
+                        </motion.div>
+                    </div>
                 </div>
             </div>
-            <style>{`
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .home-root {
-          min-height: 100vh;
-          background: #f8fafc;
-          padding: 0 8px 32px 8px;
-          font-family: 'Inter', sans-serif;
-          position: relative;
-        }
-        .home-bg {
-          position: absolute; inset: 0;
-          background: repeating-linear-gradient(180deg,#f1f5f9 0 1px,transparent 1px 24px);
-          opacity: 0.87; z-index: 0;
-        }
-        .home-content {
-          position: relative;
-          max-width: 940px;
-          margin: 0 auto;
-          z-index: 1;
-          padding-top: 48px;
-        }
-        .home-header {
-          text-align: center;
-          margin-bottom: 36px;
-        }
-        .home-header h1 {
-          font-size: 2.2rem;
-          color: #1e293b;
-          margin-bottom: 10px;
-        }
-        .home-header p {
-          color: #64748b;
-          font-size: 1.06rem;
-        }
-        .home-maincards {
-          display: flex;
-          gap: 32px;
-          justify-content: center;
-          align-items: stretch;
-          flex-wrap: wrap;
-          margin-bottom: 32px;
-        }
-        .home-card {
-          background: #fff;
-          border-radius: 18px;
-          box-shadow: 0 4px 28px rgba(2,6,23,0.07);
-          min-width: 280px;
-          max-width: 370px;
-          flex: 1 1 320px;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          padding: 1.9rem 1.4rem 1.45rem 1.4rem;
-          border: 1.5px solid #eef1f4;
-          transition: box-shadow .22s, transform .22s;
-        }
-        .home-card.drag, .home-dropzone.active {
-          border-color: #3b82f6 !important;
-          box-shadow: 0 6px 28px rgba(59,130,246,0.13);
-        }
-        .home-card-header {
-          display: flex;
-          gap: 13px;
-          align-items: center;
-          margin-bottom: 10px;
-        }
-        .home-card-icon {
-          width: 45px; height: 45px;
-          border-radius: 10px;
-          background: #3b82f6;
-          color: #fff;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 22px;
-        }
-        .home-card-icon.scratch { background: #10b981; }
-        .sub { color: #64748b; font-size: 0.97em;}
-        .home-dropzone {
-          margin-top: 16px;
-          border: 2px dashed #e2e8f0;
-          border-radius: 10px;
-          padding: 24px;
-          text-align: center;
-          background: #f9fafb;
-          cursor: pointer;
-          transition: border-color 0.18s, background 0.18s;
-        }
-        .home-dropzone.active { border-color: #3b82f6; background: #e0e7ff; }
-        .home-dropicon { font-size: 34px; color: #94a3b8; margin-bottom: 10px; }
-        .home-droptitle { font-weight: 700; color: #1e293b;}
-        .home-dropsubtitle { font-size: 0.88rem; color: #94a3b8; margin-bottom: 2px;}
-        .home-uploading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 12px 0;}
-        .home-cardfooter { margin-top: 12px; text-align: right; color: #64748b; font-size: 0.91em;}
-        .home-features ul {list-style:none; margin:20px 0 0 0; padding:0;}
-        .home-features li { color: #475569; font-size: 1.03rem; padding: 4px 0 4px 0; position:relative; padding-left:1.12em;}
-        .home-features li:before {content:"✓"; font-size:1em; color:#10b981; font-weight:bold;position: absolute; left:0;}
-        .home-actionbtn {
-          margin-top: 20px;
-          width: 100%;
-          padding: 12px 0;
-          border-radius: 10px;
-          border: none;
-          background: linear-gradient(90deg,#10b981,#06b6d4);
-          color: #fff;
-          font-weight: 800;
-          font-size: 1.05em;
-          box-shadow: 0 1.5px 6px rgba(16,185,129,0.10);
-          cursor: pointer;
-          transition: background .18s, filter .16s;
-        }
-        .home-actionbtn:hover { filter: brightness(1.09);}
-        .home-feats {
-          display: flex;
-          gap: 18px;
-          justify-content: center;
-          margin-top: 28px;
-          flex-wrap: wrap;
-        }
-        .feat-card {
-          flex: 1 1 150px;
-          background: #fff;
-          border-radius: 10px;
-          padding: 15px 0;
-          text-align: center;
-          font-size: 1.02em;
-          font-weight: 700;
-          color: #475569;
-          border: 1px solid #eef1f4;
-          box-shadow: 0 2px 9px rgba(80,170,247,0.07);
-        }
-        @media (max-width: 900px) {
-          .home-maincards { flex-direction: column; gap: 24px;}
-          .home-card {max-width:100%;}
-        }
-        @media (max-width: 600px) {
-          .home-header h1{ font-size:1.37rem;}
-          .home-maincards{gap:16px;}
-          .home-content{padding-top:18px;}
-          .feat-card {font-size: 1em; padding:10px 0;}
-        }
-      `}</style>
+
+            {/* Options Grid */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+                <div className="grid md:grid-cols-3 gap-8">
+                    {options.map((option, index) => (
+                        <motion.div
+                            key={option.id}
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5, delay: index * 0.1 }}
+                            whileHover={{ y: -5 }}
+                            className="relative group"
+                        >
+                            <div className={`${option.bgColor} rounded-2xl p-8 h-full border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:shadow-xl`}>
+                                <div className="mb-6">
+                                    <div className={`w-14 h-14 rounded-xl bg-gradient-to-r ${option.color} flex items-center justify-center mb-4`}>
+                                        <option.icon className="w-7 h-7 text-white" />
+                                    </div>
+
+                                    <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                                        {option.title}
+                                    </h3>
+
+                                    <p className="text-gray-600 mb-6">
+                                        {option.description}
+                                    </p>
+
+                                    <ul className="space-y-2 mb-8">
+                                        {option.features.map((feature, i) => (
+                                            <li key={i} className="flex items-center gap-2 text-gray-700">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                                                <span>{feature}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+
+                                <button
+                                    onClick={option.action}
+                                    className={`w-full py-3 px-6 rounded-xl bg-gradient-to-r ${option.color} text-white font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity group-hover:shadow-lg`}
+                                >
+                                    <span>Get Started</span>
+                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                </button>
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
+
+                {/* Additional Info */}
+                <div className="mt-16 pt-12 border-t border-gray-200">
+                    <div className="grid md:grid-cols-3 gap-8">
+                        <div className="text-center">
+                            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-r from-blue-100 to-cyan-100 mb-4">
+                                <Shield className="w-6 h-6 text-blue-600" />
+                            </div>
+                            <h4 className="font-semibold text-gray-900 mb-2">Secure & Private</h4>
+                            <p className="text-gray-600 text-sm">
+                                Your data is encrypted and never shared with third parties
+                            </p>
+                        </div>
+
+                        <div className="text-center">
+                            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 mb-4">
+                                <Zap className="w-6 h-6 text-green-600" />
+                            </div>
+                            <h4 className="font-semibold text-gray-900 mb-2">AI-Powered</h4>
+                            <p className="text-gray-600 text-sm">
+                                Smart suggestions and real-time ATS optimization
+                            </p>
+                        </div>
+
+                        <div className="text-center">
+                            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 mb-4">
+                                <Sparkles className="w-6 h-6 text-purple-600" />
+                            </div>
+                            <h4 className="font-semibold text-gray-900 mb-2">Professional Results</h4>
+                            <p className="text-gray-600 text-sm">
+                                Industry-approved formats that get you noticed
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
-}
+};
+
+export default BuilderHome;

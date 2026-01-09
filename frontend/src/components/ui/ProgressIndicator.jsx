@@ -1,148 +1,165 @@
+// src/components/ui/ProgressIndicator.jsx
 import React from 'react';
+import { Check } from 'lucide-react';
 
-const ProgressBar = ({
+const ProgressIndicator = ({
     currentStep = 0,
     totalSteps = 1,
     steps = [],
-    onStepClick
+    descriptions = [],
+    onStepClick,
+    variant = 'default',
+    theme = 'default',
+    interactive = false,
+    showCheckmarks = true,
+    completionPercentage = 0,
+    className = ''
 }) => {
-    // Ensure steps is an array
-    const safeSteps = Array.isArray(steps) ? steps : [];
-    const safeTotalSteps = Math.max(totalSteps, 1);
-    const safeCurrentStep = Math.min(Math.max(currentStep, 0), safeTotalSteps - 1);
+    const progress = (currentStep + 1) / totalSteps * 100;
 
-    const progressPercentage = ((safeCurrentStep + 1) / safeTotalSteps) * 100;
+    if (variant === 'simple') {
+        return (
+            <div className={`w-full ${className}`}>
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">
+                        Progress: {Math.round(progress)}%
+                    </span>
+                    <span className="text-sm text-gray-500">
+                        {currentStep + 1}/{totalSteps}
+                    </span>
+                </div>
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300"
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+            </div>
+        );
+    }
 
+    if (variant === 'compact') {
+        return (
+            <div className={`w-full ${className}`}>
+                <div className="flex items-center justify-between mb-3">
+                    {steps.slice(0, 3).map((step, index) => (
+                        <div key={index} className="flex flex-col items-center flex-1">
+                            <div className="relative">
+                                <div
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium border-2 ${index <= currentStep
+                                        ? 'bg-indigo-500 border-indigo-500 text-white'
+                                        : index === currentStep + 1
+                                            ? 'border-indigo-500 text-indigo-500'
+                                            : 'border-gray-300 text-gray-400'
+                                        }`}
+                                >
+                                    {showCheckmarks && index < currentStep ? (
+                                        <Check className="w-4 h-4" />
+                                    ) : (
+                                        index + 1
+                                    )}
+                                </div>
+                                {index < steps.length - 1 && (
+                                    <div className={`absolute top-4 left-8 w-full h-0.5 ${index < currentStep ? 'bg-indigo-500' : 'bg-gray-300'
+                                        }`} />
+                                )}
+                            </div>
+                            <span className={`text-xs mt-2 truncate max-w-[80px] text-center ${index <= currentStep ? 'text-gray-800 font-medium' : 'text-gray-500'
+                                }`}>
+                                {step}
+                            </span>
+                        </div>
+                    ))}
+                    {steps.length > 3 && (
+                        <div className="flex flex-col items-center flex-1">
+                            <div className="relative">
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium border-2 border-gray-300 text-gray-400">
+                                    ...
+                                </div>
+                            </div>
+                            <span className="text-xs mt-2 text-gray-500 text-center">
+                                More
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Progress bar */}
+                <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-500"
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    // Default variant
     return (
-        <div style={styles.container}>
-            {/* Progress Bar */}
-            <div style={styles.progressBarContainer}>
+        <div className={`w-full ${className}`}>
+            <div className="flex items-center justify-between mb-4">
+                <div>
+                    <h3 className="text-lg font-semibold text-gray-800">Resume Progress</h3>
+                    <p className="text-sm text-gray-500">
+                        {currentStep < steps.length ? steps[currentStep] : 'Complete'} - {descriptions[currentStep] || ''}
+                    </p>
+                </div>
+                <div className="text-right">
+                    <div className="text-2xl font-bold text-gray-800">
+                        {Math.round(progress)}%
+                    </div>
+                    <div className="text-sm text-gray-500">
+                        Step {currentStep + 1} of {totalSteps}
+                    </div>
+                </div>
+            </div>
+
+            {/* Main progress bar */}
+            <div className="h-3 bg-gray-200 rounded-full overflow-hidden mb-2">
                 <div
-                    style={{
-                        ...styles.progressBar,
-                        width: `${progressPercentage}%`
-                    }}
+                    className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-500"
+                    style={{ width: `${progress}%` }}
                 />
             </div>
 
-            {/* Step Indicators - only render if there are steps */}
-            {safeSteps.length > 0 && (
-                <>
-                    <div style={styles.stepsContainer}>
-                        {safeSteps.map((step, index) => (
+            {/* Steps indicators */}
+            <div className="flex justify-between mt-6">
+                {steps.map((step, index) => (
+                    <button
+                        key={index}
+                        type="button"
+                        onClick={() => interactive && onStepClick && onStepClick(index)}
+                        className={`flex flex-col items-center ${interactive ? 'cursor-pointer' : 'cursor-default'}`}
+                        disabled={!interactive}
+                    >
+                        <div className="relative mb-2">
                             <div
-                                key={index}
-                                style={styles.stepWrapper}
-                                onClick={() => onStepClick && onStepClick(index)}
+                                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium border-2 transition-all ${index < currentStep
+                                    ? 'bg-green-500 border-green-500 text-white'
+                                    : index === currentStep
+                                        ? 'bg-indigo-500 border-indigo-500 text-white scale-110'
+                                        : index === currentStep + 1
+                                            ? 'border-indigo-500 text-indigo-500'
+                                            : 'border-gray-300 text-gray-400'
+                                    } ${interactive ? 'hover:scale-105' : ''}`}
                             >
-                                <div
-                                    style={{
-                                        ...styles.stepDot,
-                                        ...(index <= safeCurrentStep ? styles.stepDotActive : styles.stepDotInactive),
-                                        ...(index === safeCurrentStep && styles.stepDotCurrent)
-                                    }}
-                                >
-                                    {index < safeCurrentStep ? '✓' : index + 1}
-                                </div>
-                                <div
-                                    style={{
-                                        ...styles.stepLabel,
-                                        ...(index === safeCurrentStep && styles.stepLabelActive)
-                                    }}
-                                >
-                                    {step}
-                                </div>
+                                {showCheckmarks && index < currentStep ? (
+                                    <Check className="w-5 h-5" />
+                                ) : (
+                                    index + 1
+                                )}
                             </div>
-                        ))}
-                    </div>
-
-                    {/* Progress Text */}
-                    <div style={styles.progressText}>
-                        Step {safeCurrentStep + 1} of {safeTotalSteps}
-                    </div>
-                </>
-            )}
+                        </div>
+                        <span className={`text-xs font-medium text-center max-w-[80px] truncate ${index <= currentStep ? 'text-gray-800' : 'text-gray-500'
+                            }`}>
+                            {step}
+                        </span>
+                    </button>
+                ))}
+            </div>
         </div>
     );
 };
 
-const styles = {
-    container: {
-        marginBottom: '2rem',
-    },
-    progressBarContainer: {
-        height: '8px',
-        background: '#e2e8f0',
-        borderRadius: '4px',
-        overflow: 'hidden',
-        marginBottom: '1.5rem',
-    },
-    progressBar: {
-        height: '100%',
-        background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
-        transition: 'width 0.3s ease',
-    },
-    stepsContainer: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        gap: '0.5rem',
-        marginBottom: '1.5rem',
-    },
-    stepWrapper: {
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        cursor: 'pointer',
-        flex: 1,
-    },
-    stepDot: {
-        width: '40px',
-        height: '40px',
-        borderRadius: '50%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '600',
-        fontSize: '0.875rem',
-        transition: 'all 0.3s ease',
-        marginBottom: '0.5rem',
-    },
-    stepDotInactive: {
-        background: '#f1f5f9',
-        color: '#94a3b8',
-        border: '2px solid #e2e8f0',
-    },
-    stepDotActive: {
-        background: '#d1d5db',
-        color: '#ffffff',
-        border: '2px solid #9ca3af',
-    },
-    stepDotCurrent: {
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        color: '#ffffff',
-        border: 'none',
-        boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
-        transform: 'scale(1.1)',
-    },
-    stepLabel: {
-        fontSize: '0.75rem',
-        fontWeight: '500',
-        color: '#94a3b8',
-        textAlign: 'center',
-        maxWidth: '100%',
-        wordBreak: 'break-word',
-        transition: 'color 0.3s ease',
-    },
-    stepLabelActive: {
-        color: '#667eea',
-        fontWeight: '600',
-    },
-    progressText: {
-        textAlign: 'center',
-        fontSize: '0.875rem',
-        color: '#64748b',
-        fontWeight: '500',
-    }
-};
-
-export default ProgressBar;
+export default ProgressIndicator;

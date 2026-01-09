@@ -3,255 +3,282 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { visualizer } from 'rollup-plugin-visualizer';
 
-// Get __dirname equivalent in ES modules
+// ESM __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// https://vitejs.dev/config/
+// Plugin for bundle analysis
+const bundleAnalyzer = (mode) => {
+  if (mode === 'analyze') {
+    return visualizer({
+      open: true,
+      filename: 'dist/stats.html',
+      gzipSize: true,
+      brotliSize: true,
+    });
+  }
+  return null;
+};
+
 export default defineConfig(({ mode }) => {
-  // Load env file based on mode
+  // Load env files based on mode
   const env = loadEnv(mode, process.cwd(), '');
 
-  // Backend API URL configuration
-  const apiTarget = env.VITE_API_BASE_URL || 'http://localhost:5001';
-  const frontendPort = parseInt(env.VITE_PORT || '5174');
   const isDevelopment = mode === 'development';
+  const isProduction = mode === 'production';
+  const isAnalyze = mode === 'analyze';
+
+  const backendUrl = env.VITE_API_URL || `http://localhost:5001`;
+  const frontendPort = env.VITE_FRONTEND_PORT || 3000;
+  const appName = env.VITE_APP_NAME || 'AI Resume Builder';
+
+  console.log(`🚀 ${appName} - Mode: ${mode}`);
+  console.log(`🌐 Backend: ${backendUrl}`);
+  console.log(`💻 Frontend: http://localhost:${frontendPort}`);
 
   return {
     plugins: [
       react({
-        // Enable Fast Refresh
-        fastRefresh: true,
-        // Exclude specific files from Fast Refresh
-        exclude: [/\.stories\.(t|j)sx?$/, /node_modules/],
-        // Enable babel runtime automatic
         babel: {
           plugins: [
             ['@babel/plugin-transform-runtime', { regenerator: true }]
           ],
         },
+        jsxRuntime: 'automatic',
+        jsxImportSource: 'react',
       }),
-    ],
+      bundleAnalyzer(mode),
+    ].filter(Boolean),
 
-    // Base public path for assets
-    base: './',
+    base: isProduction ? '/' : '/',
+
+    // Define global constants
+    define: {
+      __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+      __APP_NAME__: JSON.stringify(appName),
+      __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+      'process.env.NODE_ENV': JSON.stringify(mode),
+    },
+
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, 'src'),
+        '@components': path.resolve(__dirname, 'src/components'),
+        '@pages': path.resolve(__dirname, 'src/pages'),
+        '@context': path.resolve(__dirname, 'src/context'),
+        '@hooks': path.resolve(__dirname, 'src/hooks'),
+        '@utils': path.resolve(__dirname, 'src/utils'),
+        '@assets': path.resolve(__dirname, 'src/assets'),
+        '@styles': path.resolve(__dirname, 'src/styles'),
+        '@admin': path.resolve(__dirname, 'src/admin'),
+        '@services': path.resolve(__dirname, 'src/services'),
+        '@layouts': path.resolve(__dirname, 'src/layouts'),
+        '@data': path.resolve(__dirname, 'src/data'),
+      },
+      extensions: ['.js', '.jsx', '.ts', '.tsx', '.json', '.mjs'],
+    },
 
     server: {
-      port: frontendPort,
-      host: true, // Listen on all network interfaces
-      open: false, // Don't auto-open browser
-      strictPort: true, // Fail if port is already in use
-      cors: true, // Enable CORS for dev server
+      port: parseInt(frontendPort),
+      host: '0.0.0.0',
+      strictPort: true,
+      open: true,
+      cors: true,
+      hmr: {
+        overlay: true,
+        clientPort: parseInt(frontendPort),
+      },
+      fs: {
+        strict: true,
+        allow: ['..'],
+      },
 
-      // Proxy configuration for API requests
+      // Smart proxy configuration
       proxy: {
-        // API requests to backend
         '/api': {
-          target: apiTarget,
+          target: backendUrl,
           changeOrigin: true,
           secure: false,
-          rewrite: (path) => path,
+          rewrite: (path) => {
+            // Remove /api prefix for backend routes that don't need it
+            const backendPath = path.replace(/^\/api/, '');
+            console.log(`🌐 Proxy: ${path} -> ${backendUrl}${backendPath}`);
+            return backendPath;
+          },
           configure: (proxy, options) => {
             proxy.on('error', (err, req, res) => {
-              console.log('Proxy error:', err);
+              console.error('❌ Proxy Error:', err.message);
+              if (res.writeHead) {
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end('Proxy connection failed. Please check if backend is running.');
+              }
             });
+
             proxy.on('proxyReq', (proxyReq, req, res) => {
-              console.log('Proxying request to:', req.url);
+              if (isDevelopment) {
+                const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+                console.log(`➡️  [${timestamp}] ${req.method} ${req.url}`);
+              }
+            });
+
+            proxy.on('proxyRes', (proxyRes, req, res) => {
+              if (isDevelopment) {
+                const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+                const status = proxyRes.statusCode;
+                const statusColor = status >= 400 ? '31' : status >= 300 ? '33' : '32';
+                console.log(`\x1b[${statusColor}m⬅️  [${timestamp}] ${req.method} ${req.url} ${status}\x1b[0m`);
+              }
             });
           },
         },
 
-        // Uploads and static files
-        '/uploads': {
-          target: apiTarget,
+        // Separate proxy for socket.io if needed
+        '/socket.io': {
+          target: backendUrl,
           changeOrigin: true,
           secure: false,
+          ws: true,
         },
-
-        // Health check endpoint
-        '/health': {
-          target: apiTarget,
-          changeOrigin: true,
-          secure: false,
-        }
       },
 
-      // Enable HMR (Hot Module Replacement)
-      hmr: {
-        overlay: true,
-      },
-
-      // Watch configuration
       watch: {
-        usePolling: true,
+        usePolling: false,
         interval: 100,
       },
     },
 
-    // Optimize dependencies for faster dev server startup
-    optimizeDeps: {
-      include: [
-        'react',
-        'react-dom',
-        'react-router-dom',
-        'framer-motion',
-        'react-hot-toast',
-        '@react-oauth/google',
-        'lucide-react',
-        'axios',
-        'html2canvas',
-        'jspdf',
-        'zustand',
-      ],
-      exclude: [
-        'html2pdf.js',
-        'html2pdf',
-      ],
-      force: isDevelopment ? undefined : false,
-      esbuildOptions: {
-        target: 'es2020',
-      },
+    preview: {
+      port: 4173,
+      host: true,
+      cors: true,
+      open: true,
     },
 
-    // Build configuration
     build: {
       outDir: 'dist',
-      sourcemap: isDevelopment,
-      minify: !isDevelopment,
-      cssMinify: !isDevelopment,
+      sourcemap: isProduction ? 'hidden' : true,
+      minify: isProduction ? 'esbuild' : false,
+      target: 'es2020',
+      chunkSizeWarningLimit: 1024,
+      cssCodeSplit: true,
+      reportCompressedSize: true,
+      assetsInlineLimit: 4096,
+      emptyOutDir: true,
 
-      // Rollup configuration
+      // Improved asset naming
       rollupOptions: {
-        input: {
-          main: path.resolve(__dirname, 'index.html'),
-        },
         output: {
-          // Better chunking for performance
-          manualChunks: (id) => {
+          manualChunks(id) {
+            // Vendor splitting for better caching
             if (id.includes('node_modules')) {
-              if (id.includes('react') || id.includes('react-dom')) {
+              // React and core
+              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
                 return 'vendor-react';
               }
-              if (id.includes('@mui') || id.includes('antd')) {
+              // UI libraries
+              if (id.includes('@mui') || id.includes('antd') || id.includes('framer-motion')) {
                 return 'vendor-ui';
               }
-              if (id.includes('framer-motion') || id.includes('lucide-react')) {
-                return 'vendor-animations';
+              // Charts and visualization
+              if (id.includes('recharts') || id.includes('html2canvas') || id.includes('jspdf')) {
+                return 'vendor-charts';
               }
-              if (id.includes('html2canvas') || id.includes('jspdf')) {
-                return 'vendor-pdf';
-              }
-              if (id.includes('axios') || id.includes('zustand')) {
+              // State management and utilities
+              if (id.includes('zustand') || id.includes('axios') || id.includes('date-fns')) {
                 return 'vendor-utils';
               }
-              return 'vendor';
+              // Icons
+              if (id.includes('lucide-react') || id.includes('react-icons')) {
+                return 'vendor-icons';
+              }
+              return 'vendor-other';
+            }
+
+            // Split admin and main app
+            if (id.includes('/admin/')) {
+              return 'admin';
             }
           },
-          // File naming
-          chunkFileNames: 'assets/js/[name]-[hash].js',
-          entryFileNames: 'assets/js/[name]-[hash].js',
+
+          // Better file naming for cache busting
+          entryFileNames: 'assets/[name]-[hash].js',
+          chunkFileNames: 'assets/[name]-[hash].js',
           assetFileNames: ({ name }) => {
-            if (/\.(gif|jpe?g|png|svg)$/.test(name ?? '')) {
+            if (/\.(gif|jpe?g|png|svg|webp)$/.test(name)) {
               return 'assets/images/[name]-[hash][extname]';
             }
-            if (/\.css$/.test(name ?? '')) {
+            if (/\.(woff2?|eot|ttf|otf)$/.test(name)) {
+              return 'assets/fonts/[name]-[hash][extname]';
+            }
+            if (/\.css$/.test(name)) {
               return 'assets/css/[name]-[hash][extname]';
             }
             return 'assets/[name]-[hash][extname]';
           },
         },
+
+        external: [],
       },
 
-      // Chunk size warning limit
-      chunkSizeWarningLimit: 1000,
-
-      // CommonJS options
+      // Optimize dependencies
       commonjsOptions: {
-        transformMixedEsModules: true,
         include: [/node_modules/],
+        transformMixedEsModules: true,
       },
-
-      // Target browsers
-      target: 'es2020',
-
-      // Build assets
-      assetsDir: 'assets',
-      assetsInlineLimit: 4096,
     },
 
-    // Environment variables exposed to client
-    define: {
-      'process.env.NODE_ENV': JSON.stringify(mode),
-      'process.env.VITE_API_BASE_URL': JSON.stringify(apiTarget),
-      'process.env.VITE_PORT': JSON.stringify(frontendPort),
-      '__APP_VERSION__': JSON.stringify(env.VITE_APP_VERSION || '1.0.0'),
-      '__APP_NAME__': JSON.stringify(env.VITE_APP_NAME || 'AI Resume Builder'),
-      '__DEV__': isDevelopment,
-      '__PROD__': !isDevelopment,
-    },
-
-    // Resolve configuration
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, './src'),
-        '@components': path.resolve(__dirname, './src/components'),
-        '@pages': path.resolve(__dirname, './src/pages'),
-        '@context': path.resolve(__dirname, './src/context'),
-        '@utils': path.resolve(__dirname, './src/utils'),
-        '@hooks': path.resolve(__dirname, './src/hooks'),
-        '@lib': path.resolve(__dirname, './src/lib'),
-        '@assets': path.resolve(__dirname, './src/assets'),
-        '@types': path.resolve(__dirname, './src/types'),
+    optimizeDeps: {
+      include: [
+        'react',
+        'react-dom',
+        'react-dom/client',
+        'react/jsx-runtime',
+        'react-router-dom',
+        'axios',
+        '@tanstack/react-query',
+        'zustand',
+        'framer-motion',
+        'lucide-react',
+        '@mui/material',
+        '@mui/icons-material',
+        'antd',
+        'react-hot-toast',
+        'date-fns',
+        'html2canvas',
+        'jspdf',
+      ],
+      exclude: [],
+      esbuildOptions: {
+        target: 'es2020',
+        supported: {
+          'top-level-await': true,
+        },
       },
-      extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
     },
 
     // CSS configuration
     css: {
-      devSourcemap: isDevelopment,
       modules: {
-        localsConvention: 'camelCase',
-        generateScopedName: isDevelopment
-          ? '[name]__[local]__[hash:base64:5]'
-          : '[hash:base64:8]',
+        localsConvention: 'camelCaseOnly',
+        generateScopedName: isProduction
+          ? '[hash:base64:8]'
+          : '[name]__[local]__[hash:base64:5]',
       },
+      devSourcemap: isDevelopment,
       preprocessorOptions: {
         scss: {
-          api: 'modern-compiler',
+          additionalData: `@import "@styles/variables.scss";`,
         },
       },
     },
 
-    // Preview server configuration
-    preview: {
-      port: parseInt(env.VITE_PREVIEW_PORT || '4173'),
-      host: true,
-      open: false,
-      cors: true,
-      proxy: {
-        '/api': {
-          target: apiTarget,
-          changeOrigin: true,
-          secure: false,
-        },
-      },
+    // Performance optimizations
+    esbuild: {
+      pure: isProduction ? ['console.log', 'console.debug'] : [],
+      drop: isProduction ? ['debugger'] : [],
+      legalComments: 'none',
     },
-
-    // Experimental features
-    experimental: {
-      renderBuiltUrl(filename, { hostType }) {
-        if (hostType === 'js') {
-          return { runtime: `window.assetPath(${JSON.stringify(filename)})` };
-        }
-        return { relative: true };
-      },
-    },
-
-    // Logging level
-    logLevel: isDevelopment ? 'info' : 'warn',
-
-    // Clear screen on restart
-    clearScreen: false,
   };
 });

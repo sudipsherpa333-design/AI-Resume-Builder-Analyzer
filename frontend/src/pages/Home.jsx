@@ -26,6 +26,7 @@ import {
     FaGoogle
 } from "react-icons/fa";
 
+
 const Home = () => {
     const { isAuthenticated, isLoading } = useAuth();
     const navigate = useNavigate();

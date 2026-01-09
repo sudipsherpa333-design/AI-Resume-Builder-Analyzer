@@ -1,13 +1,14 @@
 /* src/index.css */
-/* Add these at the VERY TOP of the file */
+/* Use ONLY these modern directives for Tailwind v3+ */
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
-/* OR use the standard directives (both work) */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Remove these old directives completely:
+   @tailwind base;
+   @tailwind components;
+   @tailwind utilities;
+*/
 
 /* Your custom CSS below */
 :root {
@@ -25,6 +26,8 @@
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
+
+/* Rest of your CSS remains the same... */
 
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {

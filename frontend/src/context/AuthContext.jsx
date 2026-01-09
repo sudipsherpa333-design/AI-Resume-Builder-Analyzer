@@ -1,608 +1,693 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { toast } from 'react-hot-toast';
-import { Bell, LogOut, User, Settings, Shield, Database } from 'lucide-react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
-// Create API instance
-const createApi = () => {
-    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+// Create the auth context
+const AuthContext = createContext({});
 
-    return {
-        post: async (endpoint, data) => {
-            const response = await fetch(`${baseURL}${endpoint}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-                credentials: 'include'
-            });
-            return response.json();
-        },
-        get: async (endpoint) => {
-            const response = await fetch(`${baseURL}${endpoint}`, {
-                credentials: 'include'
-            });
-            return response.json();
-        },
-        put: async (endpoint, data) => {
-            const response = await fetch(`${baseURL}${endpoint}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-                credentials: 'include'
-            });
-            return response.json();
-        },
-        delete: async (endpoint) => {
-            const response = await fetch(`${baseURL}${endpoint}`, {
-                method: 'DELETE',
-                credentials: 'include'
-            });
-            return response.json();
+// Configure axios defaults - Use Vite environment variables
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+
+axios.defaults.baseURL = API_BASE_URL;
+axios.defaults.timeout = parseInt(import.meta.env.VITE_API_TIMEOUT) || 10000;
+axios.defaults.withCredentials = true;
+
+// Axios interceptor to add token to requests
+axios.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
         }
-    };
-};
-
-const api = createApi();
-
-const AuthContext = createContext();
-
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider');
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
     }
-    return context;
-};
+);
 
-export const AuthProvider = ({ children }) => {
-    // --- Authentication States ---
-    const [user, setUser] = useState(null);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isBackendAvailable, setIsBackendAvailable] = useState(false);
-    const [notifications, setNotifications] = useState([]);
+// Axios interceptor to handle token expiration
+axios.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
 
-    // --- Utility Functions ---
-    const checkBackendStatus = useCallback(async () => {
-        try {
-            const response = await fetch('http://localhost:5001/api/health', {
-                method: 'GET',
-                mode: 'cors',
-                credentials: 'include'
-            });
+        // If 401 error and we haven't tried to refresh yet
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            originalRequest._retry = true;
 
-            if (response.ok) {
-                const data = await response.json();
-                setIsBackendAvailable(true);
-                return { success: true, data };
-            } else {
-                setIsBackendAvailable(false);
-                console.warn("Backend responded with non-OK status:", response.status);
-                return { success: false };
-            }
-        } catch (error) {
-            setIsBackendAvailable(false);
-            console.warn("Backend connection check failed:", error.message);
-            return { success: false };
-        }
-    }, []);
+            try {
+                // Try to refresh token
+                const refreshToken = localStorage.getItem('refreshToken');
+                if (!refreshToken) {
+                    throw new Error('No refresh token');
+                }
 
-    // --- Load user from localStorage ---
-    const loadUserFromStorage = useCallback(() => {
-        try {
-            const savedUser = localStorage.getItem('resumeCraftUser');
-            const savedToken = localStorage.getItem('resumeCraftToken');
-
-            if (savedUser && savedToken) {
-                const parsedUser = JSON.parse(savedUser);
-                setUser(parsedUser);
-                setIsAuthenticated(true);
-                console.log('User restored from localStorage:', parsedUser.name);
-                return parsedUser;
-            }
-        } catch (error) {
-            console.error('Error parsing saved user data:', error);
-            localStorage.removeItem('resumeCraftUser');
-            localStorage.removeItem('resumeCraftToken');
-        }
-        return null;
-    }, []);
-
-    // --- Google OAuth Implementation ---
-    const loginWithGoogle = useCallback(() => {
-        setIsLoading(true);
-
-        try {
-            if (!isBackendAvailable) {
-                // FALLBACK: Mock Google OAuth 
-                const mockUser = {
-                    id: `google_${Date.now()}`,
-                    name: 'Google User',
-                    email: 'google.user@example.com',
-                    avatar: 'GU',
-                    provider: 'google',
-                    isVerified: true,
-                    role: 'user',
-                    createdAt: new Date().toISOString(),
-                    plan: 'pro',
-                    aiCredits: 150
-                };
-                const token = `google_token_${Date.now()}`;
-
-                setUser(mockUser);
-                setIsAuthenticated(true);
-                localStorage.setItem('resumeCraftUser', JSON.stringify(mockUser));
-                localStorage.setItem('resumeCraftToken', token);
-                localStorage.setItem('resumeCraftProvider', 'google');
-                toast.success(`🎉 Welcome, ${mockUser.name}! (Offline Google Login)`);
-                setIsLoading(false);
-                return { success: true, user: mockUser };
-            }
-
-            // BACKEND Google OAuth - Redirect to backend OAuth endpoint
-            const googleAuthUrl = 'http://localhost:5001/api/auth/google';
-            window.location.href = googleAuthUrl;
-
-            // Don't set loading to false here since we're redirecting
-            return { success: true, redirecting: true };
-
-        } catch (error) {
-            console.error('Google login initiation error:', error);
-            const errorMsg = error.message || 'Google login failed';
-            toast.error(errorMsg);
-            setIsLoading(false);
-            return { success: false, message: errorMsg };
-        }
-    }, [isBackendAvailable]);
-
-    // --- Handle Google OAuth Callback ---
-    const handleGoogleCallback = useCallback(async (code) => {
-        setIsLoading(true);
-        try {
-            const response = await api.post('/api/auth/google/callback', { code });
-
-            if (response.success) {
-                const { token, user: userData } = response;
-                localStorage.setItem('resumeCraftToken', token);
-                localStorage.setItem('resumeCraftUser', JSON.stringify(userData));
-                localStorage.setItem('resumeCraftProvider', 'google');
-                setUser(userData);
-                setIsAuthenticated(true);
-                toast.success(`🎉 Welcome, ${userData.name}! Google login successful.`);
-                setIsLoading(false);
-                return { success: true, user: userData };
-            } else {
-                throw new Error(response.message || 'Google login failed');
-            }
-        } catch (error) {
-            console.error('Google callback error:', error);
-            const errorMsg = error.response?.message || error.message || 'Google login failed';
-            toast.error(errorMsg);
-            setIsLoading(false);
-            return { success: false, message: errorMsg };
-        }
-    }, []);
-
-    // --- AI Integration ---
-    const generateAIResponse = useCallback(async (prompt, section, options = {}) => {
-        setIsLoading(true);
-        try {
-            if (isBackendAvailable) {
-                const response = await api.post('/api/ai/generate', {
-                    prompt,
-                    section,
-                    options
+                const response = await axios.post('/auth/refresh', {
+                    refreshToken
                 });
 
-                if (response.success) {
-                    toast.success('AI content generated successfully!');
-                    setIsLoading(false);
-                    return { success: true, data: response.content, creditsUsed: response.creditsUsed };
-                } else {
-                    throw new Error(response.message || 'AI generation failed');
-                }
+                const { token, refreshToken: newRefreshToken } = response.data;
+
+                // Store new tokens
+                localStorage.setItem('token', token);
+                localStorage.setItem('refreshToken', newRefreshToken);
+
+                // Update authorization header
+                originalRequest.headers.Authorization = `Bearer ${token}`;
+
+                // Retry the original request
+                return axios(originalRequest);
+            } catch (refreshError) {
+                // If refresh fails, logout user
+                clearAuth();
+                window.location.href = '/login';
             }
-
-            // FALLBACK: Mock AI Response
-            console.log(`[AI Mock] Generating content for section: ${section}`);
-            await new Promise(resolve => setTimeout(resolve, 1200));
-
-            const mockResponses = {
-                summary: `Dynamic and results-oriented professional with proven expertise in delivering innovative solutions. Strong leadership skills combined with exceptional analytical capabilities. Demonstrated success in driving business growth and operational excellence.`,
-                experience: `• Led cross-functional teams to deliver projects 20% ahead of schedule\n• Implemented new processes that increased efficiency by 35%\n• Managed budgets up to $500k with 98% accuracy\n• Mentored 5 junior team members to improve overall team performance`,
-                skills: 'React, Node.js, Python, AWS, Docker, Kubernetes, MongoDB, PostgreSQL, GraphQL, TypeScript, CI/CD, Agile/Scrum',
-                projects: `Developed a scalable web application serving 10k+ users with 99.9% uptime. Implemented microservices architecture that reduced response time by 40%.`,
-                default: `AI-enhanced content optimized for ${section}. This content highlights key achievements and professional capabilities effectively.`
-            };
-
-            const content = mockResponses[section] || mockResponses.default;
-            toast.success('AI content generated (offline mode)');
-            setIsLoading(false);
-            return { success: true, data: content, creditsUsed: 1 };
-
-        } catch (error) {
-            console.error('AI Generation error:', error);
-            const errorMsg = error.message || 'AI generation failed';
-            toast.error(`AI Assistant failed: ${errorMsg}`);
-            setIsLoading(false);
-            return { success: false, message: errorMsg };
         }
-    }, [isBackendAvailable]);
 
-    // --- Core Authentication Functions ---
-    const register = useCallback(async (name, email, password) => {
-        setIsLoading(true);
-        try {
-            if (!isBackendAvailable) {
-                // FALLBACK: Local storage registration
-                const fallbackUsers = JSON.parse(localStorage.getItem('resumeCraftUsers') || '[]');
-                const userExists = fallbackUsers.find(u => u.email === email);
+        return Promise.reject(error);
+    }
+);
 
-                if (userExists) {
-                    toast.error('User already exists with this email');
-                    setIsLoading(false);
-                    return { success: false, message: 'User already exists' };
-                }
+export const AuthProvider = ({ children }) => {
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [authChecked, setAuthChecked] = useState(false);
+    const navigate = useNavigate();
 
-                const newUser = {
-                    id: `user_${Date.now()}`,
-                    name,
-                    email,
-                    password,
-                    avatar: name.split(' ').map(n => n[0]).join('').toUpperCase(),
-                    createdAt: new Date().toISOString(),
-                    isVerified: false,
-                    role: 'user',
-                    plan: 'free',
-                    aiCredits: 50
-                };
-
-                fallbackUsers.push(newUser);
-                localStorage.setItem('resumeCraftUsers', JSON.stringify(fallbackUsers));
-
-                // Auto-login after registration
-                const { password: _, ...userWithoutPassword } = newUser;
-                const token = `token_${Date.now()}`;
-
-                setUser(userWithoutPassword);
-                setIsAuthenticated(true);
-                localStorage.setItem('resumeCraftUser', JSON.stringify(userWithoutPassword));
-                localStorage.setItem('resumeCraftToken', token);
-                toast.success('🎉 Registration successful! Welcome aboard!');
-                setIsLoading(false);
-                return { success: true, user: userWithoutPassword };
-            }
-
-            // BACKEND registration
-            const response = await api.post('/api/auth/register', { name, email, password });
-
-            if (response.success) {
-                const { token, user: userData } = response;
-                localStorage.setItem('resumeCraftToken', token);
-                localStorage.setItem('resumeCraftUser', JSON.stringify(userData));
-                setUser(userData);
-                setIsAuthenticated(true);
-                toast.success('🎉 Registration successful! Welcome aboard!');
-                setIsLoading(false);
-                return { success: true, user: userData };
-            } else {
-                throw new Error(response.message || 'Registration failed');
-            }
-        } catch (error) {
-            console.error('Registration error:', error);
-            const errorMsg = error.message || 'Registration failed';
-            toast.error(errorMsg);
-            setIsLoading(false);
-            return { success: false, message: errorMsg };
-        }
-    }, [isBackendAvailable]);
-
-    const login = useCallback(async (email, password) => {
-        setIsLoading(true);
-        try {
-            if (!isBackendAvailable) {
-                // FALLBACK: Local storage login
-                const savedUsers = JSON.parse(localStorage.getItem('resumeCraftUsers') || '[]');
-                const DEMO_USERS = [
-                    {
-                        id: '1',
-                        name: 'Demo User',
-                        email: 'demo@example.com',
-                        password: 'password123',
-                        avatar: 'DU',
-                        role: 'user',
-                        plan: 'pro',
-                        aiCredits: 150,
-                        createdAt: new Date().toISOString()
-                    },
-                ];
-
-                let userToLogin = [...savedUsers, ...DEMO_USERS].find(u =>
-                    u.email === email && u.password === password
-                );
-
-                if (userToLogin) {
-                    const token = `token_${Date.now()}`;
-                    const { password: _, ...userWithoutPassword } = userToLogin;
-
-                    setUser(userWithoutPassword);
-                    setIsAuthenticated(true);
-                    localStorage.setItem('resumeCraftUser', JSON.stringify(userWithoutPassword));
-                    localStorage.setItem('resumeCraftToken', token);
-                    toast.success(`🎉 Welcome back, ${userWithoutPassword.name}!`);
-                    setIsLoading(false);
-                    return { success: true, user: userWithoutPassword };
-                } else {
-                    toast.error('Invalid email or password');
-                    setIsLoading(false);
-                    return { success: false, message: 'Invalid credentials' };
-                }
-            }
-
-            // BACKEND login
-            const response = await api.post('/api/auth/login', { email, password });
-
-            if (response.success) {
-                const { token, user: userData } = response;
-                localStorage.setItem('resumeCraftToken', token);
-                localStorage.setItem('resumeCraftUser', JSON.stringify(userData));
-                setUser(userData);
-                setIsAuthenticated(true);
-                toast.success(`🎉 Welcome back, ${userData.name}!`);
-                setIsLoading(false);
-                return { success: true, user: userData };
-            } else {
-                throw new Error(response.message || 'Login failed');
-            }
-        } catch (error) {
-            console.error('Login error:', error);
-            const errorMsg = error.message || 'Login failed';
-            toast.error(errorMsg);
-            setIsLoading(false);
-            return { success: false, message: errorMsg };
-        }
-    }, [isBackendAvailable]);
-
-    // --- Demo Login ---
-    const demoLogin = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const demoUser = {
-                id: 'demo_1',
-                name: 'Demo User',
-                email: 'demo@example.com',
-                avatar: 'DU',
-                role: 'user',
-                plan: 'pro',
-                aiCredits: 150,
-                isVerified: true,
-                createdAt: new Date().toISOString()
-            };
-            const token = `demo_token_${Date.now()}`;
-
-            setUser(demoUser);
-            setIsAuthenticated(true);
-            localStorage.setItem('resumeCraftUser', JSON.stringify(demoUser));
-            localStorage.setItem('resumeCraftToken', token);
-            toast.success('🚀 Welcome to Demo Account! (Offline Mode)');
-            setIsLoading(false);
-            return { success: true, user: demoUser };
-        } catch (error) {
-            console.error('Demo login error:', error);
-            toast.error('Demo login failed');
-            setIsLoading(false);
-            return { success: false, message: 'Demo login failed' };
-        }
+    // Check if user is logged in on mount
+    useEffect(() => {
+        checkAuth();
     }, []);
 
-    // --- Logout ---
-    const logout = useCallback(() => {
+    // Check authentication status
+    const checkAuth = async () => {
         try {
-            localStorage.removeItem('resumeCraftUser');
-            localStorage.removeItem('resumeCraftToken');
-            localStorage.removeItem('resumeCraftProvider');
-            setUser(null);
-            setIsAuthenticated(false);
-            setNotifications([]);
-            toast.success('Logged out successfully');
+            const token = localStorage.getItem('token');
+            const storedUser = localStorage.getItem('user');
 
-            setTimeout(() => {
-                window.location.href = '/login';
-            }, 300);
+            if (token && storedUser) {
+                // Set user from localStorage first for immediate UI
+                setUser(JSON.parse(storedUser));
+
+                try {
+                    // Verify token with server
+                    const response = await axios.get('/auth/check');
+
+                    if (response.data.success) {
+                        const userData = response.data.data;
+                        setUser(userData);
+                        localStorage.setItem('user', JSON.stringify(userData));
+                    } else {
+                        // Token invalid, clear everything
+                        clearAuth();
+                    }
+                } catch (error) {
+                    // Server error, keep local user but show warning
+                    console.warn('Auth check failed, using cached user:', error.message);
+                }
+            } else {
+                clearAuth();
+            }
+        } catch (error) {
+            console.error('Auth check error:', error);
+            clearAuth();
+        } finally {
+            setLoading(false);
+            setAuthChecked(true);
+        }
+    };
+
+    // Register user
+    const register = async (userData) => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const response = await axios.post('/auth/register', userData);
+
+            if (response.data.success) {
+                const { token, refreshToken, user } = response.data.data;
+
+                // Store tokens and user data
+                localStorage.setItem('token', token);
+                localStorage.setItem('refreshToken', refreshToken);
+                localStorage.setItem('user', JSON.stringify(user));
+
+                // Set user in state
+                setUser(user);
+
+                return { success: true, user };
+            }
+
+            throw new Error(response.data.error || 'Registration failed');
+
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.message || 'Registration failed';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Login user
+    const login = async (email, password, rememberMe = false) => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const response = await axios.post('/auth/login', {
+                email,
+                password,
+                rememberMe
+            });
+
+            if (response.data.success) {
+                const { token, refreshToken, user } = response.data.data;
+
+                // Store tokens and user data
+                localStorage.setItem('token', token);
+                localStorage.setItem('refreshToken', refreshToken);
+                localStorage.setItem('user', JSON.stringify(user));
+
+                // Set longer expiry for remember me
+                if (rememberMe) {
+                    localStorage.setItem('rememberMe', 'true');
+                }
+
+                // Set user in state
+                setUser(user);
+
+                return { success: true, user };
+            }
+
+            throw new Error(response.data.error || 'Login failed');
+
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.message || 'Login failed';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Login with Google
+    const loginWithGoogle = () => {
+        const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+        const redirectUri = window.location.origin + '/auth/google/callback';
+
+        if (!googleClientId) {
+            setError('Google OAuth is not configured');
+            return;
+        }
+
+        const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=code&scope=email profile`;
+        window.location.href = googleAuthUrl;
+    };
+
+    // Login with Google OAuth callback
+    const handleGoogleCallback = async (code) => {
+        try {
+            setLoading(true);
+
+            const response = await axios.post('/auth/google/callback', { code });
+
+            if (response.data.success) {
+                const { token, refreshToken, user } = response.data.data;
+
+                localStorage.setItem('token', token);
+                localStorage.setItem('refreshToken', refreshToken);
+                localStorage.setItem('user', JSON.stringify(user));
+
+                setUser(user);
+                navigate('/dashboard');
+
+                return { success: true, user };
+            }
+
+            throw new Error('Google authentication failed');
+
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || 'Google authentication failed';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Logout user
+    const logout = async () => {
+        try {
+            setLoading(true);
+
+            // Call logout endpoint
+            await axios.post('/auth/logout');
+
         } catch (error) {
             console.error('Logout error:', error);
-            toast.error('Logout failed');
-        }
-    }, []);
+        } finally {
+            // Clear local storage regardless of server response
+            clearAuth();
 
-    // --- Update Profile ---
-    const updateProfile = useCallback(async (updates) => {
-        setIsLoading(true);
+            // Reset state
+            setUser(null);
+            setError(null);
+
+            // Navigate to login
+            navigate('/login');
+            setLoading(false);
+        }
+    };
+
+    // Update user profile
+    const updateProfile = async (profileData) => {
         try {
-            if (!user) {
-                toast.error('No user logged in');
-                setIsLoading(false);
-                return { success: false, message: 'No user logged in' };
+            setLoading(true);
+            setError(null);
+
+            const response = await axios.put('/users/profile', profileData);
+
+            if (response.data.success) {
+                const updatedUser = response.data.data;
+
+                // Update user in state and localStorage
+                setUser(updatedUser);
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+
+                return { success: true, user: updatedUser };
             }
 
-            const updatedUser = {
-                ...user,
-                ...updates,
-                updatedAt: new Date().toISOString()
-            };
+            throw new Error(response.data.error || 'Profile update failed');
 
-            setUser(updatedUser);
-            localStorage.setItem('resumeCraftUser', JSON.stringify(updatedUser));
-
-            if (isBackendAvailable) {
-                const response = await api.put('/api/users/profile', updates);
-                if (!response.success) throw new Error(response.message);
-            }
-
-            toast.success('Profile updated successfully');
-            setIsLoading(false);
-            return { success: true, user: updatedUser };
         } catch (error) {
-            console.error('Update profile error:', error);
-            const errorMsg = error.message || 'Failed to update profile';
-            toast.error(errorMsg);
-            setIsLoading(false);
-            return { success: false, message: errorMsg };
+            const errorMessage = error.response?.data?.error || error.message || 'Profile update failed';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
         }
-    }, [user, isBackendAvailable]);
+    };
 
-    // --- Add Notification ---
-    const addNotification = useCallback((notification) => {
-        setNotifications(prev => [
-            {
-                id: Date.now(),
-                text: notification.text,
-                type: notification.type || 'info',
-                time: new Date().toISOString(),
-                read: false
-            },
-            ...prev
-        ].slice(0, 10)); // Keep only last 10 notifications
-    }, []);
+    // Update password
+    const updatePassword = async (currentPassword, newPassword) => {
+        try {
+            setLoading(true);
+            setError(null);
 
-    // --- Mark Notification as Read ---
-    const markNotificationAsRead = useCallback((id) => {
-        setNotifications(prev =>
-            prev.map(notification =>
-                notification.id === id
-                    ? { ...notification, read: true }
-                    : notification
-            )
-        );
-    }, []);
+            const response = await axios.put('/users/password', {
+                currentPassword,
+                newPassword
+            });
 
-    // --- Clear All Notifications ---
-    const clearAllNotifications = useCallback(() => {
-        setNotifications([]);
-    }, []);
-
-    // --- Initialize on mount ---
-    useEffect(() => {
-        const initializeAuth = async () => {
-            setIsLoading(true);
-            try {
-                const backendStatus = await checkBackendStatus();
-
-                if (backendStatus.success) {
-                    setIsBackendAvailable(true);
-                    console.log('✅ Backend is available');
-
-                    // Try to load user from localStorage first
-                    const loadedUser = loadUserFromStorage();
-
-                    if (loadedUser && isBackendAvailable) {
-                        // Verify user with backend
-                        try {
-                            const response = await api.get('/api/users/profile');
-                            if (response.success) {
-                                // Update with latest user data
-                                setUser(response.user);
-                                localStorage.setItem('resumeCraftUser', JSON.stringify(response.user));
-                            }
-                        } catch (error) {
-                            console.warn('Could not verify user with backend, using cached data');
-                        }
-                    }
-                } else {
-                    console.warn('⚠️ Backend is not available, using offline mode');
-                    loadUserFromStorage();
-                }
-
-                // Load demo notifications
-                setNotifications([
-                    {
-                        id: 1,
-                        text: 'AI has suggestions for your summary',
-                        type: 'ai',
-                        time: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-                        read: false
-                    },
-                    {
-                        id: 2,
-                        text: 'Resume saved to cloud',
-                        type: 'success',
-                        time: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-                        read: true
-                    },
-                    {
-                        id: 3,
-                        text: 'ATS score improved by 15%',
-                        type: 'improvement',
-                        time: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-                        read: true
-                    }
-                ]);
-
-            } catch (error) {
-                console.error('Auth initialization error:', error);
-                // Still try to load from localStorage
-                loadUserFromStorage();
-            } finally {
-                setIsLoading(false);
+            if (response.data.success) {
+                return { success: true };
             }
-        };
 
-        initializeAuth();
-    }, [checkBackendStatus, loadUserFromStorage]);
+            throw new Error(response.data.error || 'Password update failed');
 
-    // --- Context Value ---
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.message || 'Password update failed';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Forgot password
+    const forgotPassword = async (email) => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const response = await axios.post('/auth/forgot-password', { email });
+
+            if (response.data.success) {
+                return { success: true };
+            }
+
+            throw new Error(response.data.error || 'Password reset request failed');
+
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.message || 'Password reset request failed';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Reset password
+    const resetPassword = async (token, password) => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const response = await axios.post('/auth/reset-password', {
+                token,
+                password
+            });
+
+            if (response.data.success) {
+                return { success: true };
+            }
+
+            throw new Error(response.data.error || 'Password reset failed');
+
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.message || 'Password reset failed';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Verify email
+    const verifyEmail = async (token) => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const response = await axios.post('/auth/verify-email', { token });
+
+            if (response.data.success) {
+                const updatedUser = { ...user, isVerified: true };
+                setUser(updatedUser);
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+
+                return { success: true, user: updatedUser };
+            }
+
+            throw new Error(response.data.error || 'Email verification failed');
+
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.message || 'Email verification failed';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Resend verification email
+    const resendVerification = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const response = await axios.post('/auth/resend-verification');
+
+            if (response.data.success) {
+                return { success: true };
+            }
+
+            throw new Error(response.data.error || 'Failed to resend verification email');
+
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.message || 'Failed to resend verification email';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Update preferences
+    const updatePreferences = async (preferences) => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const response = await axios.put('/users/preferences', preferences);
+
+            if (response.data.success) {
+                const updatedUser = response.data.data;
+                setUser(updatedUser);
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+
+                return { success: true, user: updatedUser };
+            }
+
+            throw new Error(response.data.error || 'Preferences update failed');
+
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.message || 'Preferences update failed';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Use AI credits (if enabled)
+    const useAICredits = async (credits = 1) => {
+        // Check if AI is enabled
+        if (import.meta.env.VITE_ENABLE_AI !== 'true') {
+            return { success: false, error: 'AI features are disabled' };
+        }
+
+        try {
+            setLoading(true);
+
+            const response = await axios.post('/users/ai/use', { credits });
+
+            if (response.data.success) {
+                const updatedUser = {
+                    ...user,
+                    aiCredits: response.data.data.remainingCredits
+                };
+
+                setUser(updatedUser);
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+
+                return {
+                    success: true,
+                    remainingCredits: response.data.data.remainingCredits
+                };
+            }
+
+            throw new Error(response.data.error || 'Failed to use AI credits');
+
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.message || 'Failed to use AI credits';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Get user activity
+    const getUserActivity = async (limit = 20) => {
+        try {
+            setLoading(true);
+
+            const response = await axios.get(`/users/activity?limit=${limit}`);
+
+            if (response.data.success) {
+                return { success: true, activities: response.data.data };
+            }
+
+            throw new Error(response.data.error || 'Failed to get user activity');
+
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.message || 'Failed to get user activity';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Get user statistics
+    const getUserStats = async () => {
+        try {
+            setLoading(true);
+
+            const response = await axios.get('/users/stats');
+
+            if (response.data.success) {
+                return { success: true, stats: response.data.data };
+            }
+
+            throw new Error(response.data.error || 'Failed to get user statistics');
+
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.message || 'Failed to get user statistics';
+            setError(errorMessage);
+            return { success: false, error: errorMessage };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Clear authentication data
+    const clearAuth = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        localStorage.removeItem('rememberMe');
+
+        // Clear axios default headers
+        delete axios.defaults.headers.common['Authorization'];
+    };
+
+    // Check if user is admin
+    const isAdmin = () => {
+        return user && (user.role === 'admin' || user.role === 'super_admin');
+    };
+
+    // Check if user can use AI
+    const canUseAI = () => {
+        // Check feature flag
+        if (import.meta.env.VITE_ENABLE_AI !== 'true') {
+            return false;
+        }
+
+        return user && (user.aiCredits > 0 || user.plan !== 'free');
+    };
+
+    // Refresh user data from server
+    const refreshUserData = async () => {
+        try {
+            const response = await axios.get('/users/me');
+
+            if (response.data.success) {
+                const userData = response.data.data;
+                setUser(userData);
+                localStorage.setItem('user', JSON.stringify(userData));
+                return { success: true, user: userData };
+            }
+
+            throw new Error('Failed to refresh user data');
+
+        } catch (error) {
+            console.error('Refresh user data error:', error);
+            return { success: false, error: error.message };
+        }
+    };
+
+    // Context value
     const value = {
         user,
-        isAuthenticated,
-        isLoading,
-        isBackendAvailable,
-        notifications,
+        loading,
+        error,
+        authChecked,
+        setError,
         register,
         login,
         loginWithGoogle,
         handleGoogleCallback,
-        demoLogin,
         logout,
         updateProfile,
-        generateAIResponse,
-        checkBackendStatus,
-        addNotification,
-        markNotificationAsRead,
-        clearAllNotifications,
-        forgotPassword: async (email) => {
-            toast.success(`Password reset link sent to ${email} (demo mode)`);
-            return { success: true, message: 'Reset link sent' };
-        },
-        clearLocalData: () => {
-            localStorage.removeItem('resumeCraftUser');
-            localStorage.removeItem('resumeCraftToken');
-            localStorage.removeItem('resumeCraftProvider');
-            localStorage.removeItem('resumeCraftUsers');
-            setUser(null);
-            setIsAuthenticated(false);
-            setNotifications([]);
-            toast.success('Local data cleared');
+        updatePassword,
+        forgotPassword,
+        resetPassword,
+        verifyEmail,
+        resendVerification,
+        updatePreferences,
+        useAICredits,
+        getUserActivity,
+        getUserStats,
+        refreshUserData,
+        isAdmin,
+        canUseAI,
+        checkAuth,
+        clearAuth
+    };
+
+    return (
+        <AuthContext.Provider value={value}>
+            {children}
+        </AuthContext.Provider>
+    );
+};
+
+// Custom hook to use auth context
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+
+    return context;
+};
+
+// Higher Order Component for protected routes
+export const withAuth = (Component) => {
+    return function WithAuthComponent(props) {
+        const { user, loading, authChecked } = useAuth();
+        const navigate = useNavigate();
+
+        useEffect(() => {
+            if (authChecked && !user) {
+                navigate('/login', {
+                    state: {
+                        from: props.location?.pathname || '/'
+                    }
+                });
+            }
+        }, [user, authChecked, navigate, props.location]);
+
+        if (loading || !authChecked) {
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                    <div className="text-center">
+                        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+                        <p className="mt-4 text-gray-600 dark:text-gray-300">Loading...</p>
+                    </div>
+                </div>
+            );
         }
-    };
 
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-// Custom hook for notifications
-export const useNotifications = () => {
-    const { notifications, markNotificationAsRead, clearAllNotifications, addNotification } = useAuth();
-
-    const unreadCount = notifications.filter(n => !n.read).length;
-
-    return {
-        notifications,
-        unreadCount,
-        markAsRead: markNotificationAsRead,
-        clearAll: clearAllNotifications,
-        add: addNotification
+        return user ? <Component {...props} /> : null;
     };
 };
+
+// Higher Order Component for admin routes
+export const withAdmin = (Component) => {
+    return function WithAdminComponent(props) {
+        const { user, loading, authChecked, isAdmin } = useAuth();
+        const navigate = useNavigate();
+
+        useEffect(() => {
+            if (authChecked) {
+                if (!user) {
+                    navigate('/login', {
+                        state: {
+                            from: props.location?.pathname || '/'
+                        }
+                    });
+                } else if (!isAdmin()) {
+                    navigate('/dashboard', {
+                        state: {
+                            error: 'Admin access required'
+                        }
+                    });
+                }
+            }
+        }, [user, authChecked, isAdmin, navigate, props.location]);
+
+        if (loading || !authChecked) {
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                    <div className="text-center">
+                        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+                        <p className="mt-4 text-gray-600 dark:text-gray-300">Loading...</p>
+                    </div>
+                </div>
+            );
+        }
+
+        return user && isAdmin() ? <Component {...props} /> : null;
+    };
+};
+
+export default AuthContext;

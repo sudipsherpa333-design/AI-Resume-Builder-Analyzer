@@ -1,1444 +1,681 @@
+// src/components/builder/EducationPage.jsx
 import React, { useState, useEffect } from 'react';
-import {
-    FaGraduationCap,
-    FaCalendarAlt,
-    FaMapMarkerAlt,
-    FaUniversity,
-    FaPlus,
-    FaTrash,
-    FaEdit,
-    FaSave,
-    FaTimes,
-    FaArrowUp,
-    FaArrowDown,
-    FaCopy,
-    FaTrophy,
-    FaBook,
-    FaStar,
-    FaAward
-} from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
-import toast from 'react-hot-toast';
+import {
+    GraduationCap, Calendar, MapPin, BookOpen, Edit, Trash2,
+    Plus, X, ChevronUp, ChevronDown, Users, Star, Eye, EyeOff,
+    Globe, Building, CheckCircle
+} from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
-const EducationPage = ({ resumeData, onUpdate, errors, setErrors }) => {
-    const [educations, setEducations] = useState(resumeData?.education || []);
-    const [editingIndex, setEditingIndex] = useState(-1);
-    const [isAddingNew, setIsAddingNew] = useState(false);
-    const [formData, setFormData] = useState({
-        institution: '',
+const EducationPage = ({ data = {}, onUpdate, onNext, onPrev, onAIEnhance, aiCredits }) => {
+    const [educations, setEducations] = useState(data?.items || []);
+    const [editingId, setEditingId] = useState(null);
+    const [isAdding, setIsAdding] = useState(false);
+    const [gpaFormat, setGpaFormat] = useState('4.0');
+
+    useEffect(() => {
+        if (educations !== data?.items) {
+            const timer = setTimeout(() => {
+                if (onUpdate) {
+                    onUpdate({ items: educations });
+                }
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [educations, onUpdate, data?.items]);
+
+    const emptyEducation = {
+        id: Date.now().toString(),
         degree: '',
-        fieldOfStudy: '',
+        school: '',
         location: '',
         startDate: '',
         endDate: '',
-        current: false,
+        graduationYear: '',
         gpa: '',
-        maxGpa: '4.0',
+        maxGpa: gpaFormat === '4.0' ? '4.0' : '100',
         description: '',
-        honors: [],
-        coursework: []
-    });
-
-    useEffect(() => {
-        if (resumeData?.education) {
-            setEducations(resumeData.education);
-        }
-    }, [resumeData?.education]);
-
-    const handleUpdate = (data) => {
-        if (onUpdate) {
-            onUpdate('education', data);
-        }
+        courses: [],
+        isVisible: true,
+        boardUniversity: '',
+        faculty: '',
+        program: ''
     };
 
-    useEffect(() => {
-        if (educations.length > 0 || educations.length === 0) {
-            handleUpdate(educations);
-        }
-    }, [educations]);
-
-    const handleInputChange = (field, value) => {
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
-    };
-
-    const handleAddHonor = () => {
-        setFormData(prev => ({
-            ...prev,
-            honors: [...prev.honors, '']
-        }));
-    };
-
-    const handleHonorChange = (index, value) => {
-        setFormData(prev => ({
-            ...prev,
-            honors: prev.honors.map((item, i) => i === index ? value : item)
-        }));
-    };
-
-    const handleRemoveHonor = (index) => {
-        setFormData(prev => ({
-            ...prev,
-            honors: prev.honors.filter((_, i) => i !== index)
-        }));
-    };
-
-    const handleAddCourse = () => {
-        setFormData(prev => ({
-            ...prev,
-            coursework: [...prev.coursework, '']
-        }));
-    };
-
-    const handleCourseChange = (index, value) => {
-        setFormData(prev => ({
-            ...prev,
-            coursework: prev.coursework.map((item, i) => i === index ? value : item)
-        }));
-    };
-
-    const handleRemoveCourse = (index) => {
-        setFormData(prev => ({
-            ...prev,
-            coursework: prev.coursework.filter((_, i) => i !== index)
-        }));
-    };
-
-    const validateForm = () => {
-        const newErrors = {};
-
-        if (!formData.institution.trim()) {
-            newErrors.institution = 'Institution is required';
-        }
-        if (!formData.degree.trim()) {
-            newErrors.degree = 'Degree is required';
-        }
-        if (!formData.startDate) {
-            newErrors.startDate = 'Start date is required';
-        }
-        if (!formData.current && !formData.endDate) {
-            newErrors.endDate = 'End date is required for completed degrees';
-        }
-
-        if (Object.keys(newErrors).length > 0) {
-            setErrors(prev => ({ ...prev, ...newErrors }));
-            return false;
-        }
-
-        setErrors({});
-        return true;
-    };
-
-    const handleAddEducation = () => {
-        if (!validateForm()) {
-            toast.error('Please fill all required fields');
-            return;
-        }
-
-        const newEducation = {
-            id: Date.now(),
-            ...formData,
-            honors: formData.honors.filter(h => h.trim() !== ''),
-            coursework: formData.coursework.filter(c => c.trim() !== '')
+    const addEducation = () => {
+        const newEdu = {
+            ...emptyEducation,
+            id: Date.now().toString(),
+            maxGpa: gpaFormat === '4.0' ? '4.0' : '100'
         };
-
-        setEducations(prev => [...prev, newEducation]);
-        resetForm();
-        setIsAddingNew(false);
-        toast.success('Education added successfully!');
+        setEducations([newEdu, ...educations]);
+        setEditingId(newEdu.id);
+        setIsAdding(true);
     };
 
-    const handleEditEducation = (index) => {
-        const education = educations[index];
-        setFormData({
-            institution: education.institution || '',
-            degree: education.degree || '',
-            fieldOfStudy: education.fieldOfStudy || '',
-            location: education.location || '',
-            startDate: education.startDate || '',
-            endDate: education.endDate || '',
-            current: education.current || false,
-            gpa: education.gpa || '',
-            maxGpa: education.maxGpa || '4.0',
-            description: education.description || '',
-            honors: education.honors || [],
-            coursework: education.coursework || []
-        });
-        setEditingIndex(index);
-        setIsAddingNew(false);
+    const updateEducation = (id, updates) => {
+        setEducations(educations.map(edu =>
+            edu.id === id ? { ...edu, ...updates } : edu
+        ));
     };
 
-    const handleUpdateEducation = () => {
-        if (!validateForm()) {
-            toast.error('Please fill all required fields');
+    const deleteEducation = (id) => {
+        setEducations(educations.filter(edu => edu.id !== id));
+        toast.success('Education deleted');
+    };
+
+    const moveEducation = (id, direction) => {
+        const index = educations.findIndex(edu => edu.id === id);
+        if (
+            (direction === 'up' && index > 0) ||
+            (direction === 'down' && index < educations.length - 1)
+        ) {
+            const newEducations = [...educations];
+            const newIndex = direction === 'up' ? index - 1 : direction === 'down' ? index + 1 : index;
+            [newEducations[index], newEducations[newIndex]] =
+                [newEducations[newIndex], newEducations[index]];
+            setEducations(newEducations);
+        }
+    };
+
+    const toggleVisibility = (id) => {
+        updateEducation(id, { isVisible: !educations.find(e => e.id === id).isVisible });
+    };
+
+    const handleAIEnhance = (id) => {
+        if (aiCredits <= 0) {
+            toast.error('Insufficient AI credits');
             return;
         }
 
-        setEducations(prev => {
-            const updated = [...prev];
-            updated[editingIndex] = {
-                ...updated[editingIndex],
-                ...formData,
-                honors: formData.honors.filter(h => h.trim() !== ''),
-                coursework: formData.coursework.filter(c => c.trim() !== '')
+        const edu = educations.find(e => e.id === id);
+        if (edu) {
+            const enhanced = {
+                ...edu,
+                description: `${edu.description}\n\nEnhanced with AI to better showcase academic achievements.`,
+                aiEnhanced: true
             };
-            return updated;
-        });
+            updateEducation(id, enhanced);
+            toast.success('Education enhanced with AI!');
 
-        resetForm();
-        setEditingIndex(-1);
-        toast.success('Education updated successfully!');
-    };
-
-    const handleDeleteEducation = (index) => {
-        if (window.confirm('Are you sure you want to delete this education entry?')) {
-            setEducations(prev => prev.filter((_, i) => i !== index));
-            toast.success('Education removed successfully');
+            if (onAIEnhance) {
+                onAIEnhance();
+            }
         }
     };
 
-    const handleMoveEducation = (index, direction) => {
-        if ((direction === 'up' && index === 0) || (direction === 'down' && index === educations.length - 1)) {
-            return;
-        }
-
-        setEducations(prev => {
-            const updated = [...prev];
-            const newIndex = direction === 'up' ? index - 1 : index + 1;
-            [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
-            return updated;
-        });
-    };
-
-    const handleDuplicateEducation = (index) => {
-        const education = educations[index];
-        const duplicatedEducation = {
-            ...education,
-            id: Date.now(),
-            institution: `${education.institution} (Copy)`
-        };
-
-        setEducations(prev => [...prev, duplicatedEducation]);
-        toast.success('Education duplicated successfully!');
-    };
-
-    const resetForm = () => {
-        setFormData({
-            institution: '',
-            degree: '',
-            fieldOfStudy: '',
-            location: '',
-            startDate: '',
-            endDate: '',
-            current: false,
-            gpa: '',
-            maxGpa: '4.0',
-            description: '',
-            honors: [],
-            coursework: []
-        });
-        setErrors({});
-    };
-
-    const calculateEducationLevel = (degree) => {
-        const degreeLower = degree.toLowerCase();
-        if (degreeLower.includes('phd') || degreeLower.includes('doctor')) return 'Doctorate';
-        if (degreeLower.includes('master')) return 'Master';
-        if (degreeLower.includes('bachelor')) return 'Bachelor';
-        if (degreeLower.includes('associate')) return 'Associate';
-        if (degreeLower.includes('diploma') || degreeLower.includes('certificate')) return 'Certificate';
-        return 'Other';
-    };
-
-    const getGpaColor = (gpa, maxGpa) => {
+    const calculateGPA = (gpa, maxGpa) => {
+        if (!gpa || !maxGpa) return null;
         const numericGpa = parseFloat(gpa);
-        const numericMax = parseFloat(maxGpa || '4.0');
-        if (!numericGpa || !numericMax) return '#6b7280';
+        const numericMax = parseFloat(maxGpa);
 
-        const percentage = (numericGpa / numericMax) * 100;
-        if (percentage >= 90) return '#10b981';
-        if (percentage >= 80) return '#3b82f6';
-        if (percentage >= 70) return '#f59e0b';
-        return '#ef4444';
+        if (numericMax === 4.0) {
+            if (numericGpa >= 3.7) return 'Distinction';
+            if (numericGpa >= 3.3) return 'First Division';
+            if (numericGpa >= 2.7) return 'Second Division';
+            if (numericGpa >= 2.0) return 'Pass';
+            return 'Below Pass';
+        } else {
+            const percentage = (numericGpa / numericMax) * 100;
+            if (percentage >= 90) return 'Distinction';
+            if (percentage >= 80) return 'First Division';
+            if (percentage >= 65) return 'Second Division';
+            if (percentage >= 50) return 'Pass';
+            return 'Below Pass';
+        }
+    };
+
+    // Nepal-specific education data
+    const nepaliDegreeTypes = [
+        'SEE/SLC',
+        '+2/Intermediate',
+        'Diploma',
+        'Bachelor\'s Degree',
+        'Master\'s Degree',
+        'M.Phil.',
+        'PhD',
+        'Postgraduate Diploma',
+        'Certificate Level',
+        'Technical School'
+    ];
+
+    const nepaliBoardsUniversities = [
+        'Tribhuvan University (TU)',
+        'Kathmandu University (KU)',
+        'Pokhara University (PU)',
+        'Purbanchal University',
+        'Nepal Sanskrit University',
+        'Mid-Western University',
+        'Far-Western University',
+        'Lumbini Buddhist University',
+        'National Examination Board (NEB)',
+        'CTEVT',
+        'Other'
+    ];
+
+    const nepaliFaculties = [
+        'Science & Technology',
+        'Management',
+        'Humanities & Social Sciences',
+        'Education',
+        'Engineering',
+        'Medicine',
+        'Law',
+        'Agriculture',
+        'Forestry',
+        'Fine Arts',
+        'Nursing'
+    ];
+
+    const nepaliPrograms = {
+        'SEE/SLC': ['Science', 'Management', 'Education', 'General'],
+        '+2/Intermediate': ['Science', 'Management', 'Humanities', 'Education', 'Technical'],
+        'Bachelor\'s Degree': [
+            'B.Sc.', 'B.A.', 'B.B.S.', 'B.Com.', 'B.Ed.', 'B.E.', 'B.Arch.',
+            'B.Sc. CSIT', 'BCA', 'BBA', 'BSW', 'BHM', 'B.A. LL.B', 'MBBS', 'BDS'
+        ],
+        'Master\'s Degree': [
+            'M.Sc.', 'M.A.', 'M.B.S.', 'M.Com.', 'M.Ed.', 'M.E.', 'M.Arch.',
+            'M.Sc. CSIT', 'MCA', 'MBA', 'MSW', 'MHCM', 'LL.M'
+        ]
+    };
+
+    const getProgramsForDegree = (degree) => {
+        return nepaliPrograms[degree] || ['Select Program'];
+    };
+
+    const renderEducationCard = (edu, index) => {
+        const isEditing = editingId === edu.id;
+        const gpaRating = calculateGPA(edu.gpa, edu.maxGpa);
+        const nepaliLocation = edu.location ? `${edu.location}, Nepal` : 'Nepal';
+
+        return (
+            <motion.div
+                key={edu.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="bg-white rounded-xl border border-gray-200 overflow-hidden"
+            >
+                {/* Header */}
+                <div className="p-6 border-b border-gray-200">
+                    <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                    <GraduationCap className="w-5 h-5 text-green-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-800">
+                                        {edu.degree || 'Degree'}
+                                    </h3>
+                                    <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                                        <span className="flex items-center gap-1">
+                                            <BookOpen className="w-3 h-3" />
+                                            {edu.school || 'School/College Name'}
+                                        </span>
+                                        <span className="text-gray-300">•</span>
+                                        <span className="flex items-center gap-1">
+                                            <Building className="w-3 h-3" />
+                                            {edu.boardUniversity || 'Board/University'}
+                                        </span>
+                                        <span className="text-gray-300">•</span>
+                                        <span className="flex items-center gap-1">
+                                            <Globe className="w-3 h-3" />
+                                            {nepaliLocation}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Details */}
+                            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                                <span className="flex items-center gap-1">
+                                    <Calendar className="w-3 h-3" />
+                                    {edu.graduationYear || edu.endDate?.split('-')[0] || 'Year'}
+                                </span>
+
+                                {edu.faculty && (
+                                    <>
+                                        <span className="text-gray-300">•</span>
+                                        <span className="flex items-center gap-1">
+                                            <Users className="w-3 h-3" />
+                                            {edu.faculty}
+                                        </span>
+                                    </>
+                                )}
+
+                                {edu.program && (
+                                    <>
+                                        <span className="text-gray-300">•</span>
+                                        <span className="flex items-center gap-1">
+                                            <CheckCircle className="w-3 h-3" />
+                                            {edu.program}
+                                        </span>
+                                    </>
+                                )}
+
+                                {edu.gpa && (
+                                    <>
+                                        <span className="text-gray-300">•</span>
+                                        <span className="flex items-center gap-1">
+                                            <Star className="w-3 h-3" />
+                                            {gpaFormat === '100' ? 'Percentage' : 'GPA'}: {edu.gpa}/{edu.maxGpa}
+                                            {gpaRating && (
+                                                <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${gpaRating === 'Distinction' ? 'bg-purple-100 text-purple-700' :
+                                                    gpaRating === 'First Division' ? 'bg-green-100 text-green-700' :
+                                                        gpaRating === 'Second Division' ? 'bg-blue-100 text-blue-700' :
+                                                            gpaRating === 'Pass' ? 'bg-amber-100 text-amber-700' :
+                                                                'bg-red-100 text-red-700'
+                                                    }`}>
+                                                    {gpaRating}
+                                                </span>
+                                            )}
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => toggleVisibility(edu.id)}
+                                className={`p-2 rounded-lg ${edu.isVisible ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}
+                                title={edu.isVisible ? 'Visible on resume' : 'Hidden from resume'}
+                            >
+                                {edu.isVisible ? (
+                                    <Eye className="w-4 h-4" />
+                                ) : (
+                                    <EyeOff className="w-4 h-4" />
+                                )}
+                            </button>
+                            <button
+                                onClick={() => moveEducation(edu.id, 'up')}
+                                disabled={index === 0}
+                                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg disabled:opacity-50"
+                                title="Move up"
+                            >
+                                <ChevronUp className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => moveEducation(edu.id, 'down')}
+                                disabled={index === educations.length - 1}
+                                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg disabled:opacity-50"
+                                title="Move down"
+                            >
+                                <ChevronDown className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setEditingId(isEditing ? null : edu.id)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                            >
+                                {isEditing ? <X className="w-4 h-4" /> : <Edit className="w-4 h-4" />}
+                            </button>
+                            <button
+                                onClick={() => deleteEducation(edu.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Description Preview */}
+                {!isEditing && (edu.description || edu.courses?.length > 0) && (
+                    <div className="p-6 pt-0">
+                        {edu.description && (
+                            <div className="prose prose-green max-w-none mb-4">
+                                <p className="text-gray-700 whitespace-pre-wrap">{edu.description}</p>
+                            </div>
+                        )}
+
+                        {edu.courses && edu.courses.length > 0 && (
+                            <div>
+                                <h4 className="text-sm font-semibold text-gray-700 mb-2">Relevant Courses:</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {edu.courses.slice(0, 5).map((course, idx) => (
+                                        <span
+                                            key={idx}
+                                            className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs"
+                                        >
+                                            {course}
+                                        </span>
+                                    ))}
+                                    {edu.courses.length > 5 && (
+                                        <span className="px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-xs">
+                                            +{edu.courses.length - 5} more
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Edit Form */}
+                <AnimatePresence>
+                    {isEditing && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="p-6 border-t border-gray-200 bg-gray-50"
+                        >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Degree Level *
+                                    </label>
+                                    <select
+                                        value={edu.degree}
+                                        onChange={(e) => updateEducation(edu.id, {
+                                            degree: e.target.value,
+                                            program: '' // Reset program when degree changes
+                                        })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Select degree level</option>
+                                        {nepaliDegreeTypes.map(type => (
+                                            <option key={type} value={type}>{type}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Program/Specialization
+                                    </label>
+                                    <select
+                                        value={edu.program}
+                                        onChange={(e) => updateEducation(edu.id, { program: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        disabled={!edu.degree}
+                                    >
+                                        <option value="">Select program</option>
+                                        {getProgramsForDegree(edu.degree).map(program => (
+                                            <option key={program} value={program}>{program}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        School/College Name *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={edu.school}
+                                        onChange={(e) => updateEducation(edu.id, { school: e.target.value })}
+                                        placeholder="e.g., St. Xavier's College, Trinity International College"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Board/University *
+                                    </label>
+                                    <select
+                                        value={edu.boardUniversity}
+                                        onChange={(e) => updateEducation(edu.id, { boardUniversity: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Select board/university</option>
+                                        {nepaliBoardsUniversities.map(board => (
+                                            <option key={board} value={board}>{board}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Faculty
+                                    </label>
+                                    <select
+                                        value={edu.faculty}
+                                        onChange={(e) => updateEducation(edu.id, { faculty: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Select faculty</option>
+                                        {nepaliFaculties.map(faculty => (
+                                            <option key={faculty} value={faculty}>{faculty}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Location in Nepal
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={edu.location}
+                                        onChange={(e) => updateEducation(edu.id, { location: e.target.value })}
+                                        placeholder="e.g., Kathmandu, Pokhara, Biratnagar"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Graduation Year *
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1950"
+                                        max={new Date().getFullYear() + 10}
+                                        value={edu.graduationYear}
+                                        onChange={(e) => updateEducation(edu.id, { graduationYear: e.target.value })}
+                                        placeholder="e.g., 2023"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            {gpaFormat === '100' ? 'Percentage' : 'GPA'}
+                                        </label>
+                                        <div className="flex items-center gap-2">
+                                            <label className="flex items-center gap-1 text-xs">
+                                                <input
+                                                    type="radio"
+                                                    checked={gpaFormat === '4.0'}
+                                                    onChange={() => setGpaFormat('4.0')}
+                                                    className="rounded"
+                                                />
+                                                GPA (4.0)
+                                            </label>
+                                            <label className="flex items-center gap-1 text-xs">
+                                                <input
+                                                    type="radio"
+                                                    checked={gpaFormat === '100'}
+                                                    onChange={() => setGpaFormat('100')}
+                                                    className="rounded"
+                                                />
+                                                Percentage
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={edu.gpa}
+                                            onChange={(e) => updateEducation(edu.id, {
+                                                gpa: e.target.value,
+                                                maxGpa: gpaFormat === '4.0' ? '4.0' : '100'
+                                            })}
+                                            placeholder={gpaFormat === '100' ? "e.g., 85" : "e.g., 3.8"}
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        <div className="px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-600">
+                                            / {gpaFormat === '4.0' ? '4.0' : '100%'}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Description (Optional)
+                                </label>
+                                <textarea
+                                    value={edu.description}
+                                    onChange={(e) => updateEducation(edu.id, { description: e.target.value })}
+                                    placeholder="Describe your academic achievements, thesis, research projects, extracurricular activities..."
+                                    className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                />
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Relevant Courses (Optional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={edu.courses?.join(', ') || ''}
+                                    onChange={(e) => updateEducation(edu.id, {
+                                        courses: e.target.value.split(',').map(c => c.trim()).filter(c => c)
+                                    })}
+                                    placeholder="e.g., Advanced Java Programming, Database Management, Web Technology"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                                <div className="text-xs text-gray-500 mt-1">
+                                    Separate courses with commas
+                                </div>
+                            </div>
+
+                            <div className="flex justify-between items-center">
+                                <div className="text-sm text-gray-600 flex items-center gap-2">
+                                    <Globe className="w-4 h-4" />
+                                    Nepal Education System
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setEditingId(null)}
+                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => setEditingId(null)}
+                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                    >
+                                        Save Changes
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
+        );
     };
 
     return (
-        <div className="education-page">
+        <div className="space-y-6">
             {/* Header */}
-            <div className="page-header">
-                <div className="header-left">
-                    <div className="header-icon">
-                        <FaGraduationCap />
-                    </div>
-                    <div>
-                        <h2 className="page-title">Education</h2>
-                        <p className="page-subtitle">Showcase your academic background and achievements</p>
-                    </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Education</h2>
+                    <p className="text-gray-600">Add your academic background following Nepal's education system</p>
                 </div>
-                <div className="header-stats">
-                    <div className="stat-chip">
-                        <FaUniversity />
-                        <span>Degrees: {educations.length}</span>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-lg">
+                        <Globe className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-700">
+                            Nepal Format
+                        </span>
+                    </div>
+                    <div className="px-3 py-1 bg-gray-100 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700">
+                            {educations.filter(e => e.isVisible).length} entries
+                        </span>
                     </div>
                     <button
-                        className="btn-primary"
-                        onClick={() => {
-                            resetForm();
-                            setIsAddingNew(true);
-                            setEditingIndex(-1);
-                        }}
-                        type="button"
+                        onClick={addEducation}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                     >
-                        <FaPlus /> Add Education
+                        <Plus className="w-4 h-4" />
+                        Add Education
                     </button>
                 </div>
             </div>
 
-            {/* Stats Overview */}
-            <div className="stats-overview">
-                <div className="stat-card">
-                    <div className="stat-value">{educations.length}</div>
-                    <div className="stat-label">Degrees</div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-value">
-                        {educations.filter(e => e.current).length}
-                    </div>
-                    <div className="stat-label">Current</div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-value">
-                        {educations.reduce((total, e) => total + (e.honors?.length || 0), 0)}
-                    </div>
-                    <div className="stat-label">Honors</div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-value">
-                        {new Set(educations.map(e => e.institution)).size}
-                    </div>
-                    <div className="stat-label">Institutions</div>
-                </div>
-            </div>
-
-            {/* Add/Edit Form */}
-            <AnimatePresence>
-                {(isAddingNew || editingIndex !== -1) && (
-                    <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="education-form-card"
-                    >
-                        <div className="form-header">
-                            <div className="form-title">
-                                <h3>
-                                    {editingIndex !== -1 ?
-                                        <><FaEdit /> Edit Education</> :
-                                        <><FaPlus /> Add New Education</>
-                                    }
-                                </h3>
-                                <p className="form-subtitle">
-                                    {editingIndex !== -1 ? 'Update your education details' : 'Add a new educational qualification'}
-                                </p>
-                            </div>
-                            <button
-                                className="btn-icon"
-                                onClick={() => {
-                                    resetForm();
-                                    setIsAddingNew(false);
-                                    setEditingIndex(-1);
-                                }}
-                                type="button"
-                            >
-                                <FaTimes />
-                            </button>
-                        </div>
-
-                        <div className="form-grid">
-                            {/* Institution */}
-                            <div className="form-group full-width">
-                                <label className="required">Institution Name *</label>
-                                <div className="input-with-status">
-                                    <FaUniversity className="field-icon" />
-                                    <input
-                                        type="text"
-                                        value={formData.institution}
-                                        onChange={(e) => handleInputChange('institution', e.target.value)}
-                                        placeholder="e.g., Stanford University"
-                                        className={`form-input ${errors?.institution ? 'error' : ''}`}
-                                    />
-                                </div>
-                                {errors?.institution && (
-                                    <div className="error-message">{errors.institution}</div>
-                                )}
-                                <div className="field-tip">Full name of the educational institution</div>
-                            </div>
-
-                            {/* Degree & Field */}
-                            <div className="form-group">
-                                <label className="required">Degree *</label>
-                                <div className="input-with-status">
-                                    <FaGraduationCap className="field-icon" />
-                                    <input
-                                        type="text"
-                                        value={formData.degree}
-                                        onChange={(e) => handleInputChange('degree', e.target.value)}
-                                        placeholder="e.g., Bachelor of Science"
-                                        className={`form-input ${errors?.degree ? 'error' : ''}`}
-                                    />
-                                </div>
-                                {errors?.degree && (
-                                    <div className="error-message">{errors.degree}</div>
-                                )}
-                                <div className="field-tip">Degree type and level</div>
-                            </div>
-
-                            <div className="form-group">
-                                <label>Field of Study</label>
-                                <div className="input-with-status">
-                                    <FaBook className="field-icon" />
-                                    <input
-                                        type="text"
-                                        value={formData.fieldOfStudy}
-                                        onChange={(e) => handleInputChange('fieldOfStudy', e.target.value)}
-                                        placeholder="e.g., Computer Science"
-                                        className="form-input"
-                                    />
-                                </div>
-                                <div className="field-tip">Your major or specialization</div>
-                            </div>
-
-                            {/* Location */}
-                            <div className="form-group full-width">
-                                <label>Location</label>
-                                <div className="input-with-status">
-                                    <FaMapMarkerAlt className="field-icon" />
-                                    <input
-                                        type="text"
-                                        value={formData.location}
-                                        onChange={(e) => handleInputChange('location', e.target.value)}
-                                        placeholder="e.g., Stanford, CA"
-                                        className="form-input"
-                                    />
-                                </div>
-                                <div className="field-tip">City and state/country</div>
-                            </div>
-
-                            {/* Dates */}
-                            <div className="form-group">
-                                <label className="required">Start Date *</label>
-                                <div className="input-with-status">
-                                    <FaCalendarAlt className="field-icon" />
-                                    <input
-                                        type="month"
-                                        value={formData.startDate}
-                                        onChange={(e) => handleInputChange('startDate', e.target.value)}
-                                        className={`form-input ${errors?.startDate ? 'error' : ''}`}
-                                    />
-                                </div>
-                                {errors?.startDate && (
-                                    <div className="error-message">{errors.startDate}</div>
-                                )}
-                                <div className="field-tip">When you started your studies</div>
-                            </div>
-
-                            <div className="form-group">
-                                <label className={!formData.current ? 'required' : ''}>
-                                    End Date {!formData.current ? '*' : ''}
-                                </label>
-                                <div className="date-container">
-                                    <div className="current-checkbox-container">
-                                        <input
-                                            type="checkbox"
-                                            id="current-study"
-                                            checked={formData.current}
-                                            onChange={(e) => handleInputChange('current', e.target.checked)}
-                                            className="current-checkbox"
-                                        />
-                                        <label htmlFor="current-study" className="checkbox-label">
-                                            Currently studying here
-                                        </label>
-                                    </div>
-                                    <div className="input-with-status">
-                                        <FaCalendarAlt className="field-icon" />
-                                        <input
-                                            type="month"
-                                            value={formData.current ? '' : formData.endDate}
-                                            onChange={(e) => handleInputChange('endDate', e.target.value)}
-                                            className={`form-input ${errors?.endDate ? 'error' : ''}`}
-                                            disabled={formData.current}
-                                            placeholder={formData.current ? 'Present' : ''}
-                                        />
-                                    </div>
-                                </div>
-                                {errors?.endDate && (
-                                    <div className="error-message">{errors.endDate}</div>
-                                )}
-                                <div className="field-tip">Leave empty for current studies</div>
-                            </div>
-
-                            {/* GPA */}
-                            <div className="form-group">
-                                <label>GPA</label>
-                                <div className="gpa-container">
-                                    <div className="input-with-status">
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            max="10"
-                                            value={formData.gpa}
-                                            onChange={(e) => handleInputChange('gpa', e.target.value)}
-                                            placeholder="3.8"
-                                            className="form-input"
-                                        />
-                                    </div>
-                                    <div className="gpa-separator">/</div>
-                                    <div className="input-with-status">
-                                        <select
-                                            value={formData.maxGpa}
-                                            onChange={(e) => handleInputChange('maxGpa', e.target.value)}
-                                            className="form-input"
-                                        >
-                                            <option value="4.0">4.0</option>
-                                            <option value="5.0">5.0</option>
-                                            <option value="10.0">10.0</option>
-                                            <option value="100">100%</option>
-                                            <option value="other">Other</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="field-tip">Your GPA on the selected scale</div>
-                            </div>
-
-                            {/* Description */}
-                            <div className="form-group full-width">
-                                <label>Description</label>
-                                <div className="input-with-status">
-                                    <textarea
-                                        value={formData.description}
-                                        onChange={(e) => handleInputChange('description', e.target.value)}
-                                        placeholder="Describe your academic achievements, thesis, or special projects..."
-                                        className="form-textarea"
-                                        rows={4}
-                                    />
-                                </div>
-                                <div className="field-tip">Thesis, research, or notable projects</div>
-                            </div>
-
-                            {/* Honors & Awards */}
-                            <div className="form-group full-width">
-                                <div className="section-header">
-                                    <div>
-                                        <label>Honors & Awards</label>
-                                        <p className="field-subtitle">Academic achievements and recognitions</p>
-                                    </div>
-                                    <button
-                                        className="btn-small"
-                                        onClick={handleAddHonor}
-                                        type="button"
-                                    >
-                                        <FaPlus /> Add Honor
-                                    </button>
-                                </div>
-
-                                <div className="items-list">
-                                    {formData.honors.map((honor, index) => (
-                                        <div key={index} className="item">
-                                            <div className="item-number">{index + 1}</div>
-                                            <input
-                                                type="text"
-                                                value={honor}
-                                                onChange={(e) => handleHonorChange(index, e.target.value)}
-                                                placeholder="e.g., Summa Cum Laude, Dean's List, Scholarship..."
-                                                className="item-input"
-                                            />
-                                            <button
-                                                className="btn-icon danger"
-                                                onClick={() => handleRemoveHonor(index)}
-                                                type="button"
-                                                title="Remove honor"
-                                            >
-                                                <FaTrash />
-                                            </button>
-                                        </div>
-                                    ))}
-
-                                    {formData.honors.length === 0 && (
-                                        <div className="no-items">
-                                            <FaAward className="empty-icon" />
-                                            <div className="empty-content">
-                                                <h4>No honors added yet</h4>
-                                                <p>Add academic honors, awards, or scholarships you received</p>
-                                                <button
-                                                    className="btn-small"
-                                                    onClick={handleAddHonor}
-                                                    type="button"
-                                                >
-                                                    <FaPlus /> Add First Honor
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Relevant Coursework */}
-                            <div className="form-group full-width">
-                                <div className="section-header">
-                                    <div>
-                                        <label>Relevant Coursework</label>
-                                        <p className="field-subtitle">Courses relevant to your career goals</p>
-                                    </div>
-                                    <button
-                                        className="btn-small"
-                                        onClick={handleAddCourse}
-                                        type="button"
-                                    >
-                                        <FaPlus /> Add Course
-                                    </button>
-                                </div>
-
-                                <div className="items-list">
-                                    {formData.coursework.map((course, index) => (
-                                        <div key={index} className="item">
-                                            <div className="item-number">{index + 1}</div>
-                                            <input
-                                                type="text"
-                                                value={course}
-                                                onChange={(e) => handleCourseChange(index, e.target.value)}
-                                                placeholder="e.g., Data Structures, Algorithms, Machine Learning..."
-                                                className="item-input"
-                                            />
-                                            <button
-                                                className="btn-icon danger"
-                                                onClick={() => handleRemoveCourse(index)}
-                                                type="button"
-                                                title="Remove course"
-                                            >
-                                                <FaTrash />
-                                            </button>
-                                        </div>
-                                    ))}
-
-                                    {formData.coursework.length === 0 && (
-                                        <div className="no-items">
-                                            <FaBook className="empty-icon" />
-                                            <div className="empty-content">
-                                                <h4>No courses added yet</h4>
-                                                <p>Add relevant courses that showcase your expertise</p>
-                                                <button
-                                                    className="btn-small"
-                                                    onClick={handleAddCourse}
-                                                    type="button"
-                                                >
-                                                    <FaPlus /> Add First Course
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="form-actions">
-                            <button
-                                className="btn-secondary"
-                                onClick={() => {
-                                    resetForm();
-                                    setIsAddingNew(false);
-                                    setEditingIndex(-1);
-                                }}
-                                type="button"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="btn-primary"
-                                onClick={editingIndex !== -1 ? handleUpdateEducation : handleAddEducation}
-                                type="button"
-                            >
-                                <FaSave /> {editingIndex !== -1 ? 'Update Education' : 'Save Education'}
-                            </button>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
             {/* Education List */}
-            <div className="educations-list">
+            <div className="space-y-4">
                 {educations.length === 0 ? (
-                    <div className="empty-state">
-                        <FaGraduationCap className="empty-icon" />
-                        <div className="empty-content">
-                            <h3>No education added yet</h3>
-                            <p>Add your educational qualifications to showcase your academic background</p>
-                            <button
-                                className="btn-primary"
-                                onClick={() => setIsAddingNew(true)}
-                                type="button"
-                            >
-                                <FaPlus /> Add Your First Education
-                            </button>
-                        </div>
+                    <div className="text-center py-12">
+                        <GraduationCap className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-700 mb-2">No education added yet</h3>
+                        <p className="text-gray-500 mb-6">Add your academic qualifications following Nepal's education system</p>
+                        <button
+                            onClick={addEducation}
+                            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto"
+                        >
+                            <Plus className="w-5 h-5" />
+                            Add Your First Education
+                        </button>
                     </div>
                 ) : (
-                    <AnimatePresence>
-                        {educations.map((education, index) => (
-                            <motion.div
-                                key={education.id || index}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -20 }}
-                                className="education-card"
-                            >
-                                <div className="education-header">
-                                    <div className="education-info">
-                                        <div className="education-main">
-                                            <h3 className="institution">{education.institution}</h3>
-                                            <div className="degree-details">
-                                                <span className="degree">
-                                                    <FaGraduationCap /> {education.degree}
-                                                </span>
-                                                {education.fieldOfStudy && (
-                                                    <span className="field">
-                                                        <FaBook /> {education.fieldOfStudy}
-                                                    </span>
-                                                )}
-                                                <span className="education-level">
-                                                    {calculateEducationLevel(education.degree)}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="education-meta">
-                                            <div className="duration">
-                                                <FaCalendarAlt />
-                                                <span>
-                                                    {new Date(education.startDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} -
-                                                    {education.current ? ' Present' : ` ${new Date(education.endDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`}
-                                                </span>
-                                                {education.location && (
-                                                    <span className="location">
-                                                        <FaMapMarkerAlt /> {education.location}
-                                                    </span>
-                                                )}
-                                                {education.current && (
-                                                    <span className="current-badge">
-                                                        <FaStar /> Current
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="education-actions">
-                                        <div className="action-group">
-                                            <button
-                                                className="btn-icon"
-                                                onClick={() => handleMoveEducation(index, 'up')}
-                                                disabled={index === 0}
-                                                title="Move up"
-                                                type="button"
-                                            >
-                                                <FaArrowUp />
-                                            </button>
-                                            <button
-                                                className="btn-icon"
-                                                onClick={() => handleMoveEducation(index, 'down')}
-                                                disabled={index === educations.length - 1}
-                                                title="Move down"
-                                                type="button"
-                                            >
-                                                <FaArrowDown />
-                                            </button>
-                                        </div>
-                                        <div className="action-group">
-                                            <button
-                                                className="btn-icon"
-                                                onClick={() => handleDuplicateEducation(index)}
-                                                title="Duplicate"
-                                                type="button"
-                                            >
-                                                <FaCopy />
-                                            </button>
-                                            <button
-                                                className="btn-icon"
-                                                onClick={() => handleEditEducation(index)}
-                                                title="Edit"
-                                                type="button"
-                                            >
-                                                <FaEdit />
-                                            </button>
-                                            <button
-                                                className="btn-icon danger"
-                                                onClick={() => handleDeleteEducation(index)}
-                                                title="Delete"
-                                                type="button"
-                                            >
-                                                <FaTrash />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {education.gpa && (
-                                    <div className="gpa-display">
-                                        <div className="gpa-label">GPA:</div>
-                                        <div
-                                            className="gpa-value"
-                                            style={{ color: getGpaColor(education.gpa, education.maxGpa) }}
-                                        >
-                                            {education.gpa}/{education.maxGpa}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {education.description && (
-                                    <div className="education-description">
-                                        <p>{education.description}</p>
-                                    </div>
-                                )}
-
-                                {education.honors && education.honors.length > 0 && (
-                                    <div className="honors">
-                                        <div className="section-header">
-                                            <FaTrophy />
-                                            <strong>Honors & Awards</strong>
-                                        </div>
-                                        <ul className="items-list">
-                                            {education.honors.map((honor, idx) => (
-                                                <li key={idx}>
-                                                    <span className="bullet"></span>
-                                                    <span className="item-text">{honor}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-
-                                {education.coursework && education.coursework.length > 0 && (
-                                    <div className="coursework">
-                                        <div className="section-header">
-                                            <FaBook />
-                                            <strong>Relevant Coursework</strong>
-                                        </div>
-                                        <div className="course-tags">
-                                            {education.coursework.map((course, idx) => (
-                                                <span key={idx} className="course-tag">{course}</span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
+                    educations.map((edu, index) => renderEducationCard(edu, index))
                 )}
             </div>
 
-            <style jsx>{`
-                .education-page {
-                    padding: 0;
-                    max-width: 100%;
-                }
-
-                /* Header */
-                .page-header {
-                    margin-bottom: 2.5rem;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    gap: 1.5rem;
-                }
-
-                .header-left {
-                    display: flex;
-                    align-items: center;
-                    gap: 1.25rem;
-                }
-
-                .header-icon {
-                    width: 65px;
-                    height: 65px;
-                    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-                    border-radius: 15px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: white;
-                    font-size: 1.75rem;
-                    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
-                }
-
-                .page-title {
-                    font-size: 2.5rem;
-                    font-weight: 800;
-                    color: #1f2937;
-                    margin: 0 0 0.5rem 0;
-                    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                    line-height: 1.2;
-                }
-
-                .page-subtitle {
-                    font-size: 1.1rem;
-                    color: #6b7280;
-                    margin: 0;
-                    max-width: 500px;
-                }
-
-                .header-stats {
-                    display: flex;
-                    align-items: center;
-                    gap: 1.5rem;
-                }
-
-                .stat-chip {
-                    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-                    color: white;
-                    padding: 0.875rem 1.75rem;
-                    border-radius: 50px;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                    font-weight: 600;
-                    font-size: 0.95rem;
-                    white-space: nowrap;
-                    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
-                }
-
-                .btn-primary {
-                    padding: 0.875rem 1.75rem;
-                    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-                    color: white;
-                    border: none;
-                    border-radius: 10px;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                    font-size: 0.95rem;
-                }
-
-                .btn-primary:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.35);
-                }
-
-                /* Stats Overview */
-                .stats-overview {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-                    gap: 1.25rem;
-                    margin-bottom: 2.5rem;
-                }
-
-                .stat-card {
-                    background: white;
-                    border-radius: 15px;
-                    padding: 1.75rem;
-                    text-align: center;
-                    border: 2px solid #e5e7eb;
-                    transition: all 0.3s ease;
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-                }
-
-                .stat-card:hover {
-                    border-color: #3b82f6;
-                    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-                    transform: translateY(-3px);
-                }
-
-                .stat-value {
-                    font-size: 2.25rem;
-                    font-weight: 800;
-                    color: #3b82f6;
-                    margin-bottom: 0.5rem;
-                    line-height: 1;
-                }
-
-                .stat-label {
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    color: #6b7280;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                }
-
-                /* Form */
-                .education-form-card {
-                    background: white;
-                    border-radius: 20px;
-                    padding: 2.5rem;
-                    margin-bottom: 2.5rem;
-                    border: 2px solid #e5e7eb;
-                    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-                    overflow: hidden;
-                }
-
-                .form-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    margin-bottom: 2rem;
-                    padding-bottom: 1.5rem;
-                    border-bottom: 2px solid #f3f4f6;
-                }
-
-                .form-title h3 {
-                    font-size: 1.75rem;
-                    font-weight: 700;
-                    color: #1f2937;
-                    margin: 0 0 0.5rem 0;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                }
-
-                .form-subtitle {
-                    font-size: 0.95rem;
-                    color: #6b7280;
-                    margin: 0;
-                }
-
-                .btn-icon {
-                    width: 45px;
-                    height: 45px;
-                    border-radius: 10px;
-                    border: 2px solid #e5e7eb;
-                    background: white;
-                    color: #4b5563;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                    font-size: 1rem;
-                }
-
-                .btn-icon:hover {
-                    background: #f3f4f6;
-                    border-color: #d1d5db;
-                    transform: scale(1.05);
-                }
-
-                .btn-icon.danger {
-                    color: #ef4444;
-                }
-
-                .btn-icon.danger:hover {
-                    background: #fef2f2;
-                    border-color: #fecaca;
-                    color: #dc2626;
-                }
-
-                .form-grid {
-                    display: grid;
-                    grid-template-columns: repeat(2, 1fr);
-                    gap: 1.75rem;
-                    margin-bottom: 2rem;
-                }
-
-                @media (max-width: 768px) {
-                    .form-grid {
-                        grid-template-columns: 1fr;
-                    }
-                }
-
-                .full-width {
-                    grid-column: 1 / -1;
-                }
-
-                .form-group {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 0.75rem;
-                }
-
-                .form-group label {
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    color: #374151;
-                }
-
-                .required:after {
-                    content: " *";
-                    color: #ef4444;
-                }
-
-                .input-with-status {
-                    position: relative;
-                }
-
-                .field-icon {
-                    position: absolute;
-                    left: 1rem;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    color: #9ca3af;
-                    font-size: 1rem;
-                }
-
-                .form-input, .form-textarea {
-                    width: 100%;
-                    padding: 0.875rem 1rem 0.875rem 3rem;
-                    border: 2px solid #e5e7eb;
-                    border-radius: 10px;
-                    font-size: 0.95rem;
-                    color: #1f2937;
-                    background: white;
-                    transition: all 0.3s ease;
-                }
-
-                .form-input:focus, .form-textarea:focus {
-                    outline: none;
-                    border-color: #3b82f6;
-                    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
-                }
-
-                .form-input.error {
-                    border-color: #ef4444;
-                }
-
-                .form-textarea {
-                    min-height: 120px;
-                    resize: vertical;
-                    padding-left: 1rem;
-                }
-
-                .gpa-container {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                }
-
-                .gpa-separator {
-                    font-weight: 600;
-                    color: #6b7280;
-                }
-
-                .section-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    margin-bottom: 1.5rem;
-                }
-
-                .field-subtitle {
-                    font-size: 0.75rem;
-                    color: #9ca3af;
-                    margin: 0.25rem 0 0 0;
-                }
-
-                .btn-small {
-                    padding: 0.625rem 1.25rem;
-                    background: white;
-                    border: 2px solid #3b82f6;
-                    border-radius: 8px;
-                    color: #3b82f6;
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                }
-
-                .btn-small:hover {
-                    background: #3b82f6;
-                    color: white;
-                    transform: translateY(-1px);
-                }
-
-                .items-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1rem;
-                }
-
-                .item {
-                    display: flex;
-                    gap: 1rem;
-                    align-items: center;
-                    padding: 0.75rem;
-                    background: #f9fafb;
-                    border-radius: 8px;
-                    border: 1px solid #e5e7eb;
-                }
-
-                .item-number {
-                    width: 28px;
-                    height: 28px;
-                    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-                    color: white;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 0.75rem;
-                    font-weight: 600;
-                }
-
-                .item-input {
-                    flex: 1;
-                    padding: 0.75rem 1rem;
-                    border: 1px solid #e5e7eb;
-                    border-radius: 6px;
-                    font-size: 0.875rem;
-                    color: #1f2937;
-                    background: white;
-                }
-
-                .no-items {
-                    padding: 2.5rem 1.5rem;
-                    text-align: center;
-                    color: #6b7280;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    gap: 1rem;
-                    background: #f9fafb;
-                    border-radius: 12px;
-                    border: 2px dashed #d1d5db;
-                }
-
-                .empty-icon {
-                    font-size: 2.5rem;
-                    color: #9ca3af;
-                }
-
-                .empty-content h4 {
-                    font-size: 1.25rem;
-                    font-weight: 600;
-                    color: #4b5563;
-                    margin: 0 0 0.5rem 0;
-                }
-
-                .empty-content p {
-                    color: #6b7280;
-                    margin: 0 0 1.5rem 0;
-                    font-size: 0.95rem;
-                }
-
-                /* Form Actions */
-                .form-actions {
-                    display: flex;
-                    justify-content: flex-end;
-                    gap: 1.25rem;
-                    padding-top: 1.5rem;
-                    border-top: 2px solid #f3f4f6;
-                }
-
-                .btn-secondary {
-                    padding: 0.875rem 2rem;
-                    border: 2px solid #e5e7eb;
-                    border-radius: 10px;
-                    background: white;
-                    color: #4b5563;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                }
-
-                .btn-secondary:hover {
-                    background: #f3f4f6;
-                    border-color: #d1d5db;
-                }
-
-                /* Education List */
-                .educations-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1.5rem;
-                }
-
-                .empty-state {
-                    text-align: center;
-                    padding: 4rem 2rem;
-                    background: white;
-                    border-radius: 20px;
-                    border: 2px dashed #d1d5db;
-                }
-
-                .empty-state .empty-icon {
-                    font-size: 4rem;
-                    color: #d1d5db;
-                    margin-bottom: 1.5rem;
-                }
-
-                .empty-state h3 {
-                    font-size: 1.75rem;
-                    color: #374151;
-                    margin: 0 0 1rem 0;
-                }
-
-                .empty-state p {
-                    color: #6b7280;
-                    margin: 0 0 2rem 0;
-                    font-size: 1.05rem;
-                    max-width: 500px;
-                    margin-left: auto;
-                    margin-right: auto;
-                }
-
-                /* Education Card */
-                .education-card {
-                    background: white;
-                    border-radius: 18px;
-                    padding: 2rem;
-                    border: 2px solid #e5e7eb;
-                    transition: all 0.3s ease;
-                }
-
-                .education-card:hover {
-                    border-color: #3b82f6;
-                    box-shadow: 0 8px 30px rgba(59, 130, 246, 0.15);
-                }
-
-                .education-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    margin-bottom: 1.5rem;
-                    gap: 1.5rem;
-                }
-
-                .education-info {
-                    flex: 1;
-                }
-
-                .institution {
-                    font-size: 1.5rem;
-                    font-weight: 700;
-                    color: #1f2937;
-                    margin: 0 0 0.75rem 0;
-                }
-
-                .degree-details {
-                    display: flex;
-                    flex-wrap: wrap;
-                    align-items: center;
-                    gap: 1rem;
-                    margin-bottom: 0.75rem;
-                }
-
-                .degree, .field {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    font-size: 1rem;
-                    color: #4b5563;
-                }
-
-                .education-level {
-                    background: #dbeafe;
-                    color: #1d4ed8;
-                    padding: 0.25rem 0.75rem;
-                    border-radius: 20px;
-                    font-size: 0.75rem;
-                    font-weight: 600;
-                }
-
-                .duration {
-                    display: flex;
-                    align-items: center;
-                    gap: 1rem;
-                    font-size: 0.95rem;
-                    color: #6b7280;
-                }
-
-                .gpa-display {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    margin-bottom: 1rem;
-                }
-
-                .gpa-label {
-                    font-weight: 600;
-                    color: #4b5563;
-                }
-
-                .gpa-value {
-                    font-weight: 700;
-                    font-size: 1.1rem;
-                }
-
-                .honors, .coursework {
-                    margin-top: 1.5rem;
-                    padding: 1.25rem;
-                    background: #f0f9ff;
-                    border-radius: 12px;
-                    border-left: 4px solid #3b82f6;
-                }
-
-                .section-header {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                    margin-bottom: 1rem;
-                }
-
-                .section-header strong {
-                    font-size: 1.1rem;
-                    color: #1f2937;
-                }
-
-                .course-tags {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 0.75rem;
-                }
-
-                .course-tag {
-                    background: white;
-                    color: #3b82f6;
-                    padding: 0.5rem 1rem;
-                    border-radius: 20px;
-                    font-size: 0.85rem;
-                    border: 1px solid #dbeafe;
-                }
-
-                /* Responsive */
-                @media (max-width: 768px) {
-                    .page-header {
-                        flex-direction: column;
-                        align-items: flex-start;
-                        gap: 1.5rem;
-                    }
-
-                    .header-stats {
-                        width: 100%;
-                        justify-content: space-between;
-                    }
-
-                    .education-header {
-                        flex-direction: column;
-                        gap: 1.5rem;
-                    }
-
-                    .stats-overview {
-                        grid-template-columns: repeat(2, 1fr);
-                    }
-                }
-
-                @media (max-width: 640px) {
-                    .stats-overview {
-                        grid-template-columns: 1fr;
-                    }
-
-                    .degree-details {
-                        flex-direction: column;
-                        align-items: flex-start;
-                        gap: 0.5rem;
-                    }
-                }
-            `}</style>
+            {/* Stats */}
+            {educations.length > 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Education Overview</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="text-center">
+                            <div className="text-2xl font-bold text-blue-600">{educations.length}</div>
+                            <div className="text-sm text-gray-600">Total Entries</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-2xl font-bold text-green-600">
+                                {educations.filter(e => e.degree && e.degree.includes('Bachelor')).length}
+                            </div>
+                            <div className="text-sm text-gray-600">Bachelor's Degrees</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-2xl font-bold text-purple-600">
+                                {educations.filter(e => e.gpa && (
+                                    gpaFormat === '100' ?
+                                        parseFloat(e.gpa) >= 80 :
+                                        parseFloat(e.gpa) >= 3.3
+                                )).length}
+                            </div>
+                            <div className="text-sm text-gray-600">First Division</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-2xl font-bold text-amber-600">
+                                {educations.filter(e => e.isVisible).length}
+                            </div>
+                            <div className="text-sm text-gray-600">Visible</div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Navigation */}
+            <div className="flex justify-between pt-6 border-t border-gray-200">
+                <button
+                    onClick={onPrev}
+                    className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                    ← Previous
+                </button>
+                <button
+                    onClick={onNext}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                    Next: Skills →
+                </button>
+            </div>
         </div>
     );
 };

@@ -1,100 +1,154 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* src/styles/global.css - RESUMECRAFT 2026 GLOBAL STYLES */
 
-* {
-    margin: 0;
-    padding: 0;
+/* ==========================================================================
+   Font Import
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+/* ==========================================================================
+   Tailwind Directives (USE THESE INSTEAD OF @tailwind)
+   ========================================================================== */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* ==========================================================================
+   CSS Base Styles (Keep minimal, let Tailwind handle most)
+   ========================================================================== */
+*,
+*::before,
+*::after {
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
 }
 
+html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+    text-size-adjust: 100%;
+}
+
+/* LET TAILWIND HANDLE BODY STYLES */
+/* Remove body styles that override Tailwind */
+/* body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+    line-height: 1.6;
+    color: #1e293b;
+    background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+} */
+
+/* ==========================================================================
+   Design Tokens (Custom Properties) - Use sparingly
+   ========================================================================== */
 :root {
-    /* Color Palette */
-    --primary: #6366f1;
-    --primary-dark: #4f46e5;
-    --primary-light: #8b5cf6;
-    --secondary: #f59e0b;
-    --accent: #10b981;
+    /* Primary Palette - Use with Tailwind */
+    --primary-500: #6366f1;
+    --primary-600: #4f46e5;
+
+    /* Semantic */
+    --success: #10b981;
     --danger: #ef4444;
     --warning: #f59e0b;
-    --success: #10b981;
-
-    /* Neutral Colors */
-    --gray-50: #f9fafb;
-    --gray-100: #f3f4f6;
-    --gray-200: #e5e7eb;
-    --gray-300: #d1d5db;
-    --gray-400: #9ca3af;
-    --gray-500: #6b7280;
-    --gray-600: #4b5563;
-    --gray-700: #374151;
-    --gray-800: #1f2937;
-    --gray-900: #111827;
+    --info: #3b82f6;
 
     /* Gradients */
     --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-    --gradient-secondary: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    --gradient-dark: linear-gradient(135deg, #1f2937 0%, #374151 100%);
 
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-
-    /* Border Radius */
-    --radius-sm: 0.375rem;
-    --radius-md: 0.5rem;
-    --radius-lg: 0.75rem;
-    --radius-xl: 1rem;
-    --radius-2xl: 1.5rem;
-
-    /* Transitions */
-    --transition-fast: 0.15s ease-in-out;
-    --transition-normal: 0.3s ease-in-out;
-    --transition-slow: 0.5s ease-in-out;
+    /* Layout - Use Tailwind classes instead */
+    --header-height: 4rem;
+    --sidebar-width: 320px;
 }
 
-body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-    line-height: 1.6;
-    color: var(--gray-800);
-    background-color: var(--gray-50);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-}
+/* ==========================================================================
+   REMOVE DARK MODE CSS - Let Tailwind handle it
+   ========================================================================== */
+/* 
+@media (prefers-color-scheme: dark) {
+    :root {
+        --gray-50: #111827;
+        --gray-100: #1f2937;
+        --gray-200: #374151;
+        --gray-300: #4b5563;
+        --gray-400: #6b7280;
+        --gray-500: #9ca3af;
+        --gray-600: #d1d5db;
+        --gray-700: #e5e7eb;
+        --gray-800: #f3f4f6;
+        --gray-900: #f9fafb;
+    }
 
-/* Custom Scrollbar */
+    body {
+        background: #0f172a;
+        color: #e2e8f0;
+    }
+}
+*/
+
+/* ==========================================================================
+   Custom Scrollbar - Keep this, it's fine
+   ========================================================================== */
 ::-webkit-scrollbar {
-    width: 6px;
+    width: 8px;
+    height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-    background: var(--gray-100);
+    background: theme('colors.gray.100');
+    border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--gray-300);
-    border-radius: 3px;
+    background: linear-gradient(135deg, #94a3b8, #64748b);
+    border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--gray-400);
+    background: linear-gradient(135deg, #64748b, #475569);
 }
 
-/* Animations */
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 theme('colors.gray.100');
+}
+
+/* ==========================================================================
+   Selection & Focus - Keep minimal
+   ========================================================================== */
+::selection {
+    background: rgba(99, 102, 241, 0.3);
+    color: #1e293b;
+}
+
+/* Let Tailwind handle focus styles */
+/* 
+:focus-visible {
+    outline: 3px solid rgba(99, 102, 241, 0.4);
+    outline-offset: 2px;
+    border-radius: 8px;
+}
+*/
+
+/* ==========================================================================
+   Keyframes - Keep only necessary ones
+   ========================================================================== */
 @keyframes float {
 
     0%,
     100% {
-        transform: translateY(0px);
+        transform: translateY(0) rotate(0deg);
     }
 
     50% {
-        transform: translateY(-10px);
+        transform: translateY(-12px) rotate(1deg);
     }
 }
 
-@keyframes slideIn {
+@keyframes slideInUp {
     from {
         opacity: 0;
         transform: translateY(20px);
@@ -124,209 +178,200 @@ body {
     }
 
     50% {
-        opacity: 0.5;
+        opacity: 0.7;
     }
-}
-
-@keyframes bounce {
-
-    0%,
-    20%,
-    53%,
-    80%,
-    100% {
-        transform: translate3d(0, 0, 0);
-    }
-
-    40%,
-    43% {
-        transform: translate3d(0, -8px, 0);
-    }
-
-    70% {
-        transform: translate3d(0, -4px, 0);
-    }
-
-    90% {
-        transform: translate3d(0, -2px, 0);
-    }
-}
-
-/* Utility Classes */
-.float-animation {
-    animation: float 3s ease-in-out infinite;
-}
-
-.slide-in {
-    animation: slideIn 0.6s ease-out;
-}
-
-.fade-in {
-    animation: fadeIn 0.5s ease-out;
-}
-
-.pulse-animation {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-.bounce-animation {
-    animation: bounce 1s ease-in-out;
-}
-
-/* Focus States */
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-}
-
-/* Loading States */
-.loading-spinner {
-    border: 2px solid var(--gray-200);
-    border-top: 2px solid var(--primary);
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
+    to {
         transform: rotate(360deg);
     }
 }
 
-/* Responsive Design */
-@media (max-width: 640px) {
-    .mobile-hidden {
-        display: none !important;
+/* ==========================================================================
+   REMOVE Tailwind Utility Classes - They conflict with Tailwind
+   ========================================================================== */
+/* 
+.text-gradient {
+    @apply bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent;
+}
+
+.glass {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.card-hover {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+    transform: translateY(-12px);
+    box-shadow: 0 25px 50px -12px rgba(79, 70, 229, 0.25);
+}
+*/
+
+/* ==========================================================================
+   SCOPED Component Styles - Only apply to specific classes
+   ========================================================================== */
+
+/* Builder-specific styles - ONLY apply to .builder-layout containers */
+.builder-layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+.builder-layout .builder-sidebar {
+    width: var(--sidebar-width);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(16px);
+    border-right: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 8px 0 30px rgba(0, 0, 0, 0.08);
+    transition: transform 0.4s ease;
+}
+
+.builder-layout .builder-main {
+    flex: 1;
+    background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+    padding-top: var(--header-height);
+}
+
+/* Section header inside builder */
+.builder-layout .section-header {
+    background: white;
+    border-bottom: 1px solid theme('colors.gray.200');
+    padding: 1.5rem 2rem;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: blur(10px);
+}
+
+/* Editor card inside builder */
+.builder-layout .editor-card {
+    background: white;
+    border-radius: 1.5rem;
+    border: 1px solid theme('colors.gray.200');
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
+/* Progress bar inside builder */
+.builder-layout .progress-bar {
+    height: 8px;
+    background: theme('colors.gray.200');
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.builder-layout .progress-fill {
+    height: 100%;
+    background: var(--gradient-primary);
+    border-radius: 4px;
+    transition: width 0.8s ease;
+}
+
+/* Floating Buttons - Scope to builder */
+.builder-layout .fab-group {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.builder-layout .fab-main {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--gradient-primary);
+    color: white;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    transition: all 0.3s ease;
+}
+
+.builder-layout .fab-main:hover {
+    transform: scale(1.1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.builder-layout .fab-secondary {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: white;
+    color: #6366f1;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Responsive - Scope to builder */
+@media (max-width: 1024px) {
+    .builder-layout .builder-sidebar {
+        position: fixed;
+        left: 0;
+        top: var(--header-height);
+        height: calc(100vh - var(--header-height));
+        z-index: 40;
+        transform: translateX(-100%);
+    }
+
+    .builder-layout .sidebar-open {
+        transform: translateX(0);
     }
 }
 
-@media (max-width: 768px) {
-    .tablet-hidden {
-        display: none !important;
-    }
-}
-
-/* Print Styles */
+/* Print - Scope to builder */
 @media print {
-    .no-print {
+
+    .builder-layout .no-print,
+    .builder-layout .fab-group,
+    .builder-layout .builder-sidebar {
         display: none !important;
     }
 }
 
-/* High Contrast Mode Support */
-@media (prefers-contrast: high) {
-    :root {
-        --primary: #0000ff;
-        --gray-800: #000000;
-        --gray-50: #ffffff;
-    }
+/* ==========================================================================
+   Custom Animations Classes - Use these in your components
+   ========================================================================== */
+.animate-float {
+    animation: float 6s ease-in-out infinite;
 }
 
-/* Reduced Motion Support */
+.animate-slide-up {
+    animation: slideInUp 0.6s ease-out;
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.4s ease-out;
+}
+
+.animate-pulse-slow {
+    animation: pulse 3s infinite;
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* ==========================================================================
+   Reduced Motion
+   ========================================================================== */
 @media (prefers-reduced-motion: reduce) {
     * {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
-    }
-}
-
-/* src/styles/global.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Custom animations */
-@keyframes float {
-
-    0%,
-    100% {
-        transform: translateY(0px);
+        scroll-behavior: auto !important;
     }
 
-    50% {
-        transform: translateY(-10px);
+    .animate-float,
+    .animate-slide-up,
+    .animate-fade-in,
+    .animate-pulse-slow,
+    .animate-spin {
+        animation: none !important;
     }
-}
-
-@keyframes shimmer {
-    0% {
-        background-position: -1000px 0;
-    }
-
-    100% {
-        background-position: 1000px 0;
-    }
-}
-
-/* Smooth scrolling */
-html {
-    scroll-behavior: smooth;
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
-
-/* Selection color */
-::selection {
-    background-color: rgba(59, 130, 246, 0.3);
-    color: #1f2937;
-}
-
-/* Smooth transitions */
-* {
-    transition: background-color 0.3s ease, border-color 0.3s ease;
-}
-
-/* Hide spinner from number inputs */
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-
-/* Focus styles */
-*:focus {
-    outline: 2px solid transparent;
-    outline-offset: 2px;
-}
-
-/* Better form controls */
-input,
-textarea,
-select {
-    @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
-}
-
-/* Loading states */
-.loading-shimmer {
-    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-    background-size: 1000px 100%;
-    animation: shimmer 2s infinite;
 }

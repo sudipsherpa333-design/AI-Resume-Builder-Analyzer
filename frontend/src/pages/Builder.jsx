@@ -1,19 +1,29 @@
-// src/pages/Builder.jsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+// src/pages/Builder.jsx - COMPLETE FIXED VERSION
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { toast } from 'react-hot-toast';
+import DOMPurify from 'dompurify';
+import {
+    ChevronLeft, ChevronRight, Home, X, Save, Download,
+    User, Briefcase, GraduationCap, Code, Award, Globe, Users,
+    Eye, Plus, HelpCircle, CheckCircle, AlertCircle, Loader2,
+    Sparkles, FileCheck, FileText, Menu,
+    Cloud, CloudOff, FileUp, ArrowLeft, ArrowRight
+} from 'lucide-react';
+
 import { useAuth } from '../context/AuthContext';
 import { useResume } from '../context/ResumeContext';
-import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'react-hot-toast';
-import jsPDF from 'jspdf';
-
-// Components
-import BuilderSidebar from '../components/ui/BuilderSidebar';
-import Navbar from '../components/Navbar';
-import StatsDashboard from '../components/ui/StatsDashboard';
-import AIAssistant from '../components/ai/AIAssistant';
-import FloatingActionButtons from '../components/ui/FloatingActionButtons';
 import FullScreenTextField from '../components/ui/FullScreenTextField';
+import AIAssistant from '../components/ai/AIAssistant';
+import BuilderSidebar from '../components/ui/BuilderSidebar.jsx';
+import FloatingActionButton from '../components/ui/FloatingActionButtons.jsx';
+
+// Custom Hooks
+import { useAutoSave } from '../hooks/useAutoSave.js';
+import { useSectionNavigation } from '../hooks/useSectionNavigation.js';
+import { useResumeCompletion } from '../hooks/useResumeCompletion.js';
+import { useUndoRedo } from '../hooks/useUndoRedo.js';
 
 // Section Components
 import PersonalInfoPage from '../components/builder/PersonalInfoPage';
@@ -25,1445 +35,1012 @@ import ProjectsPage from '../components/builder/ProjectsPage';
 import CertificationsPage from '../components/builder/CertificationsPage';
 import LanguagesPage from '../components/builder/LanguagesPage';
 import ReferencesPage from '../components/builder/ReferencesPage';
+import CompletionPage from '../components/builder/CompletionPage';
 
-// Icons
-// In Builder.jsx, update the imports:
-import {
-    Brain,
-    Sparkles,
-    Save,
-    Download,
-    Share2,
-    Printer,
-    CheckCircle,
-    Loader2,
-    ChevronLeft,
-    ChevronRight,
-    Eye,
-    EyeOff,
-    HelpCircle,
-    Zap,
-    User,
-    FileText,
-    Briefcase,
-    GraduationCap,
-    Code,
-    Award,
-    Globe,
-    Users,
-    ArrowLeft,
-    Home,
-    PanelLeft,
-    PanelRight,
-    Maximize2,
-    Minimize2,
-    Settings,
-    Bell,
-    Target,
-    TrendingUp,
-    BarChart,
-    Clock,
-    MessageSquare,
-    Star,
-    Lightbulb,
-    Copy,
-    Edit,
-    Trash2,
-    Search,
-    Filter,
-    Plus,
-    Minus,
-    ExternalLink,
-    Link,
-    Upload,
-    File,
-    FilePlus,
-    FileCheck,
-    Calendar,
-    Tag,
-    Sidebar,
-    SidebarClose,
-    LayoutGrid,
-    Expand,
-    Shrink,
-    ZoomIn,
-    ZoomOut,
-    RotateCcw,
-    Type,
-    Bold,
-    Italic,
-    Underline,
-    AlignLeft,
-    AlignCenter,
-    AlignRight,
-    List,
-    ListOrdered,
-    Image,
-    Table,
-    Menu,
-    X,
-    ChevronDown,
-    ChevronUp
-} from 'lucide-react';
+// Error Boundary Component
+const SectionErrorBoundary = ({ children, sectionId, onError }) => {
+    const [hasError, setHasError] = useState(false);
 
-// Sections Configuration
-const SECTIONS = [
-    {
-        id: 'personalInfo',
-        label: 'Personal Info',
-        icon: User,
-        color: '#4f46e5',
-        required: true,
-        description: 'Contact details',
-        fields: 4,
-        visible: true,
-        hasFullScreen: true
-    },
-    {
-        id: 'summary',
-        label: 'Summary',
-        icon: FileText,
-        color: '#059669',
-        required: true,
-        description: 'Professional summary',
-        fields: 1,
-        visible: true,
-        hasFullScreen: true
-    },
-    {
-        id: 'experience',
-        label: 'Experience',
-        icon: Briefcase,
-        color: '#3b82f6',
-        required: true,
-        description: 'Work history',
-        fields: 5,
-        visible: true,
-        hasFullScreen: true
-    },
-    {
-        id: 'education',
-        label: 'Education',
-        icon: GraduationCap,
-        color: '#8b5cf6',
-        required: true,
-        description: 'Academic background',
-        fields: 4,
-        visible: true,
-        hasFullScreen: true
-    },
-    {
-        id: 'skills',
-        label: 'Skills',
-        icon: Code,
-        color: '#f59e0b',
-        required: true,
-        description: 'Technical skills',
-        fields: 3,
-        visible: true,
-        hasFullScreen: true
-    },
-    {
-        id: 'projects',
-        label: 'Projects',
-        icon: Code,
-        color: '#10b981',
-        required: false,
-        description: 'Notable projects',
-        fields: 3,
-        visible: true,
-        hasFullScreen: true
-    },
-    {
-        id: 'certifications',
-        label: 'Certifications',
-        icon: Award,
-        color: '#ef4444',
-        required: false,
-        description: 'Certifications',
-        fields: 2,
-        visible: true,
-        hasFullScreen: true
-    },
-    {
-        id: 'languages',
-        label: 'Languages',
-        icon: Globe,
-        color: '#06b6d4',
-        required: false,
-        description: 'Languages',
-        fields: 2,
-        visible: true,
-        hasFullScreen: true
-    },
-    {
-        id: 'references',
-        label: 'References',
-        icon: Users,
-        color: '#8b5cf6',
-        required: false,
-        description: 'References',
-        fields: 3,
-        visible: true,
-        hasFullScreen: true
-    }
-];
+    const handleError = () => {
+        setHasError(true);
+        onError?.(sectionId);
+    };
 
-const ResumeBuilder = () => {
-    const navigate = useNavigate();
-    const { user, logout } = useAuth();
-    const {
-        currentResume,
-        saveResume,
-        updateSection,
-        saveStatus,
-        isLoading: resumeLoading,
-        isSectionComplete
-    } = useResume();
-
-    // State Management
-    const [activeSection, setActiveSection] = useState('personalInfo');
-    const [completedSections, setCompletedSections] = useState([]);
-    const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
-    const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
-    const [isFullscreen, setIsFullscreen] = useState(false);
-    const [isMobile, setIsMobile] = useState(false);
-    const [isExporting, setIsExporting] = useState(false);
-    const [aiCredits, setAiCredits] = useState(user?.aiCredits || 150);
-    const [showProgress, setShowProgress] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
-    const [lastSavedTime, setLastSavedTime] = useState(null);
-    const [zoomLevel, setZoomLevel] = useState(100);
-    const [editorWidth, setEditorWidth] = useState('100%');
-    const [showAIAssistant, setShowAIAssistant] = useState(false);
-    const [sections, setSections] = useState(SECTIONS);
-    const [showHiddenSections, setShowHiddenSections] = useState(false);
-    const [showFullScreenEditor, setShowFullScreenEditor] = useState(false);
-    const [fullScreenContent, setFullScreenContent] = useState('');
-    const [fullScreenSection, setFullScreenSection] = useState('');
-    const [showPreviewMode, setShowPreviewMode] = useState(false);
-    const [textFormat, setTextFormat] = useState('paragraph');
-    const [showMobileMenu, setShowMobileMenu] = useState(false);
-
-    // Responsive breakpoints
-    useEffect(() => {
-        const handleResize = () => {
-            const width = window.innerWidth;
-            const mobile = width < 1024;
-            setIsMobile(mobile);
-
-            if (mobile) {
-                setLeftSidebarOpen(false);
-                setRightSidebarOpen(false);
-            } else {
-                setLeftSidebarOpen(true);
-                setRightSidebarOpen(true);
-            }
-        };
-
-        handleResize();
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    // Update editor width based on sidebar states
-    useEffect(() => {
-        let width = '100%';
-        if (!isMobile) {
-            if (leftSidebarOpen && rightSidebarOpen) {
-                width = 'calc(100% - 320px - 384px)';
-            } else if (leftSidebarOpen) {
-                width = 'calc(100% - 320px)';
-            } else if (rightSidebarOpen) {
-                width = 'calc(100% - 384px)';
-            }
-        }
-        setEditorWidth(width);
-    }, [leftSidebarOpen, rightSidebarOpen, isMobile]);
-
-    // Redirect if not authenticated
-    useEffect(() => {
-        if (!user) {
-            navigate('/login', { replace: true });
-        }
-    }, [user, navigate]);
-
-    // Calculate completed sections
-    useEffect(() => {
-        if (currentResume && isSectionComplete) {
-            const completed = SECTIONS
-                .map(s => s.id)
-                .filter(section => isSectionComplete(section));
-            setCompletedSections(completed);
-        }
-    }, [currentResume, isSectionComplete]);
-
-    // Memoized stats
-    const stats = React.useMemo(() => {
-        const calculateWordCount = (data) => {
-            let wordCount = 0;
-            const countWords = (text) => {
-                if (!text || typeof text !== 'string') return 0;
-                return text.trim().split(/\s+/).length;
-            };
-
-            if (data.personalInfo) {
-                Object.values(data.personalInfo).forEach(value => {
-                    if (typeof value === 'string') wordCount += countWords(value);
-                });
-            }
-
-            if (data.summary?.content) wordCount += countWords(data.summary.content);
-            if (Array.isArray(data.experience?.items)) {
-                data.experience.items.forEach(item => {
-                    if (item.description) wordCount += countWords(item.description);
-                });
-            }
-
-            return wordCount;
-        };
-
-        const visibleSections = sections.filter(s => s.visible);
-        const requiredSections = sections.filter(s => s.required && s.visible);
-        const completedRequired = completedSections.filter(id => {
-            const section = sections.find(s => s.id === id);
-            return section && section.required && section.visible;
-        });
-
-        const completeness = requiredSections.length > 0
-            ? Math.round((completedRequired.length / requiredSections.length) * 100)
-            : 0;
-
-        return {
-            completeness: completeness,
-            atsScore: Math.min(100, 70 + Math.round(completeness * 0.3)),
-            aiEnhancements: currentResume?.metadata?.aiEnhancements || 0,
-            wordCount: calculateWordCount(currentResume?.data || {}),
-            aiCredits: aiCredits,
-            completedSections: completedSections.length,
-            totalSections: sections.length,
-            visibleSections: visibleSections.length,
-            lastSaved: lastSavedTime
-        };
-    }, [completedSections, currentResume, aiCredits, lastSavedTime, sections]);
-
-    // Navigation
-    const navigateToSection = useCallback((direction) => {
-        const visibleSections = sections.filter(s => s.visible);
-        const currentIndex = visibleSections.findIndex(s => s.id === activeSection);
-        let newIndex;
-
-        if (direction === 'next') {
-            newIndex = Math.min(currentIndex + 1, visibleSections.length - 1);
-        } else if (direction === 'prev') {
-            newIndex = Math.max(currentIndex - 1, 0);
-        } else {
-            newIndex = visibleSections.findIndex(s => s.id === direction);
-            if (newIndex === -1) newIndex = 0;
-        }
-
-        if (visibleSections[newIndex]) {
-            setActiveSection(visibleSections[newIndex].id);
-        }
-    }, [activeSection, sections]);
-
-    // Toggle section visibility
-    const toggleSectionVisibility = useCallback((sectionId) => {
-        setSections(prev => prev.map(section =>
-            section.id === sectionId
-                ? { ...section, visible: !section.visible }
-                : section
-        ));
-
-        if (sectionId === activeSection) {
-            const visibleSections = sections.filter(s => s.visible && s.id !== sectionId);
-            if (visibleSections.length > 0) {
-                setActiveSection(visibleSections[0].id);
-            }
-        }
-
-        toast.success(
-            sections.find(s => s.id === sectionId)?.visible
-                ? `📁 "${sections.find(s => s.id === sectionId)?.label}" section hidden`
-                : `👁️ "${sections.find(s => s.id === sectionId)?.label}" section shown`
+    if (hasError) {
+        return (
+            <ErrorFallback
+                sectionId={sectionId}
+                onRetry={() => setHasError(false)}
+            />
         );
-    }, [activeSection, sections]);
+    }
 
-    // Save functionality
-    const handleSave = useCallback(async () => {
-        if (saveStatus === 'saving') return;
+    return (
+        <React.Suspense fallback={<SectionLoading />}>
+            {React.Children.map(children, child =>
+                React.cloneElement(child, { onError: handleError })
+            )}
+        </React.Suspense>
+    );
+};
 
-        setIsSaving(true);
-        try {
-            await saveResume();
-            setLastSavedTime(new Date());
-            toast.success('✅ Resume saved successfully!', {
-                duration: 2000,
-            });
-        } catch (error) {
-            toast.error('Failed to save resume. Please try again.');
-            console.error('Save error:', error);
-        } finally {
-            setIsSaving(false);
-        }
-    }, [saveResume, saveStatus]);
+const SectionLoading = () => (
+    <div className="flex items-center justify-center p-8 min-h-[400px]">
+        <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+        >
+            <Loader2 className="w-8 h-8 text-indigo-600" />
+        </motion.div>
+    </div>
+);
 
-    // AI Enhancement
-    const handleAIEnhance = useCallback(async (section = activeSection) => {
-        if (aiCredits <= 0) {
-            toast.error('💳 Insufficient AI credits!');
-            return;
-        }
+const ErrorFallback = ({ sectionId, onRetry }) => {
+    return (
+        <motion.div
+            className="p-8 text-center bg-white rounded-xl border border-red-100"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+        >
+            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-gray-800 mb-2">Something went wrong</h3>
+            <p className="text-gray-600 mb-6">
+                There was an error loading the {sectionId} section.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button
+                    onClick={onRetry}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center justify-center gap-2"
+                >
+                    <Loader2 className="w-4 h-4" />
+                    Try Again
+                </button>
+                <button
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                    Reload Page
+                </button>
+            </div>
+        </motion.div>
+    );
+};
 
-        const loadingToast = toast.loading('🤖 AI is enhancing your content...');
+const LoadingFallback = () => (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+        <motion.div
+            className="text-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+        >
+            <div className="relative mb-8">
+                <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                    className="w-32 h-32 border-4 border-indigo-200 border-t-indigo-600 rounded-full"
+                />
+            </div>
+            <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-3">
+                ResumeCraft AI
+            </h2>
+            <p className="text-gray-600 text-lg">Preparing your resume builder...</p>
+        </motion.div>
+    </div>
+);
 
-        try {
-            await new Promise(resolve => setTimeout(resolve, 1500));
+const OfflineIndicator = ({ isOnline }) => {
+    return (
+        <motion.div
+            initial={{ y: -100 }}
+            animate={{ y: 0 }}
+            exit={{ y: -100 }}
+            className="fixed top-0 left-0 right-0 bg-amber-500 text-white py-2 px-4 z-50"
+        >
+            <div className="container mx-auto flex items-center justify-center gap-2">
+                <CloudOff className="w-4 h-4" />
+                <span className="text-sm font-medium">
+                    You are offline. Changes will be saved locally and synced when you're back online.
+                </span>
+            </div>
+        </motion.div>
+    );
+};
 
-            const currentData = currentResume?.data?.[section] || {};
-            let enhancedData = { ...currentData };
+// Progress Indicator Component
+const ProgressIndicator = ({ progress, currentSection, totalSections }) => {
+    const sections = [
+        { id: 'personalInfo', label: 'Personal', icon: User },
+        { id: 'summary', label: 'Summary', icon: FileText },
+        { id: 'experience', label: 'Experience', icon: Briefcase },
+        { id: 'education', label: 'Education', icon: GraduationCap },
+        { id: 'skills', label: 'Skills', icon: Code },
+        { id: 'projects', label: 'Projects', icon: Code },
+        { id: 'certifications', label: 'Certifications', icon: Award },
+        { id: 'languages', label: 'Languages', icon: Globe },
+        { id: 'references', label: 'References', icon: Users },
+        { id: 'finalReview', label: 'Review', icon: FileCheck }
+    ];
 
-            switch (section) {
-                case 'summary':
-                    enhancedData.content = currentData.content
-                        ? `${currentData.content}\n\n✨ Enhanced with AI.`
-                        : 'Results-driven professional with proven expertise.';
-                    break;
-                case 'experience':
-                    if (Array.isArray(currentData.items)) {
-                        enhancedData.items = currentData.items.map(item => ({
-                            ...item,
-                            description: item.description
-                                ? `${item.description}\n• AI Enhanced`
-                                : item.description
-                        }));
-                    }
-                    break;
-                default:
-                    enhancedData = {
-                        ...currentData,
-                        aiEnhanced: true,
-                        enhancedAt: new Date().toISOString()
-                    };
-            }
+    const currentIndex = sections.findIndex(s => s.id === currentSection);
 
-            updateSection(section, enhancedData);
-            setAiCredits(prev => prev - 5);
+    return (
+        <div className="px-4 sm:px-6 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+            <div className="max-w-6xl mx-auto">
+                {/* Progress bar */}
+                <div className="mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-gray-700">
+                            Progress: {Math.round(progress)}%
+                        </span>
+                        <span className="text-sm text-gray-500">
+                            Section {currentIndex + 1} of {totalSections}
+                        </span>
+                    </div>
+                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <motion.div
+                            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progress}%` }}
+                            transition={{ duration: 0.5 }}
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
-            toast.dismiss(loadingToast);
-            toast.success('✨ AI enhancement applied!', {
-                duration: 3000,
-            });
-
-        } catch (error) {
-            toast.dismiss(loadingToast);
-            toast.error('Failed to apply AI enhancement.');
-            console.error('AI enhancement error:', error);
-        }
-    }, [aiCredits, activeSection, currentResume, updateSection]);
-
-    // Export functionality
-    const handleExport = useCallback(async (format = 'pdf') => {
-        try {
-            setIsExporting(true);
-            await handleSave();
-
-            if (format === 'pdf') {
-                toast.loading('📄 Generating PDF...');
-
-                const pdf = new jsPDF({
-                    orientation: 'portrait',
-                    unit: 'mm',
-                    format: 'a4'
-                });
-
-                pdf.setFontSize(20);
-                pdf.text('Resume', 105, 20, { align: 'center' });
-                pdf.setFontSize(12);
-                pdf.text(`Generated for: ${user?.displayName || 'User'}`, 105, 30, { align: 'center' });
-                pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 105, 40, { align: 'center' });
-
-                const visibleSections = sections.filter(s => s.visible);
-                let yPosition = 60;
-
-                visibleSections.forEach((section, index) => {
-                    if (yPosition > 270) {
-                        pdf.addPage();
-                        yPosition = 20;
-                    }
-
-                    pdf.setFontSize(14);
-                    pdf.setTextColor(50, 50, 50);
-                    pdf.text(section.label, 20, yPosition);
-                    yPosition += 10;
-
-                    pdf.setFontSize(10);
-                    pdf.setTextColor(100, 100, 100);
-                    pdf.text(`[${section.description} content will be here]`, 20, yPosition);
-                    yPosition += 15;
-                });
-
-                const fileName = `Resume_${user?.displayName?.replace(/[^a-z0-9]/gi, '_') || 'MyResume'}.pdf`;
-                pdf.save(fileName);
-
-                toast.success('✅ PDF exported successfully!');
-            }
-
-        } catch (error) {
-            toast.error(`Export failed: ${error.message}`);
-            console.error('Export error:', error);
-        } finally {
-            setIsExporting(false);
-        }
-    }, [handleSave, user, sections]);
-
-    // Fullscreen functionality
-    const handleFullscreen = useCallback(() => {
-        if (!isFullscreen) {
-            if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen();
-            }
-            setIsFullscreen(true);
-        } else {
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            }
-            setIsFullscreen(false);
-        }
-    }, [isFullscreen]);
-
-    // Handle fullscreen change
-    useEffect(() => {
-        const handleFullscreenChange = () => {
-            setIsFullscreen(!!document.fullscreenElement);
-        };
-
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
-        return () => {
-            document.removeEventListener('fullscreenchange', handleFullscreenChange);
-        };
-    }, []);
-
-    const handleLogout = useCallback(async () => {
-        try {
-            await handleSave();
-            await logout();
-            toast.success('👋 Successfully logged out');
-            navigate('/login');
-        } catch (error) {
-            toast.error('Failed to logout');
-        }
-    }, [handleSave, logout, navigate]);
-
-    const handleSectionUpdate = useCallback((data) => {
-        if (updateSection) {
-            updateSection(activeSection, data);
-        }
-    }, [activeSection, updateSection]);
-
-    const handleSectionChange = useCallback((sectionId) => {
-        const section = sections.find(s => s.id === sectionId);
-        if (section && section.visible) {
-            setActiveSection(sectionId);
-            if (isMobile) {
-                setLeftSidebarOpen(false);
-                setRightSidebarOpen(false);
-                setShowMobileMenu(false);
-            }
-        }
-    }, [sections, isMobile]);
-
-    // Zoom controls
-    const handleZoomIn = useCallback(() => {
-        setZoomLevel(prev => Math.min(prev + 10, 200));
-    }, []);
-
-    const handleZoomOut = useCallback(() => {
-        setZoomLevel(prev => Math.max(prev - 10, 50));
-    }, []);
-
-    const resetZoom = useCallback(() => {
-        setZoomLevel(100);
-    }, []);
-
-    // Open full screen editor
-    const openFullScreenEditor = useCallback((content = '', section = activeSection) => {
-        const sectionData = currentResume?.data?.[section] || {};
-        let editorContent = content;
-
-        if (!editorContent && sectionData) {
-            switch (section) {
-                case 'summary':
-                    editorContent = sectionData.content || '';
-                    break;
-                case 'experience':
-                    editorContent = sectionData.items?.[0]?.description || '';
-                    break;
-                case 'education':
-                    editorContent = sectionData.items?.[0]?.description || '';
-                    break;
-                default:
-                    editorContent = '';
-            }
-        }
-
-        setFullScreenContent(editorContent);
-        setFullScreenSection(section);
-        setShowFullScreenEditor(true);
-    }, [activeSection, currentResume]);
-
-    // Save full screen editor content
-    const saveFullScreenContent = useCallback((content) => {
-        const sectionData = currentResume?.data?.[fullScreenSection] || {};
-        let updatedData = { ...sectionData };
-
-        switch (fullScreenSection) {
-            case 'summary':
-                updatedData.content = content;
-                break;
-            case 'experience':
-                if (Array.isArray(updatedData.items) && updatedData.items.length > 0) {
-                    updatedData.items[0].description = content;
-                }
-                break;
-            case 'education':
-                if (Array.isArray(updatedData.items) && updatedData.items.length > 0) {
-                    updatedData.items[0].description = content;
-                }
-                break;
-        }
-
-        updateSection(fullScreenSection, updatedData);
-        setShowFullScreenEditor(false);
-        toast.success('✅ Changes saved successfully!');
-    }, [fullScreenSection, currentResume, updateSection]);
-
-    // Text formatting handler
-    const handleTextFormat = useCallback((format) => {
-        setTextFormat(format);
-        toast.success(`Applied ${format} formatting`);
-    }, []);
-
-    // Insert element handler
-    const handleInsertElement = useCallback((element) => {
-        toast.success(`Inserted ${element}`);
-    }, []);
-
-    // AI Action handler
-    const handleAIAction = useCallback(async (action, data) => {
-        try {
-            toast.loading(`Processing ${action.replace('-', ' ')}...`);
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            switch (action) {
-                case 'enhance-all':
-                    setAiCredits(prev => prev - 3);
-                    toast.success('✨ All sections enhanced with AI!');
-                    break;
-                case 'ats-check':
-                    setAiCredits(prev => prev - 1);
-                    toast.success('✅ ATS compatibility checked!');
-                    break;
-                case 'grammar-check':
-                    setAiCredits(prev => prev - 1);
-                    toast.success('✅ Grammar and spelling checked!');
-                    break;
-                case 'rewrite':
-                    setAiCredits(prev => prev - 5);
-                    toast.success('✨ Resume rewritten with AI!');
-                    break;
-                case 'cover-letter':
-                    setAiCredits(prev => prev - 4);
-                    toast.success('📄 Cover letter generated!');
-                    break;
-            }
-        } catch (error) {
-            toast.error(`Failed to process ${action}`);
-        }
-    }, []);
-
-    // Auto-save effect
-    useEffect(() => {
-        if (!currentResume) return;
-
-        const autoSaveTimer = setTimeout(() => {
-            if (saveStatus !== 'saving' && !isSaving) {
-                handleSave();
-            }
-        }, 30000);
-
-        return () => clearTimeout(autoSaveTimer);
-    }, [currentResume, saveStatus, isSaving, handleSave]);
-
-    // Keyboard shortcuts
+// Keyboard Shortcuts Hook
+const useKeyboardShortcuts = ({
+    onNavigate,
+    onTogglePreview,
+    showPreview,
+    onSave
+}) => {
     useEffect(() => {
         const handleKeyDown = (e) => {
-            // Ctrl/Cmd + S to save
+            // Ignore when user is typing in inputs
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
+                return;
+            }
+
+            // Ctrl/Cmd + S for save
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 e.preventDefault();
-                handleSave();
+                onSave?.();
             }
-            // Ctrl/Cmd + → for next section
-            if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
+
+            // Arrow keys for navigation
+            if (e.key === 'ArrowRight') {
                 e.preventDefault();
-                navigateToSection('next');
+                onNavigate?.('next');
             }
-            // Ctrl/Cmd + ← for previous section
-            if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
+            if (e.key === 'ArrowLeft') {
                 e.preventDefault();
-                navigateToSection('prev');
+                onNavigate?.('prev');
             }
-            // Ctrl/Cmd + E to export
-            if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
-                e.preventDefault();
-                handleExport('pdf');
-            }
-            // Ctrl/Cmd + F for fullscreen
-            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-                e.preventDefault();
-                handleFullscreen();
-            }
-            // Ctrl/Cmd + Space for AI Assistant
-            if ((e.ctrlKey || e.metaKey) && e.code === 'Space') {
-                e.preventDefault();
-                setShowAIAssistant(!showAIAssistant);
-            }
-            // Ctrl/Cmd + Enter for full screen editor
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                e.preventDefault();
-                openFullScreenEditor();
-            }
-            // Escape to close modals
-            if (e.key === 'Escape') {
-                if (showFullScreenEditor) {
-                    setShowFullScreenEditor(false);
-                }
-                if (showAIAssistant) {
-                    setShowAIAssistant(false);
-                }
-                if (isMobile) {
-                    setLeftSidebarOpen(false);
-                    setRightSidebarOpen(false);
-                    setShowMobileMenu(false);
-                }
+
+            // Escape to close preview
+            if (e.key === 'Escape' && showPreview) {
+                onTogglePreview?.();
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [handleSave, navigateToSection, handleExport, handleFullscreen, showAIAssistant, showFullScreenEditor, isMobile, openFullScreenEditor]);
+    }, [onNavigate, onTogglePreview, showPreview, onSave]);
+};
 
-    // Render section component based on active section
+// Main Builder Component
+const Builder = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { id: resumeId } = useParams();
+    const { isAuthenticated } = useAuth();
+
+    // Resume Context
+    const {
+        currentResume,
+        isLoading: contextLoading,
+        loadResume,
+        createNewResume,
+        updateSection,
+        saveResume,
+        saveStatus,
+        cloudStatus
+    } = useResume();
+
+    // Custom Hooks
+    const {
+        currentState: resumeState,
+        addToHistory,
+        clearHistory
+    } = useUndoRedo(currentResume, {
+        maxHistorySize: 50,
+        ignoreKeys: ['_id', 'createdAt', 'updatedAt', '__v']
+    });
+
+    // State management
+    const [activeSection, setActiveSection] = useState('personalInfo');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [showPreview, setShowPreview] = useState(false);
+    const [showAIAssistant, setShowAIAssistant] = useState(false);
+    const [lastSaved, setLastSaved] = useState(null);
+    const [initialized, setInitialized] = useState(false);
+    const [aiCredits] = useState(150);
+    const [fullScreenText, setFullScreenText] = useState({
+        isOpen: false,
+        content: '',
+        onSave: null,
+        title: ''
+    });
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [sectionError, setSectionError] = useState(null);
+    const [isMobile, setIsMobile] = useState(false);
+    const [loadError, setLoadError] = useState(null);
+    const [lastSaveTime, setLastSaveTime] = useState('');
+
+    // Define sections
+    const sections = useMemo(() => [
+        {
+            id: 'personalInfo',
+            label: 'Personal Information',
+            icon: User,
+            required: true,
+            visible: true,
+            color: '#4f46e5',
+            description: 'Your basic contact and professional details'
+        },
+        {
+            id: 'summary',
+            label: 'Professional Summary',
+            icon: FileText,
+            required: true,
+            visible: true,
+            color: '#059669',
+            description: 'A brief overview of your professional background'
+        },
+        {
+            id: 'experience',
+            label: 'Work Experience',
+            icon: Briefcase,
+            required: true,
+            visible: true,
+            color: '#3b82f6',
+            description: 'Your work history and achievements'
+        },
+        {
+            id: 'education',
+            label: 'Education',
+            icon: GraduationCap,
+            required: true,
+            visible: true,
+            color: '#8b5cf6',
+            description: 'Academic background and qualifications'
+        },
+        {
+            id: 'skills',
+            label: 'Skills',
+            icon: Code,
+            required: true,
+            visible: true,
+            color: '#f59e0b',
+            description: 'Technical and professional skills'
+        },
+        {
+            id: 'projects',
+            label: 'Projects',
+            icon: Code,
+            required: false,
+            visible: true,
+            color: '#10b981',
+            description: 'Notable projects and achievements'
+        },
+        {
+            id: 'certifications',
+            label: 'Certifications',
+            icon: Award,
+            required: false,
+            visible: true,
+            color: '#ef4444',
+            description: 'Professional certifications and licenses'
+        },
+        {
+            id: 'languages',
+            label: 'Languages',
+            icon: Globe,
+            required: false,
+            visible: true,
+            color: '#06b6d4',
+            description: 'Language proficiencies'
+        },
+        {
+            id: 'references',
+            label: 'References',
+            icon: Users,
+            required: false,
+            visible: true,
+            color: '#8b5cf6',
+            description: 'Professional references'
+        },
+        {
+            id: 'finalReview',
+            label: 'Final Review',
+            icon: FileCheck,
+            required: true,
+            visible: true,
+            color: '#10b981',
+            description: 'Review and complete your resume'
+        },
+    ], []);
+
+    // Section Navigation Hook
+    const {
+        navigateToSection,
+        currentIndex,
+        visibleSections,
+        getProgress,
+        goToSection,
+        goToNext,
+        goToPrev
+    } = useSectionNavigation(sections, activeSection, setActiveSection, {
+        validateBeforeNavigate: true,
+        persistInUrl: true,
+        urlParamName: 'section',
+        allowSkip: false
+    });
+
+    // Resume Completion Hook
+    const {
+        completedSections,
+        overallScore,
+        isSectionComplete,
+        getSectionScore,
+        getQualityScore,
+        completedCount,
+        totalRequired,
+        completeness
+    } = useResumeCompletion(resumeState, sections);
+
+    // ==============================================
+    // FIXED: Auto-save Hook with offline-first approach
+    // ==============================================
+    const {
+        startAutoSave,
+        stopAutoSave,
+        manualSave: autoSaveManualSave,
+        hasChanges: hasUnsavedChanges
+    } = useAutoSave(
+        resumeState,
+        async (resume) => {
+            try {
+                console.log('💾 [AutoSave] Attempting to save...');
+
+                // Safety check
+                if (!resume || !resume._id) {
+                    console.log('⏭️ [AutoSave] Skipping - no resume data');
+                    return true;
+                }
+
+                // Try to save via ResumeContext (which has offline fallback)
+                const saved = await saveResume(resume, false);
+
+                if (saved) {
+                    const now = new Date();
+                    setLastSaved(now);
+                    setLastSaveTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+                    return true;
+                }
+
+                // Even if saveResume returns false, we return true to stop error loop
+                console.log('⚠️ [AutoSave] SaveResume returned false, but data is saved locally');
+                return true;
+
+            } catch (error) {
+                console.error('❌ [AutoSave] Error in save callback:', error.message);
+                // Don't throw - return true to prevent infinite error loop
+                return true;
+            }
+        },
+        isOnline ? 30000 : 60000, // 30s online, 60s offline
+        {
+            enabled: true,
+            minChanges: 1,
+            showNotifications: false,
+            retryAttempts: 1
+        }
+    );
+
+    // Check mobile/desktop
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    // Network status detection
+    useEffect(() => {
+        const handleOnline = () => {
+            setIsOnline(true);
+            console.log('🌐 Network back online');
+        };
+
+        const handleOffline = () => {
+            setIsOnline(false);
+            console.log('📴 Network offline');
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
+    // ==============================================
+    // FIXED: Initialize resume - SIMPLIFIED
+    // ==============================================
+    useEffect(() => {
+        const initializeBuilder = async () => {
+            console.log('🔄 [Builder] Initializing...', { resumeId });
+
+            if (!isAuthenticated) {
+                console.log('🔒 User not authenticated');
+                navigate('/login');
+                return;
+            }
+
+            try {
+                setLoadError(null);
+
+                if (resumeId === 'new' || !resumeId) {
+                    console.log('🆕 Creating new resume...');
+                    const newResume = await createNewResume();
+
+                    if (newResume?._id) {
+                        console.log('✅ New resume created:', newResume._id);
+                        navigate(`/builder/${newResume._id}`, { replace: true });
+                    } else {
+                        toast.error('Failed to create resume');
+                        navigate('/dashboard');
+                    }
+                } else {
+                    console.log('📂 Loading existing resume:', resumeId);
+                    const loadedResume = await loadResume(resumeId);
+
+                    if (!loadedResume) {
+                        console.error('❌ Resume not found:', resumeId);
+                        toast.error('Resume not found');
+                        navigate('/dashboard');
+                        return;
+                    }
+
+                    console.log('✅ Resume loaded:', loadedResume.title);
+
+                    // Set active section from URL
+                    const params = new URLSearchParams(location.search);
+                    const sectionParam = params.get('section');
+                    if (sectionParam && sections.find(s => s.id === sectionParam)) {
+                        setActiveSection(sectionParam);
+                    }
+                }
+
+                setInitialized(true);
+                console.log('✅ Builder initialized');
+
+            } catch (error) {
+                console.error('❌ Initialization error:', error);
+                setLoadError(error.message);
+                toast.error('Failed to initialize builder');
+                navigate('/dashboard');
+            }
+        };
+
+        if (!initialized) {
+            initializeBuilder();
+        }
+    }, [resumeId, isAuthenticated, navigate]);
+
+    // Start/stop auto-save
+    useEffect(() => {
+        if (resumeState && initialized && saveStatus !== 'saving') {
+            console.log('▶️ Starting auto-save');
+            startAutoSave();
+            return () => {
+                console.log('⏹️ Stopping auto-save');
+                stopAutoSave();
+            };
+        }
+    }, [resumeState, initialized, saveStatus, startAutoSave, stopAutoSave]);
+
+    // ==============================================
+    // FIXED: Handle manual save
+    // ==============================================
+    const handleManualSave = useCallback(async () => {
+        if (!resumeState || saveStatus === 'saving') {
+            console.log('⏸️ Save skipped - no data or already saving');
+            return;
+        }
+
+        console.log('💾 Manual save triggered');
+
+        try {
+            const saved = await saveResume(resumeState, true);
+            if (saved) {
+                const now = new Date();
+                setLastSaved(now);
+                setLastSaveTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+                // Don't show success toast - saveResume already shows it
+            }
+        } catch (error) {
+            console.error('❌ Manual save failed:', error);
+            // Don't show error toast - saveResume already shows it
+        }
+    }, [resumeState, saveStatus, saveResume]);
+
+    // Sanitize data
+    const sanitizeData = useCallback((data) => {
+        if (typeof data === 'string') {
+            return DOMPurify.sanitize(data, {
+                ALLOWED_TAGS: ['b', 'i', 'u', 'strong', 'em', 'br', 'p', 'ul', 'ol', 'li'],
+                ALLOWED_ATTR: []
+            });
+        }
+        if (Array.isArray(data)) {
+            return data.map(item => sanitizeData(item));
+        }
+        if (typeof data === 'object' && data !== null) {
+            const sanitized = {};
+            Object.keys(data).forEach(key => {
+                sanitized[key] = sanitizeData(data[key]);
+            });
+            return sanitized;
+        }
+        return data;
+    }, []);
+
+    // ==============================================
+    // FIXED: Handle section updates
+    // ==============================================
+    const handleSectionUpdate = useCallback((sectionId, data) => {
+        if (!resumeState || !updateSection) {
+            console.error('❌ Cannot update section: missing context');
+            return false;
+        }
+
+        console.log(`📝 Updating section "${sectionId}"`);
+
+        try {
+            // Sanitize input
+            const sanitizedData = sanitizeData(data);
+
+            // Update in context
+            const success = updateSection(sectionId, sanitizedData);
+
+            if (success) {
+                // Auto-save important sections with delay
+                if (sectionId === 'personalInfo' || sectionId === 'summary') {
+                    setTimeout(() => {
+                        handleManualSave();
+                    }, 2000);
+                }
+            }
+
+            return success;
+        } catch (error) {
+            console.error(`❌ Failed to update section "${sectionId}":`, error);
+            setSectionError(sectionId);
+            toast.error('Failed to update section');
+            return false;
+        }
+    }, [resumeState, updateSection, handleManualSave, sanitizeData]);
+
+    // Handle exit
+    const handleExit = useCallback(async () => {
+        if (hasUnsavedChanges && resumeState) {
+            const confirm = window.confirm('You have unsaved changes. Save before leaving?');
+            if (confirm) {
+                await handleManualSave();
+            }
+        }
+        clearHistory();
+        navigate('/dashboard');
+    }, [hasUnsavedChanges, resumeState, handleManualSave, clearHistory, navigate]);
+
+    // Handle section error
+    const handleSectionError = useCallback((sectionId) => {
+        setSectionError(sectionId);
+        toast.error(`Error in ${sectionId} section`);
+    }, []);
+
+    // Open fullscreen text editor
+    const openFullScreenEditor = useCallback((content = '', title = 'Edit Text', onSave = null) => {
+        setFullScreenText({
+            isOpen: true,
+            content,
+            onSave,
+            title
+        });
+    }, []);
+
+    // Close fullscreen text editor
+    const closeFullScreenEditor = useCallback(() => {
+        setFullScreenText({
+            isOpen: false,
+            content: '',
+            onSave: null,
+            title: ''
+        });
+    }, []);
+
+    // Save fullscreen text
+    const saveFullScreenText = useCallback((content) => {
+        if (fullScreenText.onSave) {
+            const sanitizedContent = DOMPurify.sanitize(content, {
+                ALLOWED_TAGS: ['b', 'i', 'u', 'strong', 'em', 'br', 'p', 'ul', 'ol', 'li'],
+                ALLOWED_ATTR: []
+            });
+            fullScreenText.onSave(sanitizedContent);
+        }
+        closeFullScreenEditor();
+    }, [fullScreenText, closeFullScreenEditor]);
+
+    // Keyboard shortcuts
+    useKeyboardShortcuts({
+        onNavigate: navigateToSection,
+        onTogglePreview: () => setShowPreview(!showPreview),
+        showPreview,
+        onSave: handleManualSave
+    });
+
+    // Handle section change from sidebar
+    const handleSectionChange = useCallback((sectionId) => {
+        goToSection(sectionId);
+    }, [goToSection]);
+
+    // FAB Actions
+    const fabActions = useMemo(() => [
+        {
+            icon: <Save className="w-5 h-5" />,
+            label: 'Save Resume',
+            onClick: handleManualSave,
+            color: 'bg-green-500 hover:bg-green-600'
+        },
+        {
+            icon: <Download className="w-5 h-5" />,
+            label: 'Export PDF',
+            onClick: () => toast.success('Exporting PDF...'),
+            color: 'bg-blue-500 hover:bg-blue-600'
+        },
+        {
+            icon: <Eye className="w-5 h-5" />,
+            label: 'Preview',
+            onClick: () => setShowPreview(!showPreview),
+            color: 'bg-indigo-500 hover:bg-indigo-600'
+        },
+        {
+            icon: <Sparkles className="w-5 h-5" />,
+            label: 'AI Enhance',
+            onClick: () => setShowAIAssistant(true),
+            color: 'bg-purple-500 hover:bg-purple-600'
+        }
+    ], [handleManualSave, showPreview, setShowAIAssistant]);
+
+    // ==============================================
+    // FIXED: Render active section
+    // ==============================================
     const renderActiveSection = () => {
-        const sectionData = currentResume?.data?.[activeSection] || {};
-        const sectionConfig = sections.find(s => s.id === activeSection);
-
-        if (!sectionConfig?.visible) {
+        if (!resumeState && !contextLoading) {
             return (
-                <div className="flex flex-col items-center justify-center h-full py-12">
-                    <EyeOff className="w-16 h-16 text-gray-300 mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-700 mb-2">Section Hidden</h3>
-                    <p className="text-gray-500 text-center mb-6 max-w-md">
-                        This section is currently hidden. Show it to edit the content.
-                    </p>
-                    <button
-                        onClick={() => toggleSectionVisibility(activeSection)}
-                        className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                    >
-                        <Eye className="w-4 h-4 mr-2" />
-                        Show Section
-                    </button>
+                <div className="p-8 text-center">
+                    <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">No Resume Data</h3>
+                    <p className="text-gray-600">Please create or load a resume to get started.</p>
                 </div>
             );
         }
 
-        const commonProps = {
-            data: sectionData,
-            onUpdate: handleSectionUpdate,
-            onAIEnhance: () => handleAIEnhance(activeSection),
-            onNext: () => navigateToSection('next'),
-            onPrev: () => navigateToSection('prev'),
-            onFullScreen: () => openFullScreenEditor()
-        };
-
-        switch (activeSection) {
-            case 'personalInfo':
-                return <PersonalInfoPage {...commonProps} />;
-            case 'summary':
-                return <SummaryPage {...commonProps} />;
-            case 'experience':
-                return <ExperiencePage {...commonProps} />;
-            case 'education':
-                return <EducationPage {...commonProps} />;
-            case 'skills':
-                return <SkillsPage {...commonProps} />;
-            case 'projects':
-                return <ProjectsPage {...commonProps} />;
-            case 'certifications':
-                return <CertificationsPage {...commonProps} />;
-            case 'languages':
-                return <LanguagesPage {...commonProps} />;
-            case 'references':
-                return <ReferencesPage {...commonProps} />;
-            default:
-                return (
-                    <div className="flex items-center justify-center h-full">
-                        <div className="text-center">
-                            <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-indigo-500" />
-                            <p className="text-gray-600">Loading section...</p>
-                        </div>
-                    </div>
-                );
+        if (!resumeState) {
+            return (
+                <div className="p-8 text-center">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-indigo-600" />
+                    <p className="text-gray-600">Loading resume data...</p>
+                </div>
+            );
         }
-    };
 
-    // Render section navigation buttons
-    const renderSectionNavigation = () => {
-        const visibleSections = sections.filter(s => s.visible);
-        const currentIndex = visibleSections.findIndex(s => s.id === activeSection);
+        const sectionData = resumeState[activeSection] || {};
         const currentSection = sections.find(s => s.id === activeSection);
 
-        return (
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-6">
-                <div className="flex items-center space-x-2">
-                    <button
-                        onClick={() => navigateToSection('prev')}
-                        disabled={currentIndex <= 0}
-                        className={`flex items-center px-3 py-2 rounded-lg transition-all ${currentIndex <= 0
-                            ? 'opacity-50 cursor-not-allowed bg-gray-100'
-                            : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                            }`}
-                    >
-                        <ChevronLeft className="w-4 h-4 mr-2" />
-                        <span className="hidden sm:inline">Previous</span>
-                    </button>
+        const commonProps = {
+            data: sectionData,
+            onUpdate: (updatedData) => handleSectionUpdate(activeSection, updatedData),
+            isMobile,
+            isOnline,
+            onError: () => handleSectionError(activeSection)
+        };
 
-                    <div className="flex items-center">
-                        <div className="flex items-center px-3 py-2 bg-gray-50 rounded-lg">
-                            <span className="text-sm font-medium text-gray-700">
-                                {currentSection?.label || 'Section'}
-                            </span>
-                            <span className="mx-2 text-gray-400 hidden sm:inline">•</span>
-                            <span className="text-xs text-gray-500 hidden sm:inline">
-                                {currentIndex + 1} of {visibleSections.length}
-                            </span>
+        const getSectionComponent = () => {
+            switch (activeSection) {
+                case 'personalInfo':
+                    return <PersonalInfoPage key={`${resumeState._id}-personalInfo`} {...commonProps} />;
+                case 'summary':
+                    return <SummaryPage key={`${resumeState._id}-summary`} {...commonProps} />;
+                case 'experience':
+                    return <ExperiencePage key={`${resumeState._id}-experience`} {...commonProps} />;
+                case 'education':
+                    return <EducationPage key={`${resumeState._id}-education`} {...commonProps} />;
+                case 'skills':
+                    return <SkillsPage key={`${resumeState._id}-skills`} {...commonProps} />;
+                case 'projects':
+                    return <ProjectsPage key={`${resumeState._id}-projects`} {...commonProps} />;
+                case 'certifications':
+                    return <CertificationsPage key={`${resumeState._id}-certifications`} {...commonProps} />;
+                case 'languages':
+                    return <LanguagesPage key={`${resumeState._id}-languages`} {...commonProps} />;
+                case 'references':
+                    return <ReferencesPage key={`${resumeState._id}-references`} {...commonProps} />;
+                case 'finalReview':
+                    return (
+                        <CompletionPage
+                            key={`${resumeState._id}-finalReview`}
+                            resumeData={resumeState}
+                            onComplete={() => {
+                                toast.success('Resume completed successfully!');
+                                clearHistory();
+                                navigate('/dashboard');
+                            }}
+                            isOnline={isOnline}
+                        />
+                    );
+                default:
+                    return (
+                        <div className="p-8 text-center">
+                            <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+                            <h3 className="text-xl font-bold text-gray-800 mb-2">Section Not Found</h3>
+                            <p className="text-gray-600">The selected section does not exist.</p>
                         </div>
+                    );
+            }
+        };
 
-                        {/* Full Screen Button */}
-                        {currentSection?.hasFullScreen && !isMobile && (
-                            <button
-                                onClick={() => openFullScreenEditor()}
-                                className="ml-2 hidden sm:flex items-center px-3 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:opacity-90 transition-opacity"
-                            >
-                                <Maximize2 className="w-4 h-4 mr-2" />
-                                Full Screen
-                            </button>
-                        )}
-                    </div>
-
-                    <button
-                        onClick={() => navigateToSection('next')}
-                        disabled={currentIndex >= visibleSections.length - 1}
-                        className={`flex items-center px-3 py-2 rounded-lg transition-all ${currentIndex >= visibleSections.length - 1
-                            ? 'opacity-50 cursor-not-allowed bg-gray-100'
-                            : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                            }`}
-                    >
-                        <span className="hidden sm:inline">Next</span>
-                        <ChevronRight className="w-4 h-4 ml-2" />
-                    </button>
+        return (
+            <SectionErrorBoundary
+                sectionId={activeSection}
+                onError={handleSectionError}
+            >
+                <div className="mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                        {currentSection?.label || 'Section'}
+                    </h2>
+                    <p className="text-gray-600">
+                        {currentSection?.description || ''}
+                    </p>
                 </div>
 
-                <div className="flex items-center space-x-2">
-                    {isMobile && currentSection?.hasFullScreen && (
-                        <button
-                            onClick={() => openFullScreenEditor()}
-                            className="flex items-center px-3 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:opacity-90 transition-opacity"
-                        >
-                            <Maximize2 className="w-4 h-4 mr-2" />
-                            Full
-                        </button>
-                    )}
-
-                    <button
-                        onClick={() => handleAIEnhance()}
-                        disabled={aiCredits <= 0}
-                        className={`flex items-center px-3 py-2 rounded-lg transition-all ${aiCredits <= 0
-                            ? 'opacity-50 cursor-not-allowed bg-gray-100'
-                            : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90'
-                            }`}
-                    >
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        <span className="hidden sm:inline">AI Enhance</span>
-                        <span className="ml-2 text-xs bg-white/20 px-2 py-1 rounded">
-                            {aiCredits}
-                        </span>
-                    </button>
-                </div>
-            </div>
+                {getSectionComponent()}
+            </SectionErrorBoundary>
         );
     };
 
-    // Mobile Top Bar
-    const MobileTopBar = () => (
-        <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 py-3">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                    <button
-                        onClick={() => setShowMobileMenu(!showMobileMenu)}
-                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                        {showMobileMenu ? (
-                            <X className="w-5 h-5 text-gray-600" />
-                        ) : (
-                            <Menu className="w-5 h-5 text-gray-600" />
-                        )}
-                    </button>
+    // Show loading state
+    if (contextLoading || !initialized) {
+        return <LoadingFallback />;
+    }
 
-                    <div>
-                        <h1 className="text-lg font-bold text-gray-800 truncate max-w-[180px]">
-                            {currentResume?.name || 'Untitled Resume'}
-                        </h1>
-                        <div className="flex items-center text-xs text-gray-500">
-                            <span>{stats.completedSections}/{stats.totalSections} sections</span>
-                            <span className="mx-1">•</span>
-                            <span>{stats.completeness}% complete</span>
+    // Show error state
+    if (loadError) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
+                <div className="flex items-center justify-center min-h-[80vh]">
+                    <div className="text-center">
+                        <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                        <h2 className="text-2xl font-bold text-gray-800 mb-2">Failed to Load Resume</h2>
+                        <p className="text-gray-600 mb-6">{loadError}</p>
+                        <div className="flex gap-3 justify-center">
+                            <button
+                                onClick={() => window.location.reload()}
+                                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all"
+                            >
+                                Reload Page
+                            </button>
+                            <button
+                                onClick={() => navigate('/dashboard')}
+                                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-all"
+                            >
+                                Back to Dashboard
+                            </button>
                         </div>
                     </div>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving || saveStatus === 'saving'}
-                        className={`px-3 py-2 rounded-lg transition-all ${isSaving || saveStatus === 'saving'
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                            }`}
-                    >
-                        {isSaving || saveStatus === 'saving' ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                            <Save className="w-4 h-4" />
-                        )}
-                    </button>
-
-                    <button
-                        onClick={() => setShowAIAssistant(!showAIAssistant)}
-                        className={`p-2 rounded-lg transition-colors ${showAIAssistant
-                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                    >
-                        <Brain className="w-5 h-5" />
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-
-    // Main render
-    if (resumeLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-                <div className="text-center">
-                    <Loader2 className="w-16 h-16 animate-spin mx-auto mb-4 text-indigo-500" />
-                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Loading Resume Builder</h2>
-                    <p className="text-gray-600">Preparing your workspace...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-            {/* Navbar */}
-            <div className="hidden lg:block">
-                <Navbar
-                    user={user}
-                    onLogout={handleLogout}
-                    onSave={handleSave}
-                    onExport={handleExport}
-                    isSaving={isSaving}
-                    saveStatus={saveStatus}
-                    aiCredits={aiCredits}
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
+            {/* Offline Indicator */}
+            {!isOnline && <OfflineIndicator isOnline={isOnline} />}
+
+            {/* Main Layout */}
+            <div className="flex">
+                {/* Sidebar */}
+                <BuilderSidebar
+                    isOpen={isSidebarOpen}
+                    isMobileOpen={false}
+                    onClose={() => { }}
+                    onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+                    sections={sections}
+                    activeSection={activeSection}
+                    completedSections={completedSections}
+                    onSectionChange={handleSectionChange}
+                    resumeTitle={resumeState?.title || 'Untitled Resume'}
+                    resumeProgress={completeness}
+                    isOnline={isOnline}
                 />
+
+                {/* Main Content Area */}
+                <main className="flex-1 overflow-auto pb-24">
+                    {/* Progress Indicator */}
+                    <ProgressIndicator
+                        progress={completeness}
+                        currentSection={activeSection}
+                        totalSections={visibleSections.length}
+                    />
+
+                    {/* Section Content */}
+                    <div className="p-4 sm:p-6 lg:p-8">
+                        <div
+                            key={activeSection}
+                            className="max-w-4xl mx-auto transition-all duration-300"
+                        >
+                            {renderActiveSection()}
+                        </div>
+                    </div>
+                </main>
             </div>
 
-            {/* Mobile Top Bar */}
-            <MobileTopBar />
-
-            {/* Main Content */}
-            <div className="flex h-[calc(100vh-64px)] lg:h-[calc(100vh-64px)] mt-16 lg:mt-0">
-                {/* Left Sidebar - Section Navigation */}
-                <AnimatePresence>
-                    {(leftSidebarOpen || (isMobile && showMobileMenu)) && (
-                        <motion.div
-                            initial={{ x: -320, opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            exit={{ x: -320, opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className={`fixed lg:relative z-40 h-full bg-white border-r border-gray-200 shadow-xl lg:shadow-none ${isMobile ? 'inset-0' : ''}`}
-                            style={{ width: isMobile ? '100%' : '320px' }}
-                        >
-                            <div className="h-full flex flex-col">
-                                {/* Mobile Header */}
-                                {isMobile && (
-                                    <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                                        <h2 className="text-xl font-bold text-gray-800">Sections</h2>
-                                        <button
-                                            onClick={() => {
-                                                setLeftSidebarOpen(false);
-                                                setShowMobileMenu(false);
-                                            }}
-                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                                        >
-                                            <X className="w-5 h-5 text-gray-600" />
-                                        </button>
+            {/* ======================== */}
+            {/* FIXED BOTTOM NAVIGATION */}
+            {/* ======================== */}
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-30">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="py-4">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                            {/* Left: Save status */}
+                            <div className="flex items-center gap-3">
+                                {saveStatus === 'saving' ? (
+                                    <div className="flex items-center gap-2 text-amber-600">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span className="text-sm font-medium">Saving...</span>
+                                    </div>
+                                ) : lastSaved ? (
+                                    <div className="flex items-center gap-2 text-green-600">
+                                        <CheckCircle className="w-4 h-4" />
+                                        <div>
+                                            <p className="text-sm font-medium">Saved {lastSaveTime}</p>
+                                            <p className="text-xs text-gray-500">Auto-save active</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 text-gray-500">
+                                        <CheckCircle className="w-4 h-4" />
+                                        <span className="text-sm">Ready to save</span>
                                     </div>
                                 )}
-
-                                <BuilderSidebar
-                                    sections={sections}
-                                    activeSection={activeSection}
-                                    completedSections={completedSections}
-                                    onSectionChange={(sectionId) => {
-                                        handleSectionChange(sectionId);
-                                        if (isMobile) {
-                                            setShowMobileMenu(false);
-                                        }
-                                    }}
-                                    onToggleVisibility={toggleSectionVisibility}
-                                    showHiddenSections={showHiddenSections}
-                                    onToggleHiddenSections={() => setShowHiddenSections(!showHiddenSections)}
-                                    stats={stats}
-                                    showProgress={showProgress}
-                                    onToggleProgress={() => setShowProgress(!showProgress)}
-                                    onSave={handleSave}
-                                    onExport={handleExport}
-                                    isSaving={isSaving}
-                                    saveStatus={saveStatus}
-                                />
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-
-                {/* Main Editor Area */}
-                <div
-                    className="flex-1 overflow-auto transition-all duration-200"
-                    style={{ width: editorWidth }}
-                >
-                    <div className="h-full flex flex-col">
-                        {/* Editor Header - Desktop */}
-                        <div className="hidden lg:block sticky top-0 z-30 bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-4">
-                                    <button
-                                        onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
-                                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                                    >
-                                        {leftSidebarOpen ? (
-                                            <PanelLeft className="w-5 h-5 text-gray-600" />
-                                        ) : (
-                                            <PanelRight className="w-5 h-5 text-gray-600" />
-                                        )}
-                                    </button>
-
-                                    <div className="flex items-center space-x-2">
-                                        <button
-                                            onClick={() => navigate('/dashboard')}
-                                            className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors"
-                                        >
-                                            <Home className="w-4 h-4 mr-2" />
-                                            Dashboard
-                                        </button>
-                                        <span className="text-gray-300">|</span>
-                                        <div className="text-sm text-gray-600">
-                                            Editing: <span className="font-semibold">{currentResume?.name || 'Untitled Resume'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center space-x-2">
-                                    {/* Zoom Controls */}
-                                    <div className="hidden md:flex items-center bg-gray-100 rounded-lg p-1">
-                                        <button
-                                            onClick={handleZoomOut}
-                                            className="p-1 hover:bg-gray-200 rounded transition-colors"
-                                            disabled={zoomLevel <= 50}
-                                        >
-                                            <ZoomOut className="w-4 h-4 text-gray-600" />
-                                        </button>
-                                        <button
-                                            onClick={resetZoom}
-                                            className="px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded transition-colors"
-                                        >
-                                            {zoomLevel}%
-                                        </button>
-                                        <button
-                                            onClick={handleZoomIn}
-                                            className="p-1 hover:bg-gray-200 rounded transition-colors"
-                                            disabled={zoomLevel >= 200}
-                                        >
-                                            <ZoomIn className="w-4 h-4 text-gray-600" />
-                                        </button>
-                                    </div>
-
-                                    {/* Fullscreen Toggle */}
-                                    <button
-                                        onClick={handleFullscreen}
-                                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                                    >
-                                        {isFullscreen ? (
-                                            <Minimize2 className="w-5 h-5 text-gray-600" />
-                                        ) : (
-                                            <Maximize2 className="w-5 h-5 text-gray-600" />
-                                        )}
-                                    </button>
-
-                                    {/* AI Assistant Toggle */}
-                                    <button
-                                        onClick={() => setShowAIAssistant(!showAIAssistant)}
-                                        className={`p-2 rounded-lg transition-colors ${showAIAssistant
-                                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                                            : 'hover:bg-gray-100 text-gray-600'
-                                            }`}
-                                    >
-                                        <Brain className="w-5 h-5" />
-                                    </button>
-
-                                    {/* Right Sidebar Toggle */}
-                                    <button
-                                        onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
-                                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                                    >
-                                        {rightSidebarOpen ? (
-                                            <PanelRight className="w-5 h-5 text-gray-600" />
-                                        ) : (
-                                            <PanelLeft className="w-5 h-5 text-gray-600" />
-                                        )}
-                                    </button>
-                                </div>
                             </div>
 
-                            {/* Section Navigation */}
-                            {renderSectionNavigation()}
-                        </div>
+                            {/* Center: Navigation */}
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={() => navigateToSection('prev')}
+                                    disabled={currentIndex <= 0}
+                                    className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                >
+                                    <ArrowLeft className="w-4 h-4" />
+                                    Previous
+                                </button>
 
-                        {/* Mobile Section Navigation */}
-                        <div className="lg:hidden px-4 py-3 border-b border-gray-200 bg-white">
-                            {renderSectionNavigation()}
-                        </div>
+                                <div className="text-center">
+                                    <p className="text-sm font-medium text-gray-900">
+                                        {sections.find(s => s.id === activeSection)?.label}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                        Step {currentIndex + 1} of {visibleSections.length}
+                                    </p>
+                                </div>
 
-                        {/* Editor Content */}
-                        <div
-                            className="flex-1 overflow-auto p-4 lg:p-6 transition-all duration-200"
-                            style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }}
-                        >
-                            <div className="max-w-4xl mx-auto">
-                                {renderActiveSection()}
+                                <button
+                                    onClick={() => navigateToSection('next')}
+                                    disabled={currentIndex >= visibleSections.length - 1}
+                                    className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                >
+                                    {currentIndex < visibleSections.length - 1 ? 'Next' : 'Complete'}
+                                    <ArrowRight className="w-4 h-4" />
+                                </button>
                             </div>
-                        </div>
 
-                        {/* Editor Footer */}
-                        <div className="sticky bottom-0 z-30 bg-white/90 backdrop-blur-sm border-t border-gray-200 px-4 lg:px-6 py-3">
-                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                                <div className="flex items-center justify-between lg:justify-start lg:space-x-4 text-sm text-gray-600">
-                                    <div className="flex items-center">
-                                        {saveStatus === 'saving' ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                                <span>Saving...</span>
-                                            </>
-                                        ) : saveStatus === 'saved' ? (
-                                            <>
-                                                <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-                                                <span>Saved</span>
-                                                {lastSavedTime && (
-                                                    <span className="ml-2 text-gray-500 hidden lg:inline">
-                                                        {new Date(lastSavedTime).toLocaleTimeString([], {
-                                                            hour: '2-digit',
-                                                            minute: '2-digit'
-                                                        })}
-                                                    </span>
-                                                )}
-                                            </>
-                                        ) : saveStatus === 'error' ? (
-                                            <>
-                                                <span className="text-red-500">Save failed</span>
-                                                <button
-                                                    onClick={handleSave}
-                                                    className="ml-2 text-indigo-600 hover:text-indigo-700"
-                                                >
-                                                    Retry
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span>Ready</span>
-                                            </>
-                                        )}
-                                    </div>
-
-                                    <div className="lg:hidden flex items-center space-x-4">
-                                        <div className="flex items-center">
-                                            <FileText className="w-4 h-4 mr-1" />
-                                            <span>{stats.wordCount}</span>
-                                        </div>
-                                        <div className="flex items-center">
-                                            <CheckCircle className="w-4 h-4 mr-1 text-green-500" />
-                                            <span>{stats.completedSections}/{stats.totalSections}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="hidden lg:flex items-center space-x-4 text-sm text-gray-600">
-                                    <div className="flex items-center">
-                                        <FileText className="w-4 h-4 mr-2" />
-                                        <span>{stats.wordCount} words</span>
-                                    </div>
-
-                                    <div className="flex items-center">
-                                        <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
-                                        <span>{stats.completedSections}/{stats.totalSections} sections</span>
-                                    </div>
-
-                                    <div className="flex items-center">
-                                        {showHiddenSections ? (
-                                            <EyeOff className="w-4 h-4 mr-2 text-gray-400" />
-                                        ) : (
-                                            <Eye className="w-4 h-4 mr-2 text-green-500" />
-                                        )}
-                                        <span>{stats.visibleSections} visible</span>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center justify-between lg:justify-end lg:space-x-3">
-                                    <button
-                                        onClick={() => setShowAIAssistant(true)}
-                                        className="flex items-center px-3 lg:px-4 py-2 bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 rounded-lg hover:from-purple-100 hover:to-pink-100 transition-all"
-                                    >
-                                        <Sparkles className="w-4 h-4 mr-2" />
-                                        <span className="hidden sm:inline">Ask AI</span>
-                                    </button>
-
-                                    <button
-                                        onClick={handleSave}
-                                        disabled={isSaving || saveStatus === 'saving'}
-                                        className={`flex items-center px-3 lg:px-4 py-2 rounded-lg transition-all ${isSaving || saveStatus === 'saving'
-                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                            }`}
-                                    >
-                                        {isSaving || saveStatus === 'saving' ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                                <span className="hidden sm:inline">Saving...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Save className="w-4 h-4 mr-2" />
-                                                <span className="hidden sm:inline">Save</span>
-                                            </>
-                                        )}
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleExport('pdf')}
-                                        disabled={isExporting}
-                                        className={`hidden sm:flex items-center px-3 lg:px-4 py-2 rounded-lg transition-all ${isExporting
-                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                            : 'bg-green-600 text-white hover:bg-green-700'
-                                            }`}
-                                    >
-                                        {isExporting ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                                Exporting...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Download className="w-4 h-4 mr-2" />
-                                                Export
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
+                            {/* Right: Save button */}
+                            <button
+                                onClick={handleManualSave}
+                                disabled={saveStatus === 'saving'}
+                                className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                            >
+                                <Save className="w-4 h-4" />
+                                Save Resume
+                            </button>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                {/* Right Sidebar - Stats Dashboard */}
-                <AnimatePresence>
-                    {rightSidebarOpen && (
-                        <motion.div
-                            initial={{ x: 384, opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            exit={{ x: 384, opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="fixed lg:relative right-0 z-40 h-full bg-white border-l border-gray-200 shadow-xl lg:shadow-none"
-                            style={{ width: isMobile ? '100%' : '384px' }}
-                        >
-                            <div className="h-full flex flex-col">
-                                {/* Mobile Header */}
-                                {isMobile && (
-                                    <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                                        <h2 className="text-xl font-bold text-gray-800">Stats & Tools</h2>
-                                        <button
-                                            onClick={() => setRightSidebarOpen(false)}
-                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                                        >
-                                            <X className="w-5 h-5 text-gray-600" />
-                                        </button>
-                                    </div>
-                                )}
-
-                                <StatsDashboard
-                                    stats={stats}
-                                    activeSection={activeSection}
-                                    sections={sections}
-                                    onSectionChange={handleSectionChange}
-                                    onExport={handleExport}
-                                    onFullscreen={handleFullscreen}
-                                    onToggleSectionVisibility={toggleSectionVisibility}
-                                />
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-
-                {/* Floating Action Buttons */}
-                <FloatingActionButtons
-                    onSave={handleSave}
-                    onExport={handleExport}
-                    onShare={handleDefaultShare}
-                    onPrint={handleDefaultPrint}
-                    onFullscreen={handleFullscreen}
-                    onAIEnhance={handleAIEnhance}
-                    onPreview={() => setShowPreviewMode(!showPreviewMode)}
-                    onSettings={() => toast.success('Settings opened')}
-                    onHelp={() => toast.success('Help opened')}
-                    onAddSection={() => toast.success('Add section clicked')}
-                    onOpenAIAssistant={() => setShowAIAssistant(!showAIAssistant)}
-                    onAIAction={handleAIAction}
-                    onTextFormat={handleTextFormat}
-                    onInsertElement={handleInsertElement}
-                    onZoomIn={handleZoomIn}
-                    onZoomOut={handleZoomOut}
-                    onResetZoom={resetZoom}
-                    isFullscreen={isFullscreen}
-                    showPreview={showPreviewMode}
-                    saveStatus={saveStatus}
-                    user={{ ...user, aiCredits }}
-                    resumeData={currentResume?.data || {}}
-                    zoomLevel={zoomLevel}
-                    isAIAssistantOpen={showAIAssistant}
-                    position={isMobile ? "bottom-right" : "bottom-right"}
-                    compact={isMobile}
+            {/* Floating Action Button */}
+            <div className="fixed bottom-24 right-8 z-40">
+                <FloatingActionButton
+                    actions={fabActions}
+                    position="bottom-right"
+                    showLabels={true}
+                    mainIcon={<Plus className="w-6 h-6" />}
+                    mainColor="bg-gradient-to-r from-purple-600 to-indigo-600"
                 />
+            </div>
 
-                {/* Mobile Sidebar Toggles */}
-                {isMobile && !showMobileMenu && !leftSidebarOpen && (
-                    <button
-                        onClick={() => {
-                            setLeftSidebarOpen(true);
-                            setShowMobileMenu(true);
-                        }}
-                        className="fixed left-4 bottom-20 z-50 p-3 bg-indigo-600 text-white rounded-full shadow-lg"
-                    >
-                        <Menu className="w-5 h-5" />
-                    </button>
-                )}
+            {/* AI Assistant Panel */}
+            {showAIAssistant && (
+                <AIAssistant
+                    key="ai-assistant-panel"
+                    isOpen={showAIAssistant}
+                    onClose={() => setShowAIAssistant(false)}
+                    credits={aiCredits}
+                    onEnhance={(sectionId, enhancedData) => {
+                        handleSectionUpdate(sectionId, enhancedData);
+                        toast.success('AI enhancement applied!');
+                    }}
+                    currentSection={activeSection}
+                    currentData={resumeState?.[activeSection]}
+                    sections={sections}
+                />
+            )}
 
-                {isMobile && !rightSidebarOpen && (
-                    <button
-                        onClick={() => setRightSidebarOpen(true)}
-                        className="fixed right-4 bottom-20 z-50 p-3 bg-indigo-600 text-white rounded-full shadow-lg"
-                    >
-                        <BarChart className="w-5 h-5" />
-                    </button>
-                )}
+            {/* Full Screen Text Editor */}
+            {fullScreenText.isOpen && (
+                <FullScreenTextField
+                    content={fullScreenText.content}
+                    onSave={saveFullScreenText}
+                    onClose={closeFullScreenEditor}
+                    title={fullScreenText.title}
+                    maxLength={5000}
+                    allowFormatting={true}
+                />
+            )}
 
-                {/* AI Assistant Modal */}
-                <AnimatePresence>
-                    {showAIAssistant && (
-                        <>
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="fixed inset-0 bg-black/50 z-50"
-                                onClick={() => setShowAIAssistant(false)}
-                            />
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: 20 }}
-                                className="fixed inset-x-4 bottom-4 md:inset-x-auto md:right-4 md:bottom-4 md:w-96 z-50"
-                            >
-                                <AIAssistant
-                                    activeSection={activeSection}
-                                    sectionData={currentResume?.data?.[activeSection]}
-                                    onEnhance={handleAIEnhance}
-                                    onClose={() => setShowAIAssistant(false)}
-                                    aiCredits={aiCredits}
-                                />
-                            </motion.div>
-                        </>
-                    )}
-                </AnimatePresence>
-
-                {/* Full Screen Text Editor */}
-                <AnimatePresence>
-                    {showFullScreenEditor && (
-                        <FullScreenTextField
-                            value={fullScreenContent}
-                            onChange={(content) => setFullScreenContent(content)}
-                            onSave={saveFullScreenContent}
-                            onClose={() => setShowFullScreenEditor(false)}
-                            onAIEnhance={() => {
-                                if (aiCredits > 0) {
-                                    setAiCredits(prev => prev - 5);
-                                    toast.success('✨ AI enhancement applied!');
-                                } else {
-                                    toast.error('Insufficient AI credits');
-                                }
-                            }}
-                            placeholder={`Edit your ${fullScreenSection} content...`}
-                            title={`${sections.find(s => s.id === fullScreenSection)?.label} - Full Screen Editor`}
-                            aiCredits={aiCredits}
-                            isSaving={isSaving}
-                        />
-                    )}
-                </AnimatePresence>
+            {/* Keyboard Shortcuts Help */}
+            <div className="fixed bottom-36 right-4 z-30">
+                <button
+                    onClick={() => toast((t) => (
+                        <div className="p-2">
+                            <h4 className="font-bold mb-2">Keyboard Shortcuts</h4>
+                            <ul className="text-sm space-y-1">
+                                <li>• <kbd>Ctrl+S</kbd> - Save</li>
+                                <li>• <kbd>←</kbd>/<kbd>→</kbd> - Navigate sections</li>
+                            </ul>
+                        </div>
+                    ), { duration: 5000 })}
+                    className="p-2 text-xs bg-gray-800 text-white rounded-lg opacity-50 hover:opacity-100 transition-opacity"
+                    title="Keyboard Shortcuts"
+                >
+                    <HelpCircle className="w-4 h-4" />
+                </button>
             </div>
         </div>
     );
 };
 
-// Default handlers for FloatingActionButtons
-const handleDefaultShare = async () => {
-    try {
-        if (navigator.share) {
-            await navigator.share({
-                title: 'My Resume',
-                text: 'Check out my professional resume!',
-                url: window.location.href
-            });
-        } else {
-            navigator.clipboard.writeText(window.location.href);
-            toast.success('Link copied to clipboard!');
-        }
-    } catch (err) {
-        navigator.clipboard.writeText(window.location.href);
-        toast.success('Link copied to clipboard!');
-    }
-};
-
-const handleDefaultPrint = () => {
-    window.print();
-};
-
-export default ResumeBuilder;
+export default Builder;

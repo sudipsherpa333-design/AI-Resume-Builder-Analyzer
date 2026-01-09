@@ -2,6 +2,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
+
+// Import the simplified CSS
 import './styles/global.css';
 
 // Check if the root element exists
@@ -128,7 +130,6 @@ class ErrorBoundary extends React.Component {
   }
 
   static getDerivedStateFromError(error) {
-    // Update state so the next render will show the fallback UI
     return {
       hasError: true,
       error: error
@@ -136,21 +137,12 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // You can log the error to an error reporting service here
     console.error('🔥 Error caught by boundary:', error);
     console.error('📋 Error info:', errorInfo);
 
     this.setState({
       errorInfo: errorInfo
     });
-
-    // Optional: Send error to analytics service
-    // if (window.analytics) {
-    //   window.analytics.track('React Error', {
-    //     error: error.toString(),
-    //     componentStack: errorInfo.componentStack
-    //   });
-    // }
   }
 
   handleReset = () => {
@@ -163,7 +155,6 @@ class ErrorBoundary extends React.Component {
   }
 
   handleReport = () => {
-    // You can implement error reporting here
     const errorData = {
       error: this.state.error?.toString(),
       componentStack: this.state.errorInfo?.componentStack,
@@ -178,7 +169,6 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
-      // You can render any custom fallback UI
       return (
         <div style={{
           minHeight: '100vh',
@@ -377,11 +367,6 @@ try {
   console.log('📱 Mode:', import.meta.env.MODE);
   console.log('🌐 Environment:', import.meta.env.DEV ? 'Development' : 'Production');
 
-  // Performance monitoring
-  if (import.meta.env.DEV) {
-    console.log('⚡ Performance monitoring enabled in development');
-  }
-
 } catch (error) {
   console.error('❌ Failed to render React application:', error);
 
@@ -425,48 +410,3 @@ window.addEventListener('error', (event) => {
 window.addEventListener('unhandledrejection', (event) => {
   console.error('🔗 Unhandled promise rejection:', event.reason);
 });
-
-// Development only features
-if (import.meta.env.DEV) {
-  // Enable React DevTools
-  console.log('🔧 React DevTools enabled in development');
-
-  // Add a global refresh shortcut (Ctrl + R)
-  window.addEventListener('keydown', (event) => {
-    if (event.ctrlKey && event.key === 'r') {
-      console.log('🔄 Manual refresh triggered');
-    }
-  });
-}
-
-// Optional: Add a loading indicator
-const style = document.createElement('style');
-style.textContent = `
-  /* Loading animation */
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-  
-  #root {
-    animation: fadeIn 0.3s ease-in;
-  }
-  
-  /* Better focus styles */
-  :focus-visible {
-    outline: 2px solid #3b82f6;
-    outline-offset: 2px;
-    border-radius: 0.25rem;
-  }
-  
-  /* Print styles */
-  @media print {
-    .no-print {
-      display: none !important;
-    }
-  }
-`;
-document.head.appendChild(style);
-
-// Export for testing purposes
-export { ErrorBoundary };
