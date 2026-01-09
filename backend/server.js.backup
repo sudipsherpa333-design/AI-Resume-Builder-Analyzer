@@ -1,0 +1,91 @@
+// backend/src/server.js
+import mongoose from 'mongoose';
+import app from './app.js';
+
+// Load environment variables
+import dotenv from 'dotenv';
+dotenv.config();
+
+// Connect to MongoDB
+const connectDB = async () => {
+    try {
+        console.log('🔗 Connecting to MongoDB Atlas...');
+
+        await mongoose.connect(process.env.MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+        });
+
+        console.log(`✅ MongoDB Atlas Connected!`);
+        console.log(`📊 Database: ${mongoose.connection.name}`);
+        console.log(`📍 Host: ${mongoose.connection.host}`);
+
+        return true;
+    } catch (error) {
+        console.error('❌ MongoDB Connection Error:', error.message);
+        console.log('\n🔧 Troubleshooting MongoDB Atlas:');
+        console.log('1. Check if your IP is whitelisted in MongoDB Atlas');
+        console.log('2. Check network connection');
+        console.log('3. Verify MongoDB URI in .env file');
+
+        // Continue without MongoDB for demo
+        console.log('\n⚠️  Starting server in DEMO MODE (without database)');
+        return false;
+    }
+};
+
+// Start server
+const startServer = async () => {
+    try {
+        console.log('\n' + '='.repeat(50));
+        console.log('🔍 Starting AI Resume Builder Server...');
+        console.log('='.repeat(50));
+
+        // Try to connect to MongoDB
+        const dbConnected = await connectDB();
+
+        const PORT = process.env.PORT || 5001;
+
+        const server = app.listen(PORT, '0.0.0.0', () => {
+            console.log('\n' + '='.repeat(50));
+            console.log('🚀 AI RESUME BUILDER BACKEND');
+            console.log('='.repeat(50));
+            console.log(`✅ SERVER STATUS: RUNNING`);
+            console.log(`📍 PORT: ${PORT}`);
+            console.log(`🌐 URL: http://localhost:${PORT}`);
+            console.log(`🌐 URL: http://127.0.0.1:${PORT}`);
+            console.log(`📊 DATABASE: ${dbConnected ? 'Connected to Atlas' : 'Demo Mode'}`);
+            console.log(`🌍 ENVIRONMENT: ${process.env.NODE_ENV}`);
+            console.log(`🔗 FRONTEND: ${process.env.FRONTEND_URL}`);
+            console.log('='.repeat(50));
+            console.log('📝 By: Sudip Sherpa');
+            console.log('🎓 BCA 6th Semester Project');
+            console.log('='.repeat(50));
+            console.log('\n📢 OPEN YOUR BROWSER TO:');
+            console.log(`👉 http://localhost:${PORT}`);
+            console.log(`👉 http://localhost:${PORT}/api/health`);
+            console.log('='.repeat(50) + '\n');
+        });
+
+        // Handle port in use
+        server.on('error', (error) => {
+            if (error.code === 'EADDRINUSE') {
+                console.log(`❌ Port ${PORT} is busy. Trying port ${Number(PORT) + 1}...`);
+                app.listen(Number(PORT) + 1, '0.0.0.0');
+            } else {
+                console.error('Server error:', error);
+            }
+        });
+
+        return server;
+
+    } catch (error) {
+        console.error('❌ Failed to start server:', error);
+        process.exit(1);
+    }
+};
+
+// Start server if run directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+    startServer();
+}

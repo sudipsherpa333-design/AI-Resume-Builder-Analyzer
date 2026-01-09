@@ -1,0 +1,207 @@
+// backend/src/app.js
+import express from 'express';
+import cors from 'cors';
+import morgan from 'morgan';
+
+const app = express();
+
+// ========================
+// Middleware
+// ========================
+
+// CORS - Allow frontend on port 5174
+app.use(cors({
+    origin: 'http://localhost:5174',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+}));
+
+// Body parsing
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Logging
+app.use(morgan('dev'));
+
+// ========================
+// Routes
+// ========================
+
+// Root route - REQUIRED!
+app.get('/', (req, res) => {
+    console.log('✅ Root route accessed');
+    res.json({
+        success: true,
+        message: '🚀 AI Resume Builder API',
+        version: '1.0.0',
+        status: 'RUNNING',
+        timestamp: new Date().toISOString(),
+        endpoints: {
+            health: '/api/health',
+            api: '/api',
+            test: '/test',
+            auth: '/api/auth'
+        }
+    });
+});
+
+// Health check
+app.get('/api/health', (req, res) => {
+    res.json({
+        success: true,
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV
+    });
+});
+
+// API docs
+app.get('/api', (req, res) => {
+    res.json({
+        success: true,
+        message: 'AI Resume Builder API',
+        version: '1.0.0',
+        availableEndpoints: [
+            'GET /',
+            'GET /api/health',
+            'GET /api',
+            'GET /test',
+            'POST /api/auth/login',
+            'POST /api/auth/register'
+        ]
+    });
+});
+
+// Test endpoint
+app.get('/test', (req, res) => {
+    res.json({
+        success: true,
+        message: '✅ Test endpoint working!',
+        data: {
+            server: 'running',
+            timestamp: new Date().toISOString(),
+            mongodb: 'connected (check console)'
+        }
+    });
+});
+
+// Handle favicon
+app.get('/favicon.ico', (req, res) => {
+    res.status(204).end();
+});
+
+// ========================
+// API Routes
+// ========================
+
+// Auth routes (minimal working version)
+const authRouter = express.Router();
+
+authRouter.get('/', (req, res) => {
+    res.json({ message: 'Auth API' });
+});
+
+authRouter.post('/login', (req, res) => {
+    const { email, password } = req.body;
+
+    if (email && password) {
+        res.json({
+            success: true,
+            message: 'Login successful (demo)',
+            token: 'demo_token_' + Date.now(),
+            user: {
+                id: 'user_' + Date.now(),
+                name: 'Demo User',
+                email: email,
+                role: 'user'
+            }
+        });
+    } else {
+        res.status(400).json({
+            success: false,
+            message: 'Email and password required'
+        });
+    }
+});
+
+authRouter.post('/register', (req, res) => {
+    const { name, email, password } = req.body;
+
+    if (name && email && password) {
+        res.json({
+            success: true,
+            message: 'Registration successful (demo)',
+            token: 'demo_token_' + Date.now(),
+            user: {
+                id: 'user_' + Date.now(),
+                name: name,
+                email: email,
+                role: 'user'
+            }
+        });
+    } else {
+        res.status(400).json({
+            success: false,
+            message: 'Name, email and password required'
+        });
+    }
+});
+
+app.use('/api/auth', authRouter);
+
+// User routes
+const userRouter = express.Router();
+userRouter.get('/profile', (req, res) => {
+    res.json({
+        success: true,
+        user: {
+            id: 'user_123',
+            name: 'Demo User',
+            email: 'demo@example.com'
+        }
+    });
+});
+app.use('/api/users', userRouter);
+
+// Resume routes
+const resumeRouter = express.Router();
+resumeRouter.get('/', (req, res) => {
+    res.json({
+        success: true,
+        resumes: []
+    });
+});
+resumeRouter.post('/', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Resume created (demo)',
+        resume: req.body
+    });
+});
+app.use('/api/resumes', resumeRouter);
+
+// ========================
+// Error Handling
+// ========================
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        message: `Route not found: ${req.method} ${req.originalUrl}`,
+        suggestion: 'Try /, /api/health, /api, or /test'
+    });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+    console.error('Server error:', err);
+    res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+});
+
+export default app;
