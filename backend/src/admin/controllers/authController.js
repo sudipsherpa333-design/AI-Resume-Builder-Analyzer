@@ -1,329 +1,386 @@
-const AuthService = require('../services/AuthService');
-const AdminService = require('../services/AdminService');
-const LogService = require('../services/LogService');
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import Admin from '../../models/Admin.js';
+import { validationResult } from 'express-validator';
 
-class AuthController {
-    // Admin login
-    async login(req, res) {
+const authController = {
+    // Admin Login
+    login: async (req, res) => {
         try {
-            const { email, password } = req.body;
-
-            if (!email || !password) {
+            // Validate request
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Email and password are required'
+                    message: 'Validation failed',
+                    errors: errors.array()
                 });
             }
 
-            const result = await AuthService.adminLogin(
-                email,
-                password,
-                req.ip,
-                req.headers['user-agent']
+            const { email, password } = req.body;
+
+            console.log('🔐 Admin login attempt:', email);
+
+            // Check if admin exists
+            const admin = await Admin.findOne({
+                email: email.toLowerCase(),
+                isDeleted: false
+            });
+
+            if (!admin) {
+                console.log('❌ Admin not found:', email);
+                return res.status(401).json({
+                    success: false,
+                    message: 'Invalid credentials'
+                });
+            }
+
+            // Check if account is active
+            if (!admin.isActive) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Account is disabled. Please contact super administrator.'
+                });
+            }
+
+            // Verify password
+            const isPasswordValid = await bcrypt.compare(password, admin.password);
+
+            if (!isPasswordValid) {
+                console.log('❌ Invalid password for:', email);
+                return res.status(401).json({
+                    success: false,
+                    message: 'Invalid credentials'
+                });
+            }
+
+            // Generate JWT token
+            const token = jwt.sign(
+                {
+                    id: admin._id,
+                    email: admin.email,
+                    role: admin.role,
+                    permissions: admin.permissions
+                },
+                process.env.JWT_ADMIN_SECRET,
+                { expiresIn: process.env.JWT_ADMIN_EXPIRES_IN || '24h' }
             );
 
-            // Check if 2FA is required
-            if (result.requires2FA) {
-                return res.json({
-                    success: true,
-                    requires2FA: true,
-                    adminId: result.adminId,
-                    tempToken: result.tempToken,
-                    message: '2FA required'
-                });
-            }
+            // Generate refresh token
+            const refreshToken = jwt.sign(
+                { id: admin._id },
+                process.env.JWT_ADMIN_REFRESH_SECRET,
+                { expiresIn: '7d' }
+            );
 
-            res.json({
+            // Update last login
+            admin.lastLogin = new Date();
+            admin.refreshToken = refreshToken;
+            await admin.save();
+
+            // Remove sensitive data from response
+            const adminData = admin.toObject();
+            delete adminData.password;
+            delete adminData.refreshToken;
+
+            console.log('✅ Admin login successful:', admin.email);
+
+            res.status(200).json({
                 success: true,
                 message: 'Login successful',
                 data: {
-                    admin: result.admin,
-                    token: result.token
+                    admin: adminData,
+                    token,
+                    refreshToken,
+                    expiresIn: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
+                    permissions: admin.permissions
                 }
             });
+
         } catch (error) {
-            res.status(401).json({
+            console.error('❌ Login error:', error);
+            res.status(500).json({
                 success: false,
-                message: error.message
+                message: 'Server error during login',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
         }
-    }
+    },
 
-    // Verify 2FA
-    async verify2FA(req, res) {
+    // Get Admin Profile
+    getProfile: async (req, res) => {
         try {
-            const { adminId, token, tempToken } = req.body;
+            const admin = await Admin.findById(req.admin.id)
+                .select('-password -refreshToken')
+                .lean();
 
-            if (!adminId || !token || !tempToken) {
-                return res.status(400).json({
+            if (!admin) {
+                return res.status(404).json({
                     success: false,
-                    message: 'Admin ID, token, and temp token are required'
+                    message: 'Admin not found'
                 });
             }
 
-            const result = await AuthService.verify2FA(
-                adminId,
-                token,
-                tempToken,
-                req.ip
-            );
-
             res.json({
                 success: true,
-                message: '2FA verification successful',
-                data: {
-                    admin: result.admin,
-                    token: result.token
-                }
+                data: admin
             });
-        } catch (error) {
-            res.status(401).json({
-                success: false,
-                message: error.message
-            });
-        }
-    }
 
-    // Get current admin profile
-    async getProfile(req, res) {
-        try {
-            res.json({
-                success: true,
-                data: req.admin
-            });
         } catch (error) {
+            console.error('Get profile error:', error);
             res.status(500).json({
                 success: false,
-                message: error.message
+                message: 'Failed to fetch profile'
             });
         }
-    }
+    },
 
-    // Update profile
-    async updateProfile(req, res) {
+    // Update Admin Profile
+    updateProfile: async (req, res) => {
         try {
-            const { name, avatar } = req.body;
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Validation failed',
+                    errors: errors.array()
+                });
+            }
+
+            const { name, email, avatar } = req.body;
             const updateData = {};
 
             if (name) updateData.name = name;
+            if (email) {
+                // Check if email is already taken by another admin
+                const existingAdmin = await Admin.findOne({
+                    email: email.toLowerCase(),
+                    _id: { $ne: req.admin.id }
+                });
+
+                if (existingAdmin) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Email already in use'
+                    });
+                }
+                updateData.email = email.toLowerCase();
+            }
             if (avatar) updateData.avatar = avatar;
 
-            const admin = await AdminService.updateAdmin(
-                req.admin._id,
+            const admin = await Admin.findByIdAndUpdate(
+                req.admin.id,
                 updateData,
-                req.admin
-            );
-
-            await LogService.createActionLog(req.admin._id, 'profile_update', {
-                fields: Object.keys(updateData)
-            });
+                { new: true, runValidators: true }
+            ).select('-password -refreshToken');
 
             res.json({
                 success: true,
                 message: 'Profile updated successfully',
                 data: admin
             });
+
         } catch (error) {
-            res.status(400).json({
+            console.error('Update profile error:', error);
+            res.status(500).json({
                 success: false,
-                message: error.message
+                message: 'Failed to update profile'
             });
         }
-    }
+    },
 
-    // Change password
-    async changePassword(req, res) {
+    // Change Password
+    changePassword: async (req, res) => {
         try {
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Validation failed',
+                    errors: errors.array()
+                });
+            }
+
             const { currentPassword, newPassword } = req.body;
 
-            if (!currentPassword || !newPassword) {
-                return res.status(400).json({
+            // Get admin with password
+            const admin = await Admin.findById(req.admin.id).select('+password');
+
+            if (!admin) {
+                return res.status(404).json({
                     success: false,
-                    message: 'Current and new password are required'
+                    message: 'Admin not found'
                 });
             }
 
-            if (newPassword.length < 6) {
-                return res.status(400).json({
+            // Verify current password
+            const isPasswordValid = await bcrypt.compare(currentPassword, admin.password);
+
+            if (!isPasswordValid) {
+                return res.status(401).json({
                     success: false,
-                    message: 'New password must be at least 6 characters'
+                    message: 'Current password is incorrect'
                 });
             }
 
-            await AuthService.changePassword(
-                req.admin._id,
-                currentPassword,
-                newPassword
-            );
+            // Hash new password
+            const salt = await bcrypt.genSalt(10);
+            admin.password = await bcrypt.hash(newPassword, salt);
+
+            // Invalidate all refresh tokens (optional security measure)
+            admin.refreshToken = null;
+
+            await admin.save();
 
             res.json({
                 success: true,
                 message: 'Password changed successfully'
             });
+
         } catch (error) {
-            res.status(400).json({
+            console.error('Change password error:', error);
+            res.status(500).json({
                 success: false,
-                message: error.message
+                message: 'Failed to change password'
             });
         }
-    }
+    },
 
-    // Setup 2FA
-    async setup2FA(req, res) {
+    // Admin Logout
+    logout: async (req, res) => {
         try {
-            const result = await AuthService.setup2FA(req.admin._id);
-
-            res.json({
-                success: true,
-                data: result
-            });
-        } catch (error) {
-            res.status(400).json({
-                success: false,
-                message: error.message
-            });
-        }
-    }
-
-    // Enable 2FA
-    async enable2FA(req, res) {
-        try {
-            const { token } = req.body;
-
-            if (!token) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Verification token is required'
-                });
-            }
-
-            const result = await AuthService.enable2FA(req.admin._id, token);
-
-            await LogService.createActionLog(req.admin._id, '2fa_enabled', {
-                success: true
-            });
-
-            res.json({
-                success: true,
-                message: '2FA enabled successfully',
-                data: result
-            });
-        } catch (error) {
-            res.status(400).json({
-                success: false,
-                message: error.message
-            });
-        }
-    }
-
-    // Disable 2FA
-    async disable2FA(req, res) {
-        try {
-            const { password } = req.body;
-
-            if (!password) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Password is required to disable 2FA'
-                });
-            }
-
-            await AuthService.disable2FA(req.admin._id, password);
-
-            await LogService.createActionLog(req.admin._id, '2fa_disabled', {
-                success: true
-            });
-
-            res.json({
-                success: true,
-                message: '2FA disabled successfully'
-            });
-        } catch (error) {
-            res.status(400).json({
-                success: false,
-                message: error.message
-            });
-        }
-    }
-
-    // Forgot password
-    async forgotPassword(req, res) {
-        try {
-            const { email } = req.body;
-
-            if (!email) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Email is required'
-                });
-            }
-
-            const result = await AuthService.forgotPassword(email);
-
-            res.json({
-                success: true,
-                message: result.message
-            });
-        } catch (error) {
-            res.status(400).json({
-                success: false,
-                message: error.message
-            });
-        }
-    }
-
-    // Reset password
-    async resetPassword(req, res) {
-        try {
-            const { token, newPassword } = req.body;
-
-            if (!token || !newPassword) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Token and new password are required'
-                });
-            }
-
-            if (newPassword.length < 6) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Password must be at least 6 characters'
-                });
-            }
-
-            const result = await AuthService.resetPassword(token, newPassword);
-
-            res.json({
-                success: true,
-                message: result.message
-            });
-        } catch (error) {
-            res.status(400).json({
-                success: false,
-                message: error.message
-            });
-        }
-    }
-
-    // Logout
-    async logout(req, res) {
-        try {
-            await LogService.createActionLog(req.admin._id, 'logout', {
-                ip: req.ip,
-                success: true
+            // Clear refresh token
+            await Admin.findByIdAndUpdate(req.admin.id, {
+                refreshToken: null,
+                lastLogout: new Date()
             });
 
             res.json({
                 success: true,
                 message: 'Logged out successfully'
             });
+
         } catch (error) {
+            console.error('Logout error:', error);
             res.status(500).json({
                 success: false,
-                message: error.message
+                message: 'Failed to logout'
+            });
+        }
+    },
+
+    // Verify Token
+    verifyToken: async (req, res) => {
+        try {
+            const admin = await Admin.findById(req.admin.id)
+                .select('-password -refreshToken')
+                .lean();
+
+            if (!admin) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Admin not found'
+                });
+            }
+
+            res.json({
+                success: true,
+                valid: true,
+                data: admin
+            });
+
+        } catch (error) {
+            console.error('Verify token error:', error);
+            res.status(401).json({
+                success: false,
+                valid: false,
+                message: 'Invalid token'
+            });
+        }
+    },
+
+    // Refresh Token
+    refreshToken: async (req, res) => {
+        try {
+            const { refreshToken } = req.body;
+
+            if (!refreshToken) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Refresh token is required'
+                });
+            }
+
+            // Verify refresh token
+            const decoded = jwt.verify(refreshToken, process.env.JWT_ADMIN_REFRESH_SECRET);
+
+            // Find admin with this refresh token
+            const admin = await Admin.findOne({
+                _id: decoded.id,
+                refreshToken: refreshToken,
+                isActive: true,
+                isDeleted: false
+            });
+
+            if (!admin) {
+                return res.status(401).json({
+                    success: false,
+                    message: 'Invalid refresh token'
+                });
+            }
+
+            // Generate new access token
+            const newToken = jwt.sign(
+                {
+                    id: admin._id,
+                    email: admin.email,
+                    role: admin.role,
+                    permissions: admin.permissions
+                },
+                process.env.JWT_ADMIN_SECRET,
+                { expiresIn: process.env.JWT_ADMIN_EXPIRES_IN || '24h' }
+            );
+
+            res.json({
+                success: true,
+                token: newToken,
+                expiresIn: 24 * 60 * 60 * 1000
+            });
+
+        } catch (error) {
+            console.error('Refresh token error:', error);
+            res.status(401).json({
+                success: false,
+                message: 'Invalid refresh token'
+            });
+        }
+    },
+
+    // Get Dashboard Statistics
+    getDashboardStats: async (req, res) => {
+        try {
+            // This would typically fetch stats from database
+            // For now, returning mock data
+            res.json({
+                success: true,
+                data: {
+                    totalUsers: 1250,
+                    totalResumes: 3400,
+                    activeSessions: 45,
+                    todayLogins: 12,
+                    storageUsed: '2.4 GB',
+                    systemHealth: 'excellent'
+                }
+            });
+
+        } catch (error) {
+            console.error('Get dashboard stats error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to fetch dashboard statistics'
             });
         }
     }
-}
+};
 
-module.exports = new AuthController();
+export default authController;

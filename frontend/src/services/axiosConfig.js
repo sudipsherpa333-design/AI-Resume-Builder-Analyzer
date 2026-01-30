@@ -1,62 +1,109 @@
+// src/services/axiosConfig.js - UPDATED WITH PROPER EXPORTS
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
 
-// 1. Create the Axios instance with base configuration
-const api = axios.create({
-  // Use environment variable or fallback to localhost:5001 (backend port)
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api',
-  timeout: 15000, // Increased timeout to 15 seconds for potentially slow operations
+// Get environment variables
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
+const APP_ENV = import.meta.env.MODE || 'development';
+
+// Create axios instance
+export const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
+    'X-Application': 'AI-Resume-Builder',
   },
 });
 
-/**
- * 2. Request Interceptor: Automatically attach the JWT to outgoing requests.
- * This ensures that any API call made using 'api' is authenticated if a token exists.
- */
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // We only retrieve the token here. The AuthProvider is responsible for setting it on initial load/login.
-    const token = localStorage.getItem('token');
+    // Add auth token
+    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    if (APP_ENV === 'development') {
+      console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
+    }
+
     return config;
   },
   (error) => {
-    // Handle request setup errors
+    console.error('[API Request Error]:', error);
     return Promise.reject(error);
   }
 );
 
-/**
- * 3. Response Interceptor: Handle global response errors, especially 401 Unauthorized.
- * If the token is invalid or expired, this forces a logout/redirect.
- */
+// Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (APP_ENV === 'development') {
+      console.log(`[API Response] ${response.config.url} - ${response.status}`);
+    }
+    return response;
+  },
   (error) => {
     const status = error.response?.status;
 
-    // Check for 401 Unauthorized error
     if (status === 401) {
-      console.error('Unauthorized (401): Token expired or invalid. Redirecting to login.');
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      sessionStorage.removeItem('auth_token');
+      sessionStorage.removeItem('auth_user');
 
-      // Clear all authentication data
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-
-      // Perform a client-side hard redirect to the login page.
-      // This is necessary because the AuthContext's state might not immediately update the router.
-      window.location.href = '/login';
-
-      // Reject the promise to stop further processing in the calling function
-      return Promise.reject(error);
+      toast.error('Session expired. Please login again.');
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 1500);
+    }
+    else if (status === 403) {
+      toast.error('You do not have permission.');
+    }
+    else if (!status && !navigator.onLine) {
+      toast.error('You are offline. Check your connection.');
+    }
+    else {
+      toast.error(error.response?.data?.message || 'An error occurred');
     }
 
-    // For all other errors (400, 403, 500, etc.), just pass them through
     return Promise.reject(error);
   }
 );
 
+// Helper functions
+export const apiHelpers = {
+  handleError: (error) => {
+    console.error('API Error:', error);
+
+    if (error.response) {
+      return {
+        message: error.response.data?.message || 'An error occurred',
+        status: error.response.status,
+      };
+    } else if (error.request) {
+      return {
+        message: 'No response from server.',
+        status: 0
+      };
+    } else {
+      return {
+        message: error.message || 'An unexpected error occurred'
+      };
+    }
+  },
+
+  safeCall: async (apiCall, options = {}) => {
+    try {
+      return await apiCall();
+    } catch (error) {
+      console.error('API call failed:', error);
+      throw error;
+    }
+  }
+};
+
+// Also export as default for backward compatibility
 export default api;

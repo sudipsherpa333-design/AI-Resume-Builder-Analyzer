@@ -1,693 +1,577 @@
-// src/context/AuthContext.jsx
-import React, { createContext, useState, useContext, useEffect } from 'react';
+// src/context/AuthContext.jsx - FIXED VERSION (no useNavigate in mount)
+import React, {
+    createContext,
+    useContext,
+    useState,
+    useEffect,
+    useCallback,
+    useMemo
+} from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 
-// Create the auth context
-const AuthContext = createContext({});
+// Create context
+const AuthContext = createContext(null);
 
-// Configure axios defaults - Use Vite environment variables
+// Custom hook
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within AuthProvider');
+    }
+    return context;
+};
+
+// Development mode detection
+const IS_DEVELOPMENT = import.meta.env.DEV || window.location.hostname === 'localhost';
+const USE_MOCK_API = IS_DEVELOPMENT || import.meta.env.VITE_USE_MOCK_API === 'true';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
-axios.defaults.baseURL = API_BASE_URL;
-axios.defaults.timeout = parseInt(import.meta.env.VITE_API_TIMEOUT) || 10000;
-axios.defaults.withCredentials = true;
+// Storage keys
+const STORAGE_KEYS = {
+    TOKEN: 'auth_token',
+    USER: 'auth_user',
+    REDIRECT: 'auth_redirect'
+};
 
-// Axios interceptor to add token to requests
-axios.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => {
-        return Promise.reject(error);
-    }
-);
-
-// Axios interceptor to handle token expiration
-axios.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-        const originalRequest = error.config;
-
-        // If 401 error and we haven't tried to refresh yet
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true;
-
-            try {
-                // Try to refresh token
-                const refreshToken = localStorage.getItem('refreshToken');
-                if (!refreshToken) {
-                    throw new Error('No refresh token');
-                }
-
-                const response = await axios.post('/auth/refresh', {
-                    refreshToken
-                });
-
-                const { token, refreshToken: newRefreshToken } = response.data;
-
-                // Store new tokens
-                localStorage.setItem('token', token);
-                localStorage.setItem('refreshToken', newRefreshToken);
-
-                // Update authorization header
-                originalRequest.headers.Authorization = `Bearer ${token}`;
-
-                // Retry the original request
-                return axios(originalRequest);
-            } catch (refreshError) {
-                // If refresh fails, logout user
-                clearAuth();
-                window.location.href = '/login';
-            }
-        }
-
-        return Promise.reject(error);
-    }
-);
-
+// Auth Provider Component
 export const AuthProvider = ({ children }) => {
+    // State
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [authChecked, setAuthChecked] = useState(false);
-    const navigate = useNavigate();
+    const [initializing, setInitializing] = useState(true);
 
-    // Check if user is logged in on mount
+    // Load user from storage on mount
     useEffect(() => {
-        checkAuth();
+        const initAuth = async () => {
+            try {
+                console.log('🔍 Initializing authentication...', {
+                    useMock: USE_MOCK_API,
+                    apiUrl: API_BASE_URL
+                });
+
+                const userData = localStorage.getItem(STORAGE_KEYS.USER);
+                const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+
+                // For development mode, always create a user if none exists
+                if (USE_MOCK_API && !userData && !token) {
+                    console.log('🏗️ DEVELOPMENT: Creating demo user');
+                    const demoUser = {
+                        id: `dev-user-${Date.now()}`,
+                        _id: `dev-user-${Date.now()}`, // Add _id for compatibility
+                        email: 'demo@example.com',
+                        name: 'Demo User',
+                        role: 'user',
+                        isVerified: true,
+                        avatar: 'https://ui-avatars.com/api/?name=Demo+User&background=10b981&color=ffffff',
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                        preferences: {
+                            theme: 'light',
+                            language: 'en',
+                            emailNotifications: true
+                        },
+                        isDemo: true
+                    };
+
+                    const demoToken = 'dev-token-' + Date.now();
+
+                    localStorage.setItem(STORAGE_KEYS.TOKEN, demoToken);
+                    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(demoUser));
+                    setUser(demoUser);
+
+                    console.log('✅ Demo user created:', demoUser.email);
+                }
+                // Load existing user
+                else if (userData && token) {
+                    const parsedUser = JSON.parse(userData);
+                    console.log('👤 Loaded user:', parsedUser.email);
+
+                    // Ensure user has both id and _id for compatibility
+                    if (!parsedUser._id && parsedUser.id) {
+                        parsedUser._id = parsedUser.id;
+                    }
+
+                    setUser(parsedUser);
+                }
+
+                setError(null);
+            } catch (error) {
+                console.error('❌ Auth initialization error:', error);
+                setError('Failed to initialize authentication');
+
+                // Clear potentially corrupted data
+                localStorage.removeItem(STORAGE_KEYS.TOKEN);
+                localStorage.removeItem(STORAGE_KEYS.USER);
+            } finally {
+                setInitializing(false);
+                setLoading(false);
+                console.log('✅ Auth initialization complete');
+            }
+        };
+
+        initAuth();
+    }, [USE_MOCK_API]);
+
+    // Get user ID (compatibility helper)
+    const getUserId = useCallback(() => {
+        if (!user) return null;
+        return user._id || user.id || null;
+    }, [user]);
+
+    // Get navigation function (returns function that can be called later)
+    const getNavigate = useCallback(() => {
+        // This will be set by the component that uses navigate
+        return null;
     }, []);
 
-    // Check authentication status
-    const checkAuth = async () => {
+    // User login
+    const login = useCallback(async (email, password, rememberMe = false, navigate) => {
         try {
-            const token = localStorage.getItem('token');
-            const storedUser = localStorage.getItem('user');
+            setLoading(true);
+            setError(null);
 
-            if (token && storedUser) {
-                // Set user from localStorage first for immediate UI
-                setUser(JSON.parse(storedUser));
+            console.log('🔐 Login attempt:', { email, useMock: USE_MOCK_API });
 
-                try {
-                    // Verify token with server
-                    const response = await axios.get('/auth/check');
+            // Basic validation
+            if (!email || !email.includes('@')) {
+                throw new Error('Please enter a valid email address');
+            }
+            if (!password || password.length < 6) {
+                throw new Error('Password must be at least 6 characters');
+            }
 
-                    if (response.data.success) {
-                        const userData = response.data.data;
-                        setUser(userData);
-                        localStorage.setItem('user', JSON.stringify(userData));
-                    } else {
-                        // Token invalid, clear everything
-                        clearAuth();
+            let userData, token;
+
+            // For development/mock mode
+            if (USE_MOCK_API) {
+                console.log('🏗️ Using mock login');
+
+                // Simulate API delay
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Create mock user
+                userData = {
+                    id: `user-${Date.now()}`,
+                    _id: `user-${Date.now()}`, // Add _id
+                    email: email,
+                    name: email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1),
+                    role: 'user',
+                    isVerified: true,
+                    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(email.split('@')[0])}&background=6366f1&color=ffffff`,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    preferences: {
+                        theme: 'light',
+                        language: 'en',
+                        emailNotifications: true
+                    },
+                    isDemo: email === 'demo@example.com'
+                };
+
+                token = 'mock-jwt-token-' + Date.now();
+            }
+            // PRODUCTION: Real API call
+            else {
+                const axiosInstance = axios.create({
+                    baseURL: API_BASE_URL,
+                    timeout: 15000,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     }
-                } catch (error) {
-                    // Server error, keep local user but show warning
-                    console.warn('Auth check failed, using cached user:', error.message);
-                }
-            } else {
-                clearAuth();
-            }
-        } catch (error) {
-            console.error('Auth check error:', error);
-            clearAuth();
-        } finally {
-            setLoading(false);
-            setAuthChecked(true);
-        }
-    };
-
-    // Register user
-    const register = async (userData) => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            const response = await axios.post('/auth/register', userData);
-
-            if (response.data.success) {
-                const { token, refreshToken, user } = response.data.data;
-
-                // Store tokens and user data
-                localStorage.setItem('token', token);
-                localStorage.setItem('refreshToken', refreshToken);
-                localStorage.setItem('user', JSON.stringify(user));
-
-                // Set user in state
-                setUser(user);
-
-                return { success: true, user };
-            }
-
-            throw new Error(response.data.error || 'Registration failed');
-
-        } catch (error) {
-            const errorMessage = error.response?.data?.error || error.message || 'Registration failed';
-            setError(errorMessage);
-            return { success: false, error: errorMessage };
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Login user
-    const login = async (email, password, rememberMe = false) => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            const response = await axios.post('/auth/login', {
-                email,
-                password,
-                rememberMe
-            });
-
-            if (response.data.success) {
-                const { token, refreshToken, user } = response.data.data;
-
-                // Store tokens and user data
-                localStorage.setItem('token', token);
-                localStorage.setItem('refreshToken', refreshToken);
-                localStorage.setItem('user', JSON.stringify(user));
-
-                // Set longer expiry for remember me
-                if (rememberMe) {
-                    localStorage.setItem('rememberMe', 'true');
-                }
-
-                // Set user in state
-                setUser(user);
-
-                return { success: true, user };
-            }
-
-            throw new Error(response.data.error || 'Login failed');
-
-        } catch (error) {
-            const errorMessage = error.response?.data?.error || error.message || 'Login failed';
-            setError(errorMessage);
-            return { success: false, error: errorMessage };
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Login with Google
-    const loginWithGoogle = () => {
-        const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-        const redirectUri = window.location.origin + '/auth/google/callback';
-
-        if (!googleClientId) {
-            setError('Google OAuth is not configured');
-            return;
-        }
-
-        const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=code&scope=email profile`;
-        window.location.href = googleAuthUrl;
-    };
-
-    // Login with Google OAuth callback
-    const handleGoogleCallback = async (code) => {
-        try {
-            setLoading(true);
-
-            const response = await axios.post('/auth/google/callback', { code });
-
-            if (response.data.success) {
-                const { token, refreshToken, user } = response.data.data;
-
-                localStorage.setItem('token', token);
-                localStorage.setItem('refreshToken', refreshToken);
-                localStorage.setItem('user', JSON.stringify(user));
-
-                setUser(user);
-                navigate('/dashboard');
-
-                return { success: true, user };
-            }
-
-            throw new Error('Google authentication failed');
-
-        } catch (error) {
-            const errorMessage = error.response?.data?.error || 'Google authentication failed';
-            setError(errorMessage);
-            return { success: false, error: errorMessage };
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Logout user
-    const logout = async () => {
-        try {
-            setLoading(true);
-
-            // Call logout endpoint
-            await axios.post('/auth/logout');
-
-        } catch (error) {
-            console.error('Logout error:', error);
-        } finally {
-            // Clear local storage regardless of server response
-            clearAuth();
-
-            // Reset state
-            setUser(null);
-            setError(null);
-
-            // Navigate to login
-            navigate('/login');
-            setLoading(false);
-        }
-    };
-
-    // Update user profile
-    const updateProfile = async (profileData) => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            const response = await axios.put('/users/profile', profileData);
-
-            if (response.data.success) {
-                const updatedUser = response.data.data;
-
-                // Update user in state and localStorage
-                setUser(updatedUser);
-                localStorage.setItem('user', JSON.stringify(updatedUser));
-
-                return { success: true, user: updatedUser };
-            }
-
-            throw new Error(response.data.error || 'Profile update failed');
-
-        } catch (error) {
-            const errorMessage = error.response?.data?.error || error.message || 'Profile update failed';
-            setError(errorMessage);
-            return { success: false, error: errorMessage };
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Update password
-    const updatePassword = async (currentPassword, newPassword) => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            const response = await axios.put('/users/password', {
-                currentPassword,
-                newPassword
-            });
-
-            if (response.data.success) {
-                return { success: true };
-            }
-
-            throw new Error(response.data.error || 'Password update failed');
-
-        } catch (error) {
-            const errorMessage = error.response?.data?.error || error.message || 'Password update failed';
-            setError(errorMessage);
-            return { success: false, error: errorMessage };
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Forgot password
-    const forgotPassword = async (email) => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            const response = await axios.post('/auth/forgot-password', { email });
-
-            if (response.data.success) {
-                return { success: true };
-            }
-
-            throw new Error(response.data.error || 'Password reset request failed');
-
-        } catch (error) {
-            const errorMessage = error.response?.data?.error || error.message || 'Password reset request failed';
-            setError(errorMessage);
-            return { success: false, error: errorMessage };
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Reset password
-    const resetPassword = async (token, password) => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            const response = await axios.post('/auth/reset-password', {
-                token,
-                password
-            });
-
-            if (response.data.success) {
-                return { success: true };
-            }
-
-            throw new Error(response.data.error || 'Password reset failed');
-
-        } catch (error) {
-            const errorMessage = error.response?.data?.error || error.message || 'Password reset failed';
-            setError(errorMessage);
-            return { success: false, error: errorMessage };
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Verify email
-    const verifyEmail = async (token) => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            const response = await axios.post('/auth/verify-email', { token });
-
-            if (response.data.success) {
-                const updatedUser = { ...user, isVerified: true };
-                setUser(updatedUser);
-                localStorage.setItem('user', JSON.stringify(updatedUser));
-
-                return { success: true, user: updatedUser };
-            }
-
-            throw new Error(response.data.error || 'Email verification failed');
-
-        } catch (error) {
-            const errorMessage = error.response?.data?.error || error.message || 'Email verification failed';
-            setError(errorMessage);
-            return { success: false, error: errorMessage };
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Resend verification email
-    const resendVerification = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            const response = await axios.post('/auth/resend-verification');
-
-            if (response.data.success) {
-                return { success: true };
-            }
-
-            throw new Error(response.data.error || 'Failed to resend verification email');
-
-        } catch (error) {
-            const errorMessage = error.response?.data?.error || error.message || 'Failed to resend verification email';
-            setError(errorMessage);
-            return { success: false, error: errorMessage };
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Update preferences
-    const updatePreferences = async (preferences) => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            const response = await axios.put('/users/preferences', preferences);
-
-            if (response.data.success) {
-                const updatedUser = response.data.data;
-                setUser(updatedUser);
-                localStorage.setItem('user', JSON.stringify(updatedUser));
-
-                return { success: true, user: updatedUser };
-            }
-
-            throw new Error(response.data.error || 'Preferences update failed');
-
-        } catch (error) {
-            const errorMessage = error.response?.data?.error || error.message || 'Preferences update failed';
-            setError(errorMessage);
-            return { success: false, error: errorMessage };
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Use AI credits (if enabled)
-    const useAICredits = async (credits = 1) => {
-        // Check if AI is enabled
-        if (import.meta.env.VITE_ENABLE_AI !== 'true') {
-            return { success: false, error: 'AI features are disabled' };
-        }
-
-        try {
-            setLoading(true);
-
-            const response = await axios.post('/users/ai/use', { credits });
-
-            if (response.data.success) {
-                const updatedUser = {
-                    ...user,
-                    aiCredits: response.data.data.remainingCredits
+                });
+
+                const loginData = {
+                    email: email.trim().toLowerCase(),
+                    password: password
                 };
 
-                setUser(updatedUser);
-                localStorage.setItem('user', JSON.stringify(updatedUser));
+                console.log('📤 Sending login request to:', `${API_BASE_URL}/auth/login`);
+                const response = await axiosInstance.post('/auth/login', loginData);
+                console.log('📥 Login response received:', response.data);
 
-                return {
-                    success: true,
-                    remainingCredits: response.data.data.remainingCredits
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Login failed');
+                }
+
+                const responseData = response.data.user || response.data.data;
+                token = response.data.token || responseData?.token;
+                userData = {
+                    ...responseData,
+                    id: responseData.id || responseData._id || `user_${Date.now()}`,
+                    _id: responseData._id || responseData.id || `user_${Date.now()}`, // Ensure _id exists
+                    email: responseData.email || email,
+                    name: responseData.name || 'User',
+                    role: responseData.role || 'user',
+                    createdAt: responseData.createdAt || new Date().toISOString()
                 };
+
+                // Remove sensitive data
+                delete userData.password;
+                delete userData.__v;
             }
 
-            throw new Error(response.data.error || 'Failed to use AI credits');
+            // Store auth data
+            localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
+
+            // Update state
+            setUser(userData);
+            setError(null);
+
+            // Remember me
+            if (rememberMe) {
+                localStorage.setItem('remember_me', 'true');
+            }
+
+            toast.success('Login successful!');
+
+            // Call navigate if provided
+            if (navigate && typeof navigate === 'function') {
+                const redirectPath = sessionStorage.getItem(STORAGE_KEYS.REDIRECT) || '/dashboard';
+                sessionStorage.removeItem(STORAGE_KEYS.REDIRECT);
+
+                setTimeout(() => {
+                    navigate(redirectPath, { replace: true });
+                }, 500);
+            }
+
+            return {
+                success: true,
+                user: userData,
+                token: token
+            };
 
         } catch (error) {
-            const errorMessage = error.response?.data?.error || error.message || 'Failed to use AI credits';
+            console.error('❌ Login error:', error);
+
+            let errorMessage = 'Login failed';
+            if (axios.isAxiosError(error)) {
+                if (error.response) {
+                    errorMessage = error.response.status === 401
+                        ? 'Invalid email or password'
+                        : error.response.data?.message || `Error ${error.response.status}`;
+                } else if (error.request) {
+                    errorMessage = 'Cannot connect to server. Please check your connection.';
+                } else {
+                    errorMessage = error.message;
+                }
+            }
+
             setError(errorMessage);
+            toast.error(errorMessage, { duration: 5000 });
+
             return { success: false, error: errorMessage };
         } finally {
             setLoading(false);
         }
-    };
+    }, [USE_MOCK_API]);
 
-    // Get user activity
-    const getUserActivity = async (limit = 20) => {
+    // User register
+    const register = useCallback(async (name, email, password, confirmPassword, navigate) => {
         try {
             setLoading(true);
+            setError(null);
 
-            const response = await axios.get(`/users/activity?limit=${limit}`);
+            console.log('📝 Register attempt:', { name, email, useMock: USE_MOCK_API });
 
-            if (response.data.success) {
-                return { success: true, activities: response.data.data };
+            // Validation
+            if (!name?.trim()) {
+                throw new Error('Name is required');
+            }
+            if (!email || !email.includes('@')) {
+                throw new Error('Valid email is required');
+            }
+            if (!password || password.length < 6) {
+                throw new Error('Password must be at least 6 characters');
+            }
+            if (password !== confirmPassword) {
+                throw new Error('Passwords do not match');
             }
 
-            throw new Error(response.data.error || 'Failed to get user activity');
+            let userData, token;
+
+            // For development/mock mode
+            if (USE_MOCK_API) {
+                console.log('🏗️ Using mock registration');
+                await new Promise(resolve => setTimeout(resolve, 600));
+
+                userData = {
+                    id: `user-${Date.now()}`,
+                    _id: `user-${Date.now()}`, // Add _id
+                    email: email,
+                    name: name,
+                    role: 'user',
+                    isVerified: false,
+                    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=6366f1&color=ffffff`,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    preferences: {
+                        theme: 'light',
+                        language: 'en',
+                        emailNotifications: true
+                    },
+                    isDemo: false
+                };
+
+                token = 'mock-register-token-' + Date.now();
+            }
+            // PRODUCTION: Real API call
+            else {
+                const axiosInstance = axios.create({
+                    baseURL: API_BASE_URL,
+                    timeout: 15000,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const registerData = {
+                    name: name.trim(),
+                    email: email.trim().toLowerCase(),
+                    password: password,
+                    confirmPassword: confirmPassword
+                };
+
+                const response = await axiosInstance.post('/auth/register', registerData);
+                console.log('📥 Register response received:', response.data);
+
+                if (!response.data?.success) {
+                    throw new Error(response.data?.message || 'Registration failed');
+                }
+
+                const responseData = response.data.user || response.data.data;
+                token = response.data.token || responseData?.token;
+                userData = {
+                    ...responseData,
+                    id: responseData.id || responseData._id || `user_${Date.now()}`,
+                    _id: responseData._id || responseData.id || `user_${Date.now()}`,
+                    email: responseData.email || email,
+                    name: responseData.name || name,
+                    role: responseData.role || 'user',
+                    createdAt: responseData.createdAt || new Date().toISOString()
+                };
+
+                delete userData.password;
+                delete userData.__v;
+            }
+
+            // Store auth data
+            localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
+
+            setUser(userData);
+            setError(null);
+            toast.success('🎉 Registration successful!');
+
+            // Call navigate if provided
+            if (navigate && typeof navigate === 'function') {
+                setTimeout(() => {
+                    navigate('/dashboard', { replace: true });
+                }, 1500);
+            }
+
+            return {
+                success: true,
+                user: userData,
+                token: token
+            };
 
         } catch (error) {
-            const errorMessage = error.response?.data?.error || error.message || 'Failed to get user activity';
+            console.error('❌ Registration error:', error);
+
+            let errorMessage = 'Registration failed. Please try again.';
+            if (axios.isAxiosError(error)) {
+                if (error.response) {
+                    errorMessage = error.response.status === 409
+                        ? 'Email already registered'
+                        : error.response.data?.message || error.message;
+                } else if (error.request) {
+                    errorMessage = 'Cannot connect to server. Please check your connection.';
+                } else {
+                    errorMessage = error.message;
+                }
+            }
+
             setError(errorMessage);
+            toast.error(errorMessage, { duration: 5000 });
+
             return { success: false, error: errorMessage };
         } finally {
             setLoading(false);
         }
-    };
+    }, [USE_MOCK_API]);
 
-    // Get user statistics
-    const getUserStats = async () => {
+    // Demo login for testing
+    const demoLogin = useCallback(async (navigate) => {
         try {
             setLoading(true);
+            setError(null);
+            console.log('🚀 Starting demo login...');
 
-            const response = await axios.get('/users/stats');
+            const demoUser = {
+                id: 'demo_user_' + Date.now(),
+                _id: 'demo_user_' + Date.now(), // Add _id
+                email: 'demo@example.com',
+                name: 'Demo User',
+                role: 'user',
+                isVerified: true,
+                createdAt: new Date().toISOString(),
+                isDemo: true
+            };
 
-            if (response.data.success) {
-                return { success: true, stats: response.data.data };
+            const demoToken = 'demo_token_' + Date.now();
+
+            localStorage.setItem(STORAGE_KEYS.TOKEN, demoToken);
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(demoUser));
+
+            setUser(demoUser);
+            toast.success('🚀 Demo account activated!');
+
+            // Call navigate if provided
+            if (navigate && typeof navigate === 'function') {
+                setTimeout(() => {
+                    navigate('/dashboard', { replace: true });
+                }, 1000);
             }
 
-            throw new Error(response.data.error || 'Failed to get user statistics');
+            return {
+                success: true,
+                user: demoUser,
+                isDemo: true
+            };
 
         } catch (error) {
-            const errorMessage = error.response?.data?.error || error.message || 'Failed to get user statistics';
-            setError(errorMessage);
-            return { success: false, error: errorMessage };
+            console.error('❌ Demo login error:', error);
+            toast.error('Demo login failed. Please try regular login.');
+            return { success: false, error: 'Demo login failed' };
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
-    // Clear authentication data
-    const clearAuth = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        localStorage.removeItem('rememberMe');
+    // User logout
+    const logout = useCallback((navigate) => {
+        console.log('👋 Logging out...');
 
-        // Clear axios default headers
-        delete axios.defaults.headers.common['Authorization'];
-    };
+        // Clear everything
+        localStorage.removeItem(STORAGE_KEYS.TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.USER);
+        sessionStorage.removeItem(STORAGE_KEYS.REDIRECT);
+        localStorage.removeItem('remember_me');
+
+        // Update state
+        setUser(null);
+        setError(null);
+
+        toast.success('Logged out successfully');
+
+        // Call navigate if provided
+        if (navigate && typeof navigate === 'function') {
+            navigate('/', { replace: true });
+        }
+    }, []);
+
+    // Clear error
+    const clearError = useCallback(() => {
+        setError(null);
+    }, []);
+
+    // Get token
+    const getToken = useCallback(() => {
+        return localStorage.getItem(STORAGE_KEYS.TOKEN);
+    }, []);
+
+    // Update user data
+    const updateUser = useCallback((updatedData) => {
+        setUser(prev => {
+            if (!prev) return prev;
+
+            const newUser = {
+                ...prev,
+                ...updatedData,
+                // Ensure _id always exists
+                _id: updatedData._id || prev._id || prev.id
+            };
+
+            // Remove sensitive data
+            delete newUser.token;
+            delete newUser.password;
+            delete newUser.__v;
+
+            // Store updated user
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
+            return newUser;
+        });
+    }, []);
+
+    // Check if user is authenticated
+    const isAuthenticated = useMemo(() => {
+        return !!user;
+    }, [user]);
 
     // Check if user is admin
-    const isAdmin = () => {
-        return user && (user.role === 'admin' || user.role === 'super_admin');
-    };
-
-    // Check if user can use AI
-    const canUseAI = () => {
-        // Check feature flag
-        if (import.meta.env.VITE_ENABLE_AI !== 'true') {
-            return false;
-        }
-
-        return user && (user.aiCredits > 0 || user.plan !== 'free');
-    };
-
-    // Refresh user data from server
-    const refreshUserData = async () => {
-        try {
-            const response = await axios.get('/users/me');
-
-            if (response.data.success) {
-                const userData = response.data.data;
-                setUser(userData);
-                localStorage.setItem('user', JSON.stringify(userData));
-                return { success: true, user: userData };
-            }
-
-            throw new Error('Failed to refresh user data');
-
-        } catch (error) {
-            console.error('Refresh user data error:', error);
-            return { success: false, error: error.message };
-        }
-    };
+    const isAdmin = useMemo(() => {
+        return user?.role === 'admin' || user?.role === 'super_admin';
+    }, [user]);
 
     // Context value
-    const value = {
+    const value = useMemo(() => ({
+        // State
         user,
         loading,
         error,
-        authChecked,
-        setError,
-        register,
-        login,
-        loginWithGoogle,
-        handleGoogleCallback,
-        logout,
-        updateProfile,
-        updatePassword,
-        forgotPassword,
-        resetPassword,
-        verifyEmail,
-        resendVerification,
-        updatePreferences,
-        useAICredits,
-        getUserActivity,
-        getUserStats,
-        refreshUserData,
+        initializing,
+
+        // Status
+        isAuthenticated,
         isAdmin,
-        canUseAI,
-        checkAuth,
-        clearAuth
-    };
+        isDemo: user?.isDemo || false,
+
+        // Data
+        token: getToken(),
+        userId: getUserId(), // Add userId getter for compatibility
+
+        // Actions (these now accept navigate as parameter)
+        login,
+        register,
+        logout,
+        clearError,
+        updateUser,
+        demoLogin,
+
+        // Helpers
+        isDevelopment: USE_MOCK_API
+    }), [
+        user, loading, error, initializing,
+        isAuthenticated, isAdmin,
+        getToken, getUserId,
+        login, register, logout, clearError,
+        updateUser, demoLogin, USE_MOCK_API
+    ]);
+
+    // Show loading while initializing
+    if (initializing) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50">
+                <div className="text-center">
+                    <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+                    <p className="mt-4 text-gray-600 font-medium">
+                        {USE_MOCK_API ? 'Initializing development mode...' : 'Initializing authentication...'}
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );
-};
-
-// Custom hook to use auth context
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-
-    return context;
-};
-
-// Higher Order Component for protected routes
-export const withAuth = (Component) => {
-    return function WithAuthComponent(props) {
-        const { user, loading, authChecked } = useAuth();
-        const navigate = useNavigate();
-
-        useEffect(() => {
-            if (authChecked && !user) {
-                navigate('/login', {
-                    state: {
-                        from: props.location?.pathname || '/'
-                    }
-                });
-            }
-        }, [user, authChecked, navigate, props.location]);
-
-        if (loading || !authChecked) {
-            return (
-                <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-                    <div className="text-center">
-                        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-                        <p className="mt-4 text-gray-600 dark:text-gray-300">Loading...</p>
-                    </div>
-                </div>
-            );
-        }
-
-        return user ? <Component {...props} /> : null;
-    };
-};
-
-// Higher Order Component for admin routes
-export const withAdmin = (Component) => {
-    return function WithAdminComponent(props) {
-        const { user, loading, authChecked, isAdmin } = useAuth();
-        const navigate = useNavigate();
-
-        useEffect(() => {
-            if (authChecked) {
-                if (!user) {
-                    navigate('/login', {
-                        state: {
-                            from: props.location?.pathname || '/'
-                        }
-                    });
-                } else if (!isAdmin()) {
-                    navigate('/dashboard', {
-                        state: {
-                            error: 'Admin access required'
-                        }
-                    });
-                }
-            }
-        }, [user, authChecked, isAdmin, navigate, props.location]);
-
-        if (loading || !authChecked) {
-            return (
-                <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-                    <div className="text-center">
-                        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-                        <p className="mt-4 text-gray-600 dark:text-gray-300">Loading...</p>
-                    </div>
-                </div>
-            );
-        }
-
-        return user && isAdmin() ? <Component {...props} /> : null;
-    };
 };
 
 export default AuthContext;

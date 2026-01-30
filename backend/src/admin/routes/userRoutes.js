@@ -1,198 +1,230 @@
 const express = require('express');
 const router = express.Router();
-const userController = require('../controllers/userController');
+
+const UserController = require('../controllers/userController');
 const { authenticateAdmin } = require('../middlewares/adminAuth');
 const PermissionMiddleware = require('../middlewares/permission');
 
-// All routes require authentication
+/* =====================================================
+   MIDDLEWARE
+===================================================== */
 router.use(authenticateAdmin);
 
-// Get all users with pagination and filters
+/* =====================================================
+   COLLECTION LEVEL ROUTES
+===================================================== */
+
+// Get all users (pagination + filters)
 router.get('/',
     PermissionMiddleware.checkPermission('users.view'),
-    userController.getAllUsers
+    UserController.getAllUsers
 );
 
 // Search users
 router.get('/search',
     PermissionMiddleware.checkPermission('users.view'),
-    userController.searchUsers
+    UserController.searchUsers
 );
 
-// Get user by ID
-router.get('/:id',
-    PermissionMiddleware.checkPermission('users.view'),
-    userController.getUserById
-);
-
-// Create user
-router.post('/',
-    PermissionMiddleware.checkPermission('users.create'),
-    userController.createUser
-);
-
-// Update user
-router.put('/:id',
-    PermissionMiddleware.checkPermission('users.edit'),
-    userController.updateUser
-);
-
-// Delete user
-router.delete('/:id',
-    PermissionMiddleware.checkPermission('users.delete'),
-    userController.deleteUser
-);
-
-// Export users
-router.get('/export/data',
-    PermissionMiddleware.checkAnyPermission(['export.all', 'users.export']),
-    userController.exportUsers
-);
-
-// User statistics
+// User statistics (overview)
 router.get('/stats/overview',
     PermissionMiddleware.checkPermission('users.view'),
-    userController.getUserStats
-);
-
-// Bulk user actions
-router.post('/bulk/action',
-    PermissionMiddleware.checkPermission('users.manage'),
-    userController.bulkUserAction
-);
-
-// User specific operations
-router.put('/:id/status',
-    PermissionMiddleware.checkPermission('users.edit'),
-    userController.updateUserStatus
-);
-
-router.put('/:id/role',
-    PermissionMiddleware.checkPermission('users.manage'),
-    userController.updateUserRole
-);
-
-router.post('/:id/reset-password',
-    PermissionMiddleware.checkPermission('users.manage'),
-    userController.resetUserPassword
-);
-
-router.get('/:id/activity',
-    PermissionMiddleware.checkPermission('users.view'),
-    userController.getUserActivity
-);
-
-router.get('/:id/resumes',
-    PermissionMiddleware.checkPermission('users.view'),
-    userController.getUserResumes
-);
-
-// User notes
-router.post('/:id/notes',
-    PermissionMiddleware.checkPermission('users.edit'),
-    userController.addUserNote
-);
-
-router.get('/:id/notes',
-    PermissionMiddleware.checkPermission('users.view'),
-    userController.getUserNotes
-);
-
-router.delete('/:id/notes/:noteId',
-    PermissionMiddleware.checkPermission('users.edit'),
-    userController.deleteUserNote
-);
-
-// User sessions
-router.get('/:id/sessions',
-    PermissionMiddleware.checkPermission('users.view'),
-    userController.getUserSessions
-);
-
-router.delete('/:id/sessions/:sessionId',
-    PermissionMiddleware.checkPermission('users.manage'),
-    userController.revokeUserSession
-);
-
-// User subscriptions/payments
-router.get('/:id/subscriptions',
-    PermissionMiddleware.checkPermission('users.view'),
-    userController.getUserSubscriptions
-);
-
-router.get('/:id/payments',
-    PermissionMiddleware.checkPermission('users.view'),
-    userController.getUserPayments
-);
-
-// User preferences
-router.get('/:id/preferences',
-    PermissionMiddleware.checkPermission('users.view'),
-    userController.getUserPreferences
-);
-
-router.put('/:id/preferences',
-    PermissionMiddleware.checkPermission('users.edit'),
-    userController.updateUserPreferences
-);
-
-// Impersonate user (super admin only)
-router.post('/:id/impersonate',
-    PermissionMiddleware.checkPermission('users.manage'),
-    PermissionMiddleware.canManageUsers(),
-    userController.impersonateUser
-);
-
-// Stop impersonation
-router.post('/impersonate/stop',
-    PermissionMiddleware.checkPermission('users.manage'),
-    userController.stopImpersonation
-);
-
-// Send email to user
-router.post('/:id/send-email',
-    PermissionMiddleware.checkPermission('users.manage'),
-    userController.sendEmailToUser
-);
-
-// User verification
-router.post('/:id/verify',
-    PermissionMiddleware.checkPermission('users.manage'),
-    userController.verifyUser
-);
-
-// Merge duplicate users
-router.post('/merge',
-    PermissionMiddleware.checkPermission('users.manage'),
-    userController.mergeUsers
-);
-
-// User tags/categories
-router.get('/tags/all',
-    PermissionMiddleware.checkPermission('users.view'),
-    userController.getUserTags
-);
-
-router.post('/:id/tags',
-    PermissionMiddleware.checkPermission('users.edit'),
-    userController.addUserTag
-);
-
-router.delete('/:id/tags/:tag',
-    PermissionMiddleware.checkPermission('users.edit'),
-    userController.removeUserTag
-);
-
-// User import/export
-router.post('/import',
-    PermissionMiddleware.checkPermission('import.all'),
-    userController.importUsers
+    UserController.getUserStats
 );
 
 // User analytics
 router.get('/analytics/overview',
     PermissionMiddleware.checkPermission('users.view'),
-    userController.getUserAnalytics
+    UserController.getUserAnalytics
+);
+
+// Export users
+router.get('/export/data',
+    PermissionMiddleware.checkAnyPermission(['export.all', 'users.export']),
+    UserController.exportUsers
+);
+
+// Import users
+router.post('/import',
+    PermissionMiddleware.checkPermission('import.all'),
+    UserController.importUsers
+);
+
+// Bulk user actions
+router.post('/bulk/action',
+    PermissionMiddleware.checkPermission('users.manage'),
+    UserController.bulkUserAction
+);
+
+// Merge duplicate users
+router.post('/merge',
+    PermissionMiddleware.checkPermission('users.manage'),
+    UserController.mergeUsers
+);
+
+// User tags (global)
+router.get('/tags/all',
+    PermissionMiddleware.checkPermission('users.view'),
+    UserController.getUserTags
+);
+
+/* =====================================================
+   USER CREATION
+===================================================== */
+
+// Create new user
+router.post('/',
+    PermissionMiddleware.checkPermission('users.create'),
+    UserController.createUser
+);
+
+/* =====================================================
+   USER-SPECIFIC ROUTES (ID BASED)
+===================================================== */
+
+// Get user by ID
+router.get('/:id',
+    PermissionMiddleware.checkPermission('users.view'),
+    UserController.getUserById
+);
+
+// Update user
+router.put('/:id',
+    PermissionMiddleware.checkPermission('users.edit'),
+    UserController.updateUser
+);
+
+// Delete user
+router.delete('/:id',
+    PermissionMiddleware.checkPermission('users.delete'),
+    UserController.deleteUser
+);
+
+// Update user status
+router.put('/:id/status',
+    PermissionMiddleware.checkPermission('users.edit'),
+    UserController.updateUserStatus
+);
+
+// Update user role
+router.put('/:id/role',
+    PermissionMiddleware.checkPermission('users.manage'),
+    UserController.updateUserRole
+);
+
+// Reset user password
+router.post('/:id/reset-password',
+    PermissionMiddleware.checkPermission('users.manage'),
+    UserController.resetUserPassword
+);
+
+// Verify user
+router.post('/:id/verify',
+    PermissionMiddleware.checkPermission('users.manage'),
+    UserController.verifyUser
+);
+
+// Get user activity
+router.get('/:id/activity',
+    PermissionMiddleware.checkPermission('users.view'),
+    UserController.getUserActivity
+);
+
+// Get user resumes
+router.get('/:id/resumes',
+    PermissionMiddleware.checkPermission('users.view'),
+    UserController.getUserResumes
+);
+
+// Get user sessions
+router.get('/:id/sessions',
+    PermissionMiddleware.checkPermission('users.view'),
+    UserController.getUserSessions
+);
+
+// Revoke user session
+router.delete('/:id/sessions/:sessionId',
+    PermissionMiddleware.checkPermission('users.manage'),
+    UserController.revokeUserSession
+);
+
+// User subscriptions
+router.get('/:id/subscriptions',
+    PermissionMiddleware.checkPermission('users.view'),
+    UserController.getUserSubscriptions
+);
+
+// User payments
+router.get('/:id/payments',
+    PermissionMiddleware.checkPermission('users.view'),
+    UserController.getUserPayments
+);
+
+// User preferences
+router.get('/:id/preferences',
+    PermissionMiddleware.checkPermission('users.view'),
+    UserController.getUserPreferences
+);
+
+router.put('/:id/preferences',
+    PermissionMiddleware.checkPermission('users.edit'),
+    UserController.updateUserPreferences
+);
+
+/* =====================================================
+   USER NOTES
+===================================================== */
+
+router.post('/:id/notes',
+    PermissionMiddleware.checkPermission('users.edit'),
+    UserController.addUserNote
+);
+
+router.get('/:id/notes',
+    PermissionMiddleware.checkPermission('users.view'),
+    UserController.getUserNotes
+);
+
+router.delete('/:id/notes/:noteId',
+    PermissionMiddleware.checkPermission('users.edit'),
+    UserController.deleteUserNote
+);
+
+/* =====================================================
+   USER TAGS
+===================================================== */
+
+router.post('/:id/tags',
+    PermissionMiddleware.checkPermission('users.edit'),
+    UserController.addUserTag
+);
+
+router.delete('/:id/tags/:tag',
+    PermissionMiddleware.checkPermission('users.edit'),
+    UserController.removeUserTag
+);
+
+/* =====================================================
+   ADMIN ADVANCED ACTIONS
+===================================================== */
+
+// Impersonate user (super admin)
+router.post('/:id/impersonate',
+    PermissionMiddleware.checkPermission('users.manage'),
+    PermissionMiddleware.canManageUsers(),
+    UserController.impersonateUser
+);
+
+// Stop impersonation
+router.post('/impersonate/stop',
+    PermissionMiddleware.checkPermission('users.manage'),
+    UserController.stopImpersonation
+);
+
+// Send email to user
+router.post('/:id/send-email',
+    PermissionMiddleware.checkPermission('users.manage'),
+    UserController.sendEmailToUser
 );
 
 module.exports = router;

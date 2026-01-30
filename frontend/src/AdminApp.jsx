@@ -10,7 +10,7 @@ const AdminDashboard = React.lazy(() => import('./admin/pages/Dashboard'));
 const AdminUsers = React.lazy(() => import('./admin/pages/Users'));
 const AdminUserDetail = React.lazy(() => import('./admin/pages/UserDetail'));
 const AdminResumes = React.lazy(() => import('./admin/pages/Resumes'));
-const AdminResumeDetail = React.lazy(() => import('./admin/pages/ResumeDetail'));
+const AdminResumeDetail = React.lazy(() => import('./admin/components/resume/ResumeDetail'));
 const AdminAnalytics = React.lazy(() => import('./admin/pages/Analytics'));
 const AdminSystem = React.lazy(() => import('./admin/pages/System'));
 const AdminLogs = React.lazy(() => import('./admin/pages/Logs'));

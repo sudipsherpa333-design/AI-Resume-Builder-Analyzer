@@ -1,9 +1,8 @@
-// src/components/ai/AIAssistant.jsx - FULLY AI-INTEGRATED (January 01, 2026)
+// src/components/ai/AIAssistant.jsx - FIXED WITH PROPER HIDE/UNHIDE
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
-import { useResume } from '../../context/ResumeContext';
 import {
     Brain, MessageSquare, Sparkles, Target, Zap,
     Lightbulb, BarChart, CheckCircle, AlertCircle,
@@ -172,104 +171,172 @@ const ChatMessage = ({ message, isAI, timestamp, thinking = false }) => (
 
 // ==================== MAIN AI ASSISTANT ====================
 const AIAssistant = ({
-    isVisible = true,
+    isOpen = false,
     onClose,
     resumeData = {},
-    onEnhance = () => { },
-    aiCredits = 50,
-    onCreditsUpdate = () => { },
-    isMobile = false,
-    position = 'right'
+    activeSection = '',
+    onSuggestion = () => { },
+    onApplySuggestion = () => { }
 }) => {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState('features');
     const [chatMessages, setChatMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
-    const [credits, setCredits] = useState(aiCredits);
+    const [credits, setCredits] = useState(50);
+    const [isPinned, setIsPinned] = useState(false);
+    const [isMinimized, setIsMinimized] = useState(false);
     const chatRef = useRef(null);
 
+    // Auto-scroll chat
     useEffect(() => {
         if (chatRef.current) {
             chatRef.current.scrollTop = chatRef.current.scrollHeight;
         }
     }, [chatMessages]);
 
+    // Reset chat when reopening
+    useEffect(() => {
+        if (isOpen && activeTab === 'chat' && chatMessages.length === 0) {
+            setChatMessages([
+                {
+                    role: 'ai',
+                    content: `Hello! I'm your AI Resume Assistant. I can help you:\n\n1. Enhance your resume sections\n2. Optimize bullet points\n3. Analyze ATS compatibility\n4. Generate skills\n5. Answer questions about your resume\n\nHow can I help you today?`,
+                    timestamp: new Date()
+                }
+            ]);
+        }
+    }, [isOpen, activeTab]);
+
     const features = [
         {
+            id: 'enhance-summary',
             icon: Sparkles,
             title: 'Enhance Summary',
             description: 'Make your professional summary more impactful and ATS-friendly',
             credits: 3,
             action: async () => {
-                const content = resumeData.summary?.content || 'No summary found';
-                const enhanced = await openAIClient.enhanceSection('summary', content);
-                onEnhance('summary', enhanced);
-                return enhanced;
+                try {
+                    const content = resumeData.summary || resumeData.personalInfo?.summary || 'No summary found';
+                    const enhanced = await openAIClient.enhanceSection('summary', content);
+                    return { type: 'summary', content: enhanced, creditsUsed: 3 };
+                } catch (error) {
+                    throw new Error('Failed to enhance summary');
+                }
             }
         },
         {
+            id: 'optimize-experience',
             icon: Briefcase,
             title: 'Optimize Experience',
             description: 'Improve bullet points with strong verbs and metrics',
             credits: 5,
             action: async () => {
-                const exp = resumeData.experience?.items || [];
-                const text = exp.map(e => e.description).join('\n\n');
-                const enhanced = await openAIClient.enhanceSection('experience', text);
-                return enhanced;
+                try {
+                    const experiences = resumeData.experience || [];
+                    const expText = experiences.map((exp, index) =>
+                        `Experience ${index + 1}: ${exp.position || 'Position'} at ${exp.company || 'Company'}\n${exp.description || 'No description'}\n`
+                    ).join('\n');
+
+                    const enhanced = await openAIClient.enhanceSection('experience', expText || 'No experience found');
+                    return { type: 'experience', content: enhanced, creditsUsed: 5 };
+                } catch (error) {
+                    throw new Error('Failed to optimize experience');
+                }
             }
         },
         {
+            id: 'ats-analysis',
             icon: Target,
             title: 'ATS Analysis',
             description: 'Get detailed ATS compatibility score and suggestions',
             credits: 4,
             action: async () => {
-                const analysis = await openAIClient.analyzeResume(resumeData);
-                return JSON.stringify(analysis, null, 2);
+                try {
+                    const analysis = await openAIClient.analyzeResume(resumeData);
+                    const formattedAnalysis = `ATS Analysis Report:\n\n` +
+                        `Overall Score: ${analysis.overallScore || 'N/A'}/100\n` +
+                        `ATS Score: ${analysis.atsScore || 'N/A'}/100\n\n` +
+                        `Strengths:\n${(analysis.strengths || []).map(s => `• ${s}`).join('\n')}\n\n` +
+                        `Weaknesses:\n${(analysis.weaknesses || []).map(w => `• ${w}`).join('\n')}\n\n` +
+                        `Recommendations:\n${(analysis.recommendations || []).map(r => `• ${r}`).join('\n')}`;
+
+                    return { type: 'analysis', content: formattedAnalysis, creditsUsed: 4 };
+                } catch (error) {
+                    throw new Error('Failed to analyze resume');
+                }
             }
         },
         {
+            id: 'generate-skills',
             icon: Code,
             title: 'Generate Skills',
             description: 'AI-suggested skills based on your experience',
             credits: 2,
             action: async () => {
-                const industry = user?.industry || 'technology';
-                const prompt = `Generate 15 relevant skills for a ${user?.experienceLevel || 'mid-level'} professional in ${industry}`;
-                return await openAIClient.generate(prompt);
+                try {
+                    const experiences = resumeData.experience || [];
+                    const skillsText = experiences.map(exp => exp.description || '').join(' ');
+
+                    const prompt = `Based on this work experience: "${skillsText}", generate 15 relevant technical and soft skills with proficiency levels (Beginner, Intermediate, Advanced, Expert). Format as bullet points.`;
+
+                    const skills = await openAIClient.generate(prompt, { temperature: 0.6 });
+                    return { type: 'skills', content: skills, creditsUsed: 2 };
+                } catch (error) {
+                    throw new Error('Failed to generate skills');
+                }
             }
         }
     ];
 
     const handleFeature = async (feature) => {
         if (credits < feature.credits) {
-            toast.error('Not enough credits!');
+            toast.error(`Not enough credits! Need ${feature.credits}, have ${credits}`);
             return;
         }
 
         setLoading(true);
-        const thinkingMsg = { role: 'ai', content: '', timestamp: new Date(), thinking: true };
+
+        // Add thinking message
+        const thinkingMsg = {
+            role: 'ai',
+            content: '',
+            timestamp: new Date(),
+            thinking: true
+        };
+
         setChatMessages(prev => [...prev, thinkingMsg]);
 
         try {
             const result = await feature.action();
-            const newCredits = credits - feature.credits;
-            setCredits(newCredits);
-            onCreditsUpdate(newCredits);
 
+            // Update credits
+            const newCredits = credits - result.creditsUsed;
+            setCredits(newCredits);
+
+            // Remove thinking message and add result
             setChatMessages(prev => {
                 const filtered = prev.filter(m => !m.thinking);
                 return [...filtered, {
                     role: 'ai',
-                    content: result,
+                    content: result.content,
                     timestamp: new Date()
                 }];
             });
 
-            toast.success(`${feature.title} completed!`);
+            // Apply suggestion to current section if applicable
+            if (result.type === activeSection) {
+                onApplySuggestion(activeSection, { content: result.content });
+            }
+
+            // Show suggestion notification
+            onSuggestion(result.type, result.content);
+
+            toast.success(`${feature.title} completed! Used ${result.creditsUsed} credits.`);
+
         } catch (error) {
+            console.error('AI feature error:', error);
+
             setChatMessages(prev => {
                 const filtered = prev.filter(m => !m.thinking);
                 return [...filtered, {
@@ -278,7 +345,8 @@ const AIAssistant = ({
                     timestamp: new Date()
                 }];
             });
-            toast.error('AI request failed');
+
+            toast.error('AI request failed. Please check your connection.');
         } finally {
             setLoading(false);
         }
@@ -286,144 +354,247 @@ const AIAssistant = ({
 
     const handleChat = async () => {
         if (!input.trim() || loading) return;
+
         if (credits < 1) {
             toast.error('No credits left!');
             return;
         }
 
-        const userMsg = { role: 'user', content: input, timestamp: new Date() };
+        const userMsg = {
+            role: 'user',
+            content: input,
+            timestamp: new Date()
+        };
+
         setChatMessages(prev => [...prev, userMsg]);
         setInput('');
         setLoading(true);
 
+        // Deduct credit
         const newCredits = credits - 1;
         setCredits(newCredits);
-        onCreditsUpdate(newCredits);
 
         try {
-            const response = await openAIClient.generate(
-                `You are a helpful resume assistant. User question: ${input}\n\nResume context: ${JSON.stringify(resumeData, null, 2)}`
-            );
+            // Add context to the prompt
+            const context = `User's resume information:
+      - Name: ${resumeData.personalInfo?.fullName || 'Not provided'}
+      - Experience: ${(resumeData.experience || []).length} positions
+      - Education: ${(resumeData.education || []).length} entries
+      - Skills: ${(resumeData.skills || []).length} skills
+      - Current section: ${activeSection}`;
+
+            const fullPrompt = `${context}\n\nUser question: ${input}\n\nPlease provide helpful, specific advice about their resume.`;
+
+            const response = await openAIClient.generate(fullPrompt, {
+                temperature: 0.7,
+                max_tokens: 500
+            });
 
             setChatMessages(prev => [...prev, {
                 role: 'ai',
                 content: response,
                 timestamp: new Date()
             }]);
-        } catch {
+
+        } catch (error) {
+            console.error('Chat error:', error);
+
+            setChatMessages(prev => [...prev, {
+                role: 'ai',
+                content: 'Sorry, I encountered an error. Please try again.',
+                timestamp: new Date()
+            }]);
+
             toast.error('Failed to get response');
         } finally {
             setLoading(false);
         }
     };
 
-    if (!isVisible) return null;
+    const handleKeyPress = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleChat();
+        }
+    };
+
+    if (!isOpen) return null;
 
     return (
-        <motion.div
-            initial={{ x: position === 'right' ? 400 : -400 }}
-            animate={{ x: 0 }}
-            exit={{ x: position === 'right' ? 400 : -400 }}
-            className={`fixed ${position === 'right' ? 'right-0' : 'left-0'} top-0 h-full w-96 bg-white border-${position === 'right' ? 'l' : 'r'} border-gray-200 shadow-2xl z-50 flex flex-col`}
-        >
-            {/* Header */}
-            <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-pink-50">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center">
-                            <Brain className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <h2 className="font-bold text-gray-900">AI Assistant</h2>
-                            <p className="text-xs text-gray-600">GPT-4o Powered</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="px-3 py-1 bg-white rounded-lg shadow-sm">
-                            <span className="text-sm font-bold text-amber-600">{credits}</span>
-                            <span className="text-xs text-gray-500 ml-1">credits</span>
-                        </div>
-                        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-                            <X className="w-5 h-5 text-gray-600" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex gap-2">
-                    {['features', 'chat'].map(tab => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
-                        >
-                            {tab === 'features' ? 'Features' : 'Chat'}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-                {activeTab === 'features' ? (
-                    <div className="space-y-6">
-                        {features.map((f, i) => (
-                            <AIFeatureCard
-                                key={i}
-                                {...f}
-                                disabled={credits < f.credits}
-                                loading={loading}
-                                onClick={() => handleFeature(f)}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="h-full flex flex-col">
-                        <div ref={chatRef} className="flex-1 overflow-y-auto space-y-6 pb-4">
-                            {chatMessages.length === 0 ? (
-                                <div className="text-center py-12 text-gray-500">
-                                    <Bot className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                                    <p>Ask me anything about your resume!</p>
+        <AnimatePresence>
+            {isOpen && (
+                <motion.div
+                    initial={{ x: 400, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: 400, opacity: 0 }}
+                    transition={{ type: "spring", damping: 20, stiffness: 300 }}
+                    className="fixed right-0 top-0 h-full w-96 bg-white border-l border-gray-200 shadow-2xl z-50 flex flex-col"
+                    style={{ height: isMinimized ? 'auto' : '100vh' }}
+                >
+                    {/* Header */}
+                    <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-pink-50">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center">
+                                    <Brain className="w-6 h-6 text-white" />
                                 </div>
-                            ) : (
-                                chatMessages.map((msg, i) => (
-                                    <ChatMessage key={i} {...msg} />
-                                ))
-                            )}
-                            {loading && <ChatMessage message="" isAI thinking />}
-                        </div>
+                                <div>
+                                    <h2 className="font-bold text-gray-900">AI Assistant</h2>
+                                    <p className="text-xs text-gray-600">GPT-4o Powered</p>
+                                </div>
+                            </div>
 
-                        <div className="border-t pt-4">
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={input}
-                                    onChange={(e) => setInput(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && handleChat()}
-                                    placeholder="Ask AI anything..."
-                                    className="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:outline-none"
-                                />
+                            <div className="flex items-center gap-2">
+                                <div className="px-3 py-1 bg-white rounded-lg shadow-sm">
+                                    <span className="text-sm font-bold text-amber-600">{credits}</span>
+                                    <span className="text-xs text-gray-500 ml-1">credits</span>
+                                </div>
+
                                 <button
-                                    onClick={handleChat}
-                                    disabled={loading || !input.trim()}
-                                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-lg disabled:opacity-50"
+                                    onClick={() => setIsPinned(!isPinned)}
+                                    className="p-2 hover:bg-gray-100 rounded-lg"
+                                    title={isPinned ? "Unpin" : "Pin"}
                                 >
-                                    <Send className="w-5 h-5" />
+                                    {isPinned ? <Pin className="w-5 h-5 text-purple-600" /> : <PinOff className="w-5 h-5 text-gray-500" />}
+                                </button>
+
+                                <button
+                                    onClick={() => setIsMinimized(!isMinimized)}
+                                    className="p-2 hover:bg-gray-100 rounded-lg"
+                                    title={isMinimized ? "Maximize" : "Minimize"}
+                                >
+                                    {isMinimized ? <Maximize2 className="w-5 h-5 text-gray-500" /> : <Minimize2 className="w-5 h-5 text-gray-500" />}
+                                </button>
+
+                                <button
+                                    onClick={onClose}
+                                    className="p-2 hover:bg-gray-100 rounded-lg"
+                                    title="Close"
+                                >
+                                    <X className="w-5 h-5 text-gray-600" />
                                 </button>
                             </div>
                         </div>
-                    </div>
-                )}
-            </div>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-gray-200 bg-gray-50 text-center text-xs text-gray-500">
-                <div className="flex items-center justify-center gap-4">
-                    <Shield className="w-4 h-4" /> Secure & Private
-                    <Cpu className="w-4 h-4" /> GPT-4o Powered
-                </div>
-            </div>
-        </motion.div>
+                        {/* Tabs */}
+                        <div className="flex gap-2">
+                            {['features', 'chat'].map(tab => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab
+                                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-sm'
+                                        : 'text-gray-600 hover:bg-gray-100'}`}
+                                >
+                                    {tab === 'features' ? 'AI Features' : 'Chat Assistant'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className={`flex-1 overflow-y-auto ${isMinimized ? 'hidden' : 'block'}`}>
+                        {activeTab === 'features' ? (
+                            <div className="p-4 space-y-4">
+                                <div className="mb-4">
+                                    <h3 className="font-semibold text-gray-900 mb-2">AI Features</h3>
+                                    <p className="text-sm text-gray-600">Use credits to enhance your resume</p>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {features.map((feature, index) => (
+                                        <AIFeatureCard
+                                            key={feature.id}
+                                            {...feature}
+                                            disabled={credits < feature.credits || loading}
+                                            loading={loading}
+                                            onClick={() => handleFeature(feature)}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="h-full flex flex-col">
+                                {/* Chat Messages */}
+                                <div
+                                    ref={chatRef}
+                                    className="flex-1 overflow-y-auto p-4 space-y-6"
+                                >
+                                    {chatMessages.length === 0 ? (
+                                        <div className="text-center py-12">
+                                            <Bot className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                                            <p className="text-gray-500">Ask me anything about your resume!</p>
+                                            <p className="text-sm text-gray-400 mt-2">Each question uses 1 credit</p>
+                                        </div>
+                                    ) : (
+                                        chatMessages.map((msg, index) => (
+                                            <ChatMessage
+                                                key={index}
+                                                message={msg.content}
+                                                isAI={msg.role === 'ai'}
+                                                timestamp={msg.timestamp}
+                                                thinking={msg.thinking}
+                                            />
+                                        ))
+                                    )}
+
+                                    {loading && <ChatMessage message="" isAI thinking />}
+                                </div>
+
+                                {/* Chat Input */}
+                                <div className="border-t p-4 bg-white">
+                                    <div className="flex gap-2">
+                                        <div className="flex-1 relative">
+                                            <input
+                                                type="text"
+                                                value={input}
+                                                onChange={(e) => setInput(e.target.value)}
+                                                onKeyPress={handleKeyPress}
+                                                placeholder="Ask about your resume..."
+                                                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none transition-all"
+                                                disabled={loading}
+                                            />
+                                            <div className="absolute right-3 top-3 text-xs text-gray-400">
+                                                1 credit
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            onClick={handleChat}
+                                            disabled={loading || !input.trim() || credits < 1}
+                                            className={`px-4 py-3 rounded-xl transition-all ${loading || !input.trim() || credits < 1
+                                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                                : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:shadow-lg'
+                                                }`}
+                                        >
+                                            {loading ? (
+                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                            ) : (
+                                                <Send className="w-5 h-5" />
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-3 border-t border-gray-200 bg-gray-50">
+                        <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
+                            <div className="flex items-center gap-1">
+                                <Shield className="w-4 h-4" />
+                                <span>Secure & Private</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <Cpu className="w-4 h-4" />
+                                <span>GPT-4o Powered</span>
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 };
 

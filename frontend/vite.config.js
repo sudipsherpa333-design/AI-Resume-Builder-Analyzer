@@ -1,284 +1,195 @@
-// vite.config.js
+// vite.config.js - FIXED VERSION
 import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
+import react from '@vitejs/plugin-react-swc';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { visualizer } from 'rollup-plugin-visualizer';
 
-// ESM __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Plugin for bundle analysis
-const bundleAnalyzer = (mode) => {
-  if (mode === 'analyze') {
-    return visualizer({
-      open: true,
-      filename: 'dist/stats.html',
-      gzipSize: true,
-      brotliSize: true,
-    });
-  }
-  return null;
-};
-
 export default defineConfig(({ mode }) => {
-  // Load env files based on mode
+  // Load env file based on mode
   const env = loadEnv(mode, process.cwd(), '');
 
-  const isDevelopment = mode === 'development';
-  const isProduction = mode === 'production';
-  const isAnalyze = mode === 'analyze';
-
-  const backendUrl = env.VITE_API_URL || `http://localhost:5001`;
-  const frontendPort = env.VITE_FRONTEND_PORT || 3000;
-  const appName = env.VITE_APP_NAME || 'AI Resume Builder';
-
-  console.log(`🚀 ${appName} - Mode: ${mode}`);
-  console.log(`🌐 Backend: ${backendUrl}`);
-  console.log(`💻 Frontend: http://localhost:${frontendPort}`);
-
   return {
+    base: '/',
+
+    define: {
+      'process.env': env,
+      'process.env.NODE_ENV': JSON.stringify(mode),
+      '__DEV__': mode === 'development',
+      '__PROD__': mode === 'production'
+    },
+
     plugins: [
       react({
-        babel: {
-          plugins: [
-            ['@babel/plugin-transform-runtime', { regenerator: true }]
-          ],
-        },
         jsxRuntime: 'automatic',
-        jsxImportSource: 'react',
-      }),
-      bundleAnalyzer(mode),
-    ].filter(Boolean),
+        devTarget: 'es2022',
+        // Remove babel config, SWC handles it
+      })
+    ],
 
-    base: isProduction ? '/' : '/',
+    server: {
+      port: 3000,
+      host: 'localhost', // Changed from '0.0.0.0' to 'localhost' for stability
+      open: true,
+      strictPort: true,
+      cors: true,
+      compress: true,
 
-    // Define global constants
-    define: {
-      __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
-      __APP_NAME__: JSON.stringify(appName),
-      __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
-      'process.env.NODE_ENV': JSON.stringify(mode),
+      // ✅ FIXED: Simplified historyApiFallback for SPA
+      historyApiFallback: {
+        index: '/index.html',
+        disableDotRule: true
+      },
+
+      // ✅ FIXED: Proxy configuration
+      proxy: {
+        '/api': {
+          target: env.VITE_BACKEND_URL || 'http://localhost:5000',
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api/, ''),
+          configure: (proxy, _options) => {
+            proxy.on('error', (err) => {
+              console.log('⚠️ Proxy error:', err.message);
+            });
+            proxy.on('proxyReq', (proxyReq, req) => {
+              console.log(`➡️ Proxying: ${req.method} ${req.url}`);
+            });
+          }
+        },
+        '/socket.io': {
+          target: env.VITE_BACKEND_URL || 'http://localhost:5000',
+          ws: true,
+          changeOrigin: true,
+          secure: false
+        }
+      },
+
+      // ✅ FIXED: HMR configuration
+      hmr: {
+        host: 'localhost',
+        port: 3000,
+        protocol: 'ws',
+        overlay: false
+      },
+
+      watch: {
+        usePolling: false,
+        interval: 100
+      },
+
+      // ✅ ADDED: Handle vite client properly
+      middlewareMode: false,
+    },
+
+    preview: {
+      port: 3001,
+      host: true,
+      historyApiFallback: true
+    },
+
+    build: {
+      outDir: 'dist',
+      sourcemap: false,
+      minify: 'esbuild',
+      target: 'es2020',
+      cssTarget: 'chrome80',
+
+      rollupOptions: {
+        output: {
+          manualChunks: (id) => {
+            // Better chunking strategy
+            if (id.includes('node_modules')) {
+              if (id.includes('react') || id.includes('react-dom')) {
+                return 'vendor-react';
+              }
+              if (id.includes('react-router')) {
+                return 'vendor-router';
+              }
+              if (id.includes('lucide-react') || id.includes('framer-motion')) {
+                return 'vendor-ui';
+              }
+              if (id.includes('axios') || id.includes('socket.io')) {
+                return 'vendor-utils';
+              }
+              return 'vendor-other';
+            }
+          },
+          chunkFileNames: 'assets/js/[name]-[hash].js',
+          entryFileNames: 'assets/js/[name]-[hash].js',
+          assetFileNames: 'assets/[ext]/[name]-[hash].[ext]'
+        },
+        // Prevent missing dependencies
+        preserveEntrySignatures: 'strict',
+        external: []
+      },
+
+      // ✅ FIXED: Better build settings
+      chunkSizeWarningLimit: 800,
+      emptyOutDir: true,
+      reportCompressedSize: true,
+      assetsInlineLimit: 4096,
     },
 
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),
         '@components': path.resolve(__dirname, 'src/components'),
-        '@pages': path.resolve(__dirname, 'src/pages'),
         '@context': path.resolve(__dirname, 'src/context'),
-        '@hooks': path.resolve(__dirname, 'src/hooks'),
         '@utils': path.resolve(__dirname, 'src/utils'),
-        '@assets': path.resolve(__dirname, 'src/assets'),
-        '@styles': path.resolve(__dirname, 'src/styles'),
-        '@admin': path.resolve(__dirname, 'src/admin'),
         '@services': path.resolve(__dirname, 'src/services'),
-        '@layouts': path.resolve(__dirname, 'src/layouts'),
-        '@data': path.resolve(__dirname, 'src/data'),
+        '@hooks': path.resolve(__dirname, 'src/hooks'),
+        '@pages': path.resolve(__dirname, 'src/pages'),
+        '@assets': path.resolve(__dirname, 'src/assets')
       },
-      extensions: ['.js', '.jsx', '.ts', '.tsx', '.json', '.mjs'],
+      extensions: ['.js', '.jsx', '.ts', '.tsx', '.json']
     },
 
-    server: {
-      port: parseInt(frontendPort),
-      host: '0.0.0.0',
-      strictPort: true,
-      open: true,
-      cors: true,
-      hmr: {
-        overlay: true,
-        clientPort: parseInt(frontendPort),
-      },
-      fs: {
-        strict: true,
-        allow: ['..'],
-      },
-
-      // Smart proxy configuration
-      proxy: {
-        '/api': {
-          target: backendUrl,
-          changeOrigin: true,
-          secure: false,
-          rewrite: (path) => {
-            // Remove /api prefix for backend routes that don't need it
-            const backendPath = path.replace(/^\/api/, '');
-            console.log(`🌐 Proxy: ${path} -> ${backendUrl}${backendPath}`);
-            return backendPath;
-          },
-          configure: (proxy, options) => {
-            proxy.on('error', (err, req, res) => {
-              console.error('❌ Proxy Error:', err.message);
-              if (res.writeHead) {
-                res.writeHead(500, { 'Content-Type': 'text/plain' });
-                res.end('Proxy connection failed. Please check if backend is running.');
-              }
-            });
-
-            proxy.on('proxyReq', (proxyReq, req, res) => {
-              if (isDevelopment) {
-                const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
-                console.log(`➡️  [${timestamp}] ${req.method} ${req.url}`);
-              }
-            });
-
-            proxy.on('proxyRes', (proxyRes, req, res) => {
-              if (isDevelopment) {
-                const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
-                const status = proxyRes.statusCode;
-                const statusColor = status >= 400 ? '31' : status >= 300 ? '33' : '32';
-                console.log(`\x1b[${statusColor}m⬅️  [${timestamp}] ${req.method} ${req.url} ${status}\x1b[0m`);
-              }
-            });
-          },
-        },
-
-        // Separate proxy for socket.io if needed
-        '/socket.io': {
-          target: backendUrl,
-          changeOrigin: true,
-          secure: false,
-          ws: true,
-        },
-      },
-
-      watch: {
-        usePolling: false,
-        interval: 100,
-      },
+    css: {
+      devSourcemap: true,
+      postcss: './postcss.config.js',
+      modules: {
+        localsConvention: 'camelCase'
+      }
     },
 
-    preview: {
-      port: 4173,
-      host: true,
-      cors: true,
-      open: true,
-    },
+    envPrefix: 'VITE_',
 
-    build: {
-      outDir: 'dist',
-      sourcemap: isProduction ? 'hidden' : true,
-      minify: isProduction ? 'esbuild' : false,
-      target: 'es2020',
-      chunkSizeWarningLimit: 1024,
-      cssCodeSplit: true,
-      reportCompressedSize: true,
-      assetsInlineLimit: 4096,
-      emptyOutDir: true,
-
-      // Improved asset naming
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            // Vendor splitting for better caching
-            if (id.includes('node_modules')) {
-              // React and core
-              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-                return 'vendor-react';
-              }
-              // UI libraries
-              if (id.includes('@mui') || id.includes('antd') || id.includes('framer-motion')) {
-                return 'vendor-ui';
-              }
-              // Charts and visualization
-              if (id.includes('recharts') || id.includes('html2canvas') || id.includes('jspdf')) {
-                return 'vendor-charts';
-              }
-              // State management and utilities
-              if (id.includes('zustand') || id.includes('axios') || id.includes('date-fns')) {
-                return 'vendor-utils';
-              }
-              // Icons
-              if (id.includes('lucide-react') || id.includes('react-icons')) {
-                return 'vendor-icons';
-              }
-              return 'vendor-other';
-            }
-
-            // Split admin and main app
-            if (id.includes('/admin/')) {
-              return 'admin';
-            }
-          },
-
-          // Better file naming for cache busting
-          entryFileNames: 'assets/[name]-[hash].js',
-          chunkFileNames: 'assets/[name]-[hash].js',
-          assetFileNames: ({ name }) => {
-            if (/\.(gif|jpe?g|png|svg|webp)$/.test(name)) {
-              return 'assets/images/[name]-[hash][extname]';
-            }
-            if (/\.(woff2?|eot|ttf|otf)$/.test(name)) {
-              return 'assets/fonts/[name]-[hash][extname]';
-            }
-            if (/\.css$/.test(name)) {
-              return 'assets/css/[name]-[hash][extname]';
-            }
-            return 'assets/[name]-[hash][extname]';
-          },
-        },
-
-        external: [],
-      },
-
-      // Optimize dependencies
-      commonjsOptions: {
-        include: [/node_modules/],
-        transformMixedEsModules: true,
-      },
-    },
-
+    // ✅ FIXED: Optimize deps - include problematic packages
     optimizeDeps: {
       include: [
         'react',
         'react-dom',
-        'react-dom/client',
-        'react/jsx-runtime',
         'react-router-dom',
         'axios',
-        '@tanstack/react-query',
-        'zustand',
-        'framer-motion',
-        'lucide-react',
-        '@mui/material',
-        '@mui/icons-material',
-        'antd',
         'react-hot-toast',
-        'date-fns',
-        'html2canvas',
-        'jspdf',
+        'framer-motion',
+        'lucide-react'
       ],
       exclude: [],
+      force: false,
       esbuildOptions: {
         target: 'es2020',
         supported: {
-          'top-level-await': true,
-        },
-      },
+          'top-level-await': true
+        }
+      }
     },
 
-    // CSS configuration
-    css: {
-      modules: {
-        localsConvention: 'camelCaseOnly',
-        generateScopedName: isProduction
-          ? '[hash:base64:8]'
-          : '[name]__[local]__[hash:base64:5]',
-      },
-      devSourcemap: isDevelopment,
-      preprocessorOptions: {
-        scss: {
-          additionalData: `@import "@styles/variables.scss";`,
-        },
-      },
-    },
-
-    // Performance optimizations
     esbuild: {
-      pure: isProduction ? ['console.log', 'console.debug'] : [],
-      drop: isProduction ? ['debugger'] : [],
-      legalComments: 'none',
+      logLevel: 'info',
+      drop: mode === 'production' ? ['console', 'debugger'] : [],
+      define: {
+        'process.env.NODE_ENV': JSON.stringify(mode)
+      }
     },
+
+    // ✅ ADDED: Clearer logging
+    logLevel: 'info',
+
+    // ✅ ADDED: Clear build cache on changes
+    clearScreen: false
   };
-});
+}); 

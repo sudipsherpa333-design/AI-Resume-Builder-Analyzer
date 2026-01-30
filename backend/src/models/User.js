@@ -1,3 +1,4 @@
+// models/User.js - COMPLETE WORKING VERSION
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
@@ -363,23 +364,36 @@ userSchema.virtual('planStatus').get(function () {
   return this.plan;
 });
 
-// Pre-save middleware to hash password
+// ====================== FIXED: Pre-save middleware ======================
 userSchema.pre('save', async function (next) {
+  console.log('🔄 [User Model] pre-save middleware running');
+  console.log('📝 Is password modified?', this.isModified('password'));
+  console.log('🔑 Is OAuth?', this.isOAuth);
+  console.log('📧 Email:', this.email);
+
+  // Only hash password if it's modified and user is not OAuth
   if (!this.isModified('password') || (this.isOAuth && !this.password)) {
+    console.log('⏭️ Skipping password hash');
     return next();
   }
 
   try {
+    console.log('🔐 Hashing password for:', this.email);
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    console.log('✅ Password hashed successfully');
+    console.log('🔑 Hash prefix:', this.password?.substring(0, 20) + '...');
     next();
   } catch (error) {
+    console.error('❌ Password hashing error:', error);
     next(error);
   }
 });
 
 // Pre-save middleware to update flags
 userSchema.pre('save', function (next) {
+  console.log('🏷️ Updating user flags...');
+
   // Update profile completion flag
   this.flags.hasCompletedProfile = !!(
     this.name &&
@@ -392,22 +406,104 @@ userSchema.pre('save', function (next) {
   // Update first resume flag if not already set
   if (this.usage.resumeCount > 0 && !this.flags.hasCreatedFirstResume) {
     this.flags.hasCreatedFirstResume = true;
+    console.log('✅ Set hasCreatedFirstResume flag');
   }
 
   // Update AI usage flag
   if (this.usage.aiUsageCount > 0 && !this.flags.hasUsedAI) {
     this.flags.hasUsedAI = true;
+    console.log('✅ Set hasUsedAI flag');
   }
 
   // Update export flag
   if (this.usage.exportCount > 0 && !this.flags.hasExportedResume) {
     this.flags.hasExportedResume = true;
+    console.log('✅ Set hasExportedResume flag');
   }
 
   next();
 });
 
-// =========== ADDED METHOD: updateResumeCount ===========
+// ====================== FIXED: matchPassword method ======================
+userSchema.methods.matchPassword = async function (enteredPassword) {
+  console.log('\n🔑 [User Model] matchPassword called for:', this.email);
+  console.log('📝 User has password:', !!this.password);
+  console.log('🔒 Is OAuth user:', this.isOAuth);
+
+  // Check if user is OAuth-only (no password)
+  if (this.isOAuth && !this.password) {
+    console.log('⚠️ OAuth user trying password login');
+    return false;
+  }
+
+  // Check if password exists
+  if (!this.password) {
+    console.log('❌ No password stored for user');
+    return false;
+  }
+
+  // Check if account is locked
+  if (this.isLocked) {
+    console.log('🔒 Account is locked');
+    throw new Error('Account is temporarily locked due to too many failed login attempts');
+  }
+
+  console.log('🔍 Comparing passwords...');
+  console.log('📏 Entered password length:', enteredPassword?.length);
+  console.log('🔐 Stored hash prefix:', this.password?.substring(0, 20) + '...');
+
+  // DIRECT bcrypt comparison with error handling
+  try {
+    const isMatch = await bcrypt.compare(enteredPassword, this.password);
+    console.log('✅ Password comparison result:', isMatch);
+
+    if (isMatch) {
+      console.log('🎉 Password matched!');
+
+      // Reset login attempts if there were any
+      if (this.loginAttempts > 0 || this.lockUntil) {
+        this.loginAttempts = 0;
+        this.lockUntil = undefined;
+        console.log('🔄 Reset login attempts');
+      }
+
+      // Update login stats
+      this.lastLogin = new Date();
+      this.usage.loginCount = (this.usage?.loginCount || 0) + 1;
+      this.dashboardStats.lastActivity = new Date();
+
+      console.log('📊 Updated login stats');
+
+      // Save user (without validation to avoid issues)
+      await this.save({ validateBeforeSave: false });
+
+      console.log('💾 User saved successfully');
+    } else {
+      console.log('❌ Password did not match');
+
+      // Increment failed attempts
+      this.loginAttempts = (this.loginAttempts || 0) + 1;
+      console.log('📈 Failed login attempts:', this.loginAttempts);
+
+      // Lock account after 5 failed attempts
+      if (this.loginAttempts >= 5) {
+        this.lockUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+        console.log('🔒 Account locked until:', this.lockUntil);
+      }
+
+      await this.save({ validateBeforeSave: false });
+    }
+
+    return isMatch;
+
+  } catch (bcryptError) {
+    console.error('❌ Bcrypt comparison error:', bcryptError);
+    return false;
+  }
+};
+
+// ====================== OTHER METHODS (Keep as is) ======================
+
 userSchema.methods.updateResumeCount = async function () {
   try {
     const Resume = mongoose.model('Resume');
@@ -444,7 +540,6 @@ userSchema.methods.updateResumeCount = async function () {
   }
 };
 
-// Method to add activity
 userSchema.methods.addActivity = function (activity) {
   // Keep only last 50 activities
   this.recentActivity.unshift({
@@ -460,7 +555,6 @@ userSchema.methods.addActivity = function (activity) {
   return this.save({ validateBeforeSave: false });
 };
 
-// Method to update dashboard stats
 userSchema.methods.updateDashboardStats = async function (resumes = []) {
   try {
     const stats = {
@@ -503,45 +597,6 @@ userSchema.methods.updateDashboardStats = async function (resumes = []) {
   }
 };
 
-// Instance method to check password
-userSchema.methods.matchPassword = async function (enteredPassword) {
-  if (this.isOAuth && !this.password) {
-    return false;
-  }
-
-  if (this.isLocked) {
-    throw new Error('Account is temporarily locked due to too many failed login attempts');
-  }
-
-  const isMatch = await bcrypt.compare(enteredPassword, this.password);
-
-  if (isMatch) {
-    if (this.loginAttempts > 0 || this.lockUntil) {
-      this.loginAttempts = 0;
-      this.lockUntil = undefined;
-      await this.save({ validateBeforeSave: false });
-    }
-    this.lastLogin = new Date();
-    this.usage.loginCount += 1;
-    this.dashboardStats.lastActivity = new Date();
-    await this.addActivity({
-      type: 'login',
-      description: 'User logged in',
-      metadata: { ip: '127.0.0.1' } // You can add real IP from request
-    });
-    await this.save({ validateBeforeSave: false });
-  } else {
-    this.loginAttempts = (this.loginAttempts || 0) + 1;
-    if (this.loginAttempts >= 5) {
-      this.lockUntil = new Date(Date.now() + 30 * 60 * 1000);
-    }
-    await this.save({ validateBeforeSave: false });
-  }
-
-  return isMatch;
-};
-
-// Instance method to generate verification token
 userSchema.methods.generateVerificationToken = function () {
   const verificationToken = crypto.randomBytes(32).toString('hex');
   this.emailVerificationToken = crypto
@@ -552,7 +607,6 @@ userSchema.methods.generateVerificationToken = function () {
   return verificationToken;
 };
 
-// Instance method to generate password reset token
 userSchema.methods.generatePasswordResetToken = function () {
   const resetToken = crypto.randomBytes(32).toString('hex');
   this.resetPasswordToken = crypto
@@ -563,7 +617,6 @@ userSchema.methods.generatePasswordResetToken = function () {
   return resetToken;
 };
 
-// Method to use AI credits
 userSchema.methods.useAICredits = async function (credits = 1) {
   if (this.aiCredits < credits && this.plan === 'free') {
     throw new Error('Insufficient AI credits. Please upgrade your plan or purchase more credits.');
@@ -588,7 +641,6 @@ userSchema.methods.useAICredits = async function (credits = 1) {
   return this.aiCredits;
 };
 
-// Method to add AI credits
 userSchema.methods.addAICredits = async function (credits) {
   this.aiCredits += credits;
 
@@ -602,7 +654,6 @@ userSchema.methods.addAICredits = async function (credits) {
   return this.aiCredits;
 };
 
-// Method to update storage usage
 userSchema.methods.updateStorageUsage = async function (sizeInBytes) {
   this.storage.used += sizeInBytes;
 
@@ -614,7 +665,6 @@ userSchema.methods.updateStorageUsage = async function (sizeInBytes) {
   return this.storage.used;
 };
 
-// Method to update profile
 userSchema.methods.updateProfile = async function (profileData) {
   this.profile = { ...this.profile, ...profileData };
 
@@ -628,7 +678,6 @@ userSchema.methods.updateProfile = async function (profileData) {
   return this;
 };
 
-// Method to get public profile
 userSchema.methods.getPublicProfile = function () {
   return {
     id: this._id,
@@ -644,17 +693,14 @@ userSchema.methods.getPublicProfile = function () {
   };
 };
 
-// Static method to find by email
 userSchema.statics.findByEmail = function (email) {
   return this.findOne({ email: email.toLowerCase() });
 };
 
-// Static method to find active users
 userSchema.statics.findActiveUsers = function () {
   return this.find({ isActive: true, isSuspended: false, isDeleted: false });
 };
 
-// Static method to get user stats
 userSchema.statics.getUserStats = async function () {
   const stats = await this.aggregate([
     {

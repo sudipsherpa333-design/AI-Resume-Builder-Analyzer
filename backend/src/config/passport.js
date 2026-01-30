@@ -1,104 +1,105 @@
-// config/passport.js - Updated
 import passport from 'passport';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
+import { Strategy as LocalStrategy } from 'passport-local';
+import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
-import { generateToken } from '../utils/jwtToken.js';
+import Admin from '../models/Admin.js';
+import { configureGoogleOAuth } from './google-oauth.js';
 
-const configurePassport = () => {
+/**
+ * Configure all authentication strategies
+ */
+export const configurePassport = () => {
+    // ======================
+    // JWT Strategy for API authentication
+    // ======================
+    const jwtOptions = {
+        jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+        secretOrKey: process.env.JWT_SECRET || 'your-secret-key-change-this-in-production'
+    };
+
+    passport.use(new JwtStrategy(jwtOptions, async (payload, done) => {
+        try {
+            // Check if it's an admin token
+            if (payload.isAdmin) {
+                const admin = await Admin.findById(payload.adminId || payload.userId);
+                if (admin) {
+                    return done(null, admin);
+                }
+            } else {
+                // Regular user token
+                const user = await User.findById(payload.userId);
+                if (user) {
+                    return done(null, user);
+                }
+            }
+            return done(null, false);
+        } catch (error) {
+            return done(error, false);
+        }
+    }));
+
+    // ======================
+    // Local Strategy for email/password
+    // ======================
+    passport.use(new LocalStrategy({
+        usernameField: 'email',
+        passwordField: 'password'
+    }, async (email, password, done) => {
+        try {
+            const user = await User.findOne({ email }).select('+password');
+
+            if (!user) {
+                return done(null, false, { message: 'Invalid email or password' });
+            }
+
+            const isPasswordValid = await bcrypt.compare(password, user.password);
+            if (!isPasswordValid) {
+                return done(null, false, { message: 'Invalid email or password' });
+            }
+
+            // Update last login
+            user.lastLogin = new Date();
+            user.stats = user.stats || {};
+            user.stats.loginCount = (user.stats.loginCount || 0) + 1;
+            user.stats.lastActive = new Date();
+            await user.save();
+
+            return done(null, user);
+        } catch (error) {
+            return done(error);
+        }
+    }));
+
+    // ======================
+    // Google OAuth Strategies
+    // ======================
+    configureGoogleOAuth(passport);
+
+    // ======================
     // Serialization
+    // ======================
     passport.serializeUser((user, done) => {
-        done(null, user.id || user._id);
+        const id = user._id || user.id;
+        const type = user.role === 'admin' || user.role === 'super_admin' ? 'admin' : 'user';
+        done(null, { id, type });
     });
 
-    passport.deserializeUser(async (id, done) => {
+    passport.deserializeUser(async (data, done) => {
         try {
-            const user = await User.findById(id);
-            done(null, user);
+            if (data.type === 'admin') {
+                const admin = await Admin.findById(data.id);
+                done(null, admin);
+            } else {
+                const user = await User.findById(data.id);
+                done(null, user);
+            }
         } catch (error) {
             done(error, null);
         }
     });
 
-    // Google Strategy - FIXED
-    if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-        // Dynamic callback URL
-        const callbackURL = process.env.NODE_ENV === 'production'
-            ? `${process.env.BACKEND_URL}/api/auth/google/callback`
-            : `${process.env.BACKEND_URL || 'http://localhost:5001'}/api/auth/google/callback`;
-
-        console.log('Google OAuth Callback URL:', callbackURL);
-
-        passport.use(new GoogleStrategy({
-            clientID: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-            callbackURL: callbackURL,
-            passReqToCallback: true,
-            scope: ['profile', 'email']
-        },
-            async (req, accessToken, refreshToken, profile, done) => {
-                try {
-                    console.log('Google Profile received:', {
-                        id: profile.id,
-                        email: profile.emails?.[0]?.value,
-                        name: profile.displayName
-                    });
-
-                    // Find user by googleId or email
-                    let user = await User.findOne({
-                        $or: [
-                            { googleId: profile.id },
-                            { email: profile.emails[0].value }
-                        ]
-                    });
-
-                    if (!user) {
-                        // Create new user
-                        user = new User({
-                            googleId: profile.id,
-                            name: profile.displayName,
-                            email: profile.emails[0].value,
-                            avatar: profile.photos?.[0]?.value || '',
-                            isOAuth: true,
-                            isVerified: true,
-                            emailVerifiedAt: new Date(),
-                            lastLogin: new Date(),
-                            provider: 'google',
-                            stats: {
-                                loginCount: 1,
-                                lastActive: new Date()
-                            }
-                        });
-                        await user.save();
-                        console.log('✅ New Google user created:', user.email);
-                    } else {
-                        // Update existing user
-                        user.googleId = profile.id;
-                        user.lastLogin = new Date();
-                        user.isOAuth = true;
-                        user.provider = 'google';
-                        user.stats.loginCount = (user.stats?.loginCount || 0) + 1;
-                        user.stats.lastActive = new Date();
-
-                        if (!user.avatar && profile.photos?.[0]?.value) {
-                            user.avatar = profile.photos[0].value;
-                        }
-
-                        await user.save();
-                        console.log('✅ Existing user updated:', user.email);
-                    }
-
-                    const token = generateToken(user._id);
-                    return done(null, { user, token });
-
-                } catch (error) {
-                    console.error('❌ Google OAuth error:', error);
-                    return done(error, null);
-                }
-            }));
-        console.log('✅ Google OAuth strategy configured');
-    } else {
-        console.warn('⚠️ Google OAuth not configured - missing CLIENT_ID or CLIENT_SECRET');
-    }
+    console.log('✅ All passport strategies configured');
 };
 
 export default configurePassport;

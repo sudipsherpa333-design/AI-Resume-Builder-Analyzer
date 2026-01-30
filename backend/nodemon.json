@@ -1,17 +1,19 @@
 {
   "watch": [
-    "src"
+    "src",
+    "server.js"
   ],
-  "ext": "js,mjs,json",
+  "ext": "js,json",
   "ignore": [
-    "../frontend/**",
-    "src/uploads/**",
-    "node_modules/**",
-    "backend/scripts/**",
+    "node_modules",
+    "logs",
+    "uploads",
+    "temp",
     "*.log",
-    "*.md"
+    ".git"
   ],
-  "delay": "250",
+  "exec": "node server.js",
+  "verbose": true,
   "env": {
     "NODE_ENV": "development"
   }

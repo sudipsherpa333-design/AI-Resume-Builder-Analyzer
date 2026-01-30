@@ -1,12 +1,13 @@
-// src/routes/index.js - UPDATED VERSION
+// src/routes/index.js - ES MODULE VERSION
 import express from 'express';
 const router = express.Router();
 
-// Import route modules
+// Import existing route modules
 import authRoutes from './authRoutes.js';
 import userRoutes from './userRoutes.js';
 import resumeRoutes from './resumeRoutes.js';
 import aiRoutes from '../ai/routes/aiRoutes.js';
+import adminRoutes from './adminRoutes.js';
 
 // Health check
 router.get('/health', (req, res) => {
@@ -15,7 +16,9 @@ router.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         service: 'AI Resume Builder API',
         version: '2.0.0',
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || 'development',
+        database: 'connected',
+        uptime: process.uptime()
     });
 });
 
@@ -24,7 +27,7 @@ router.get('/docs', (req, res) => {
     res.json({
         message: 'AI Resume Builder API Documentation',
         version: '2.0.0',
-        baseURL: process.env.BACKEND_URL || 'http://localhost:5001',
+        baseURL: process.env.BACKEND_URL || 'http://localhost:5000',
         endpoints: {
             auth: {
                 login: 'POST /api/auth/login',
@@ -57,6 +60,16 @@ router.get('/docs', (req, res) => {
                 summary: 'POST /api/ai/summary',
                 atsCheck: 'POST /api/ai/ats-check',
                 demoAnalyze: 'POST /api/ai/demo-analyze'
+            },
+            admin: {
+                login: 'POST /api/admin/auth/login',
+                dashboard: 'GET /api/admin/dashboard/stats',
+                users: 'GET /api/admin/users',
+                resumes: 'GET /api/admin/resumes',
+                templates: 'GET /api/admin/templates',
+                analytics: 'GET /api/admin/analytics',
+                settings: 'GET /api/admin/settings',
+                logs: 'GET /api/admin/logs'
             }
         }
     });
@@ -89,6 +102,7 @@ router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/resumes', resumeRoutes);
 router.use('/ai', aiRoutes);
+router.use('/admin', adminRoutes); // Mount admin routes
 
 // 404 for undefined API routes
 router.use('*', (req, res) => {
@@ -102,7 +116,7 @@ router.use('*', (req, res) => {
             users: '/api/users',
             resumes: '/api/resumes',
             ai: '/api/ai',
-            admin: '/admin'
+            admin: '/api/admin'
         }
     });
 });

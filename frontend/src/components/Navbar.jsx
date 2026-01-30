@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import toast from 'react-hot-toast';
 import {
     FaUser,
     FaSignInAlt,
@@ -32,9 +31,15 @@ const Navbar = () => {
 
     const dashboardNavItems = [
         { path: '/dashboard', icon: <FaHome />, label: 'Dashboard', badge: null },
-        { path: '/build', icon: <FaPlus />, label: 'New Resume', badge: 'New' },
+        { path: '/builder', icon: <FaPlus />, label: 'New Resume', badge: 'New' },
         { path: '/analyzer', icon: <FaSearch />, label: 'Analyzer', badge: null },
-        { path: '/templates', icon: <FaPalette />, label: 'Templates', badge: '12+' },
+        { path: '/builder/templates', icon: <FaPalette />, label: 'Templates', badge: '12+' },
+    ];
+
+    const publicNavItems = [
+        { path: '/about', label: 'About' },
+        { path: '/pricing', label: 'Pricing' },
+        { path: '/contact', label: 'Contact' }
     ];
 
     const handleLogoClick = () => {
@@ -47,7 +52,7 @@ const Navbar = () => {
 
     const handleGetStarted = () => {
         if (isAuthenticated) {
-            navigate('/build');
+            navigate('/builder');
         } else {
             navigate('/register');
         }
@@ -55,7 +60,7 @@ const Navbar = () => {
 
     const handleLogout = () => {
         logout();
-        navigate('/');
+        navigate('/'); // Redirect to home page
         setIsUserMenuOpen(false);
         setIsMobileMenuOpen(false);
     };
@@ -657,6 +662,7 @@ const Navbar = () => {
                     <div className="desktop-nav">
                         {isAuthenticated ? (
                             <>
+                                {/* Show dashboard navigation when authenticated */}
                                 {!location.pathname.startsWith('/builder') && (
                                     <div className="nav-links">
                                         {dashboardNavItems.map((item) => (
@@ -675,6 +681,7 @@ const Navbar = () => {
                                     </div>
                                 )}
 
+                                {/* User Profile Menu - Only shown when authenticated */}
                                 <div className="user-profile" ref={userMenuRef}>
                                     <motion.button
                                         onClick={toggleUserMenu}
@@ -730,13 +737,15 @@ const Navbar = () => {
                                                         <span>My Profile</span>
                                                     </Link>
                                                     <Link
-                                                        to="/my-resumes"
+                                                        to="/resumes"
                                                         className="dropdown-link"
                                                         onClick={() => setIsUserMenuOpen(false)}
                                                     >
                                                         <FaFileAlt />
                                                         <span>My Resumes</span>
-                                                        <span className="dropdown-badge">3</span>
+                                                        <span className="dropdown-badge">
+                                                            {user?.resumeCount || 0}
+                                                        </span>
                                                     </Link>
                                                     <Link
                                                         to="/settings"
@@ -762,18 +771,19 @@ const Navbar = () => {
                             </>
                         ) : (
                             <>
-                                <Link
-                                    to="/about"
-                                    className="nav-link"
-                                >
-                                    About
-                                </Link>
-                                <Link
-                                    to="/pricing"
-                                    className="nav-link"
-                                >
-                                    Pricing
-                                </Link>
+                                {/* PUBLIC NAVIGATION - Only shown when NOT authenticated */}
+                                <div className="nav-links">
+                                    {publicNavItems.map((item) => (
+                                        <Link
+                                            key={item.path}
+                                            to={item.path}
+                                            className={`nav-link ${location.pathname === item.path ? 'active' : ''}`}
+                                        >
+                                            <span>{item.label}</span>
+                                        </Link>
+                                    ))}
+                                </div>
+
                                 <Link
                                     to="/login"
                                     className="nav-link secondary"
@@ -817,6 +827,7 @@ const Navbar = () => {
                                 <div className="mobile-menu-content">
                                     {isAuthenticated ? (
                                         <>
+                                            {/* Mobile menu for authenticated users */}
                                             <div className="mobile-user-info">
                                                 <div className="mobile-user-avatar">
                                                     <span>{getUserInitials()}</span>
@@ -828,6 +839,7 @@ const Navbar = () => {
                                             </div>
 
                                             <div className="mobile-nav-links">
+                                                {/* Dashboard navigation in mobile */}
                                                 {dashboardNavItems.map((item) => (
                                                     <Link
                                                         key={item.path}
@@ -854,12 +866,15 @@ const Navbar = () => {
                                                     <span>My Profile</span>
                                                 </Link>
                                                 <Link
-                                                    to="/my-resumes"
+                                                    to="/resumes"
                                                     className="mobile-nav-link"
                                                     onClick={() => setIsMobileMenuOpen(false)}
                                                 >
                                                     <FaFileAlt />
                                                     <span>My Resumes</span>
+                                                    <span className="mobile-nav-badge">
+                                                        {user?.resumeCount || 0}
+                                                    </span>
                                                 </Link>
                                                 <Link
                                                     to="/settings"
@@ -883,20 +898,18 @@ const Navbar = () => {
                                         </>
                                     ) : (
                                         <>
-                                            <Link
-                                                to="/about"
-                                                className="mobile-nav-link"
-                                                onClick={() => setIsMobileMenuOpen(false)}
-                                            >
-                                                <span>About</span>
-                                            </Link>
-                                            <Link
-                                                to="/pricing"
-                                                className="mobile-nav-link"
-                                                onClick={() => setIsMobileMenuOpen(false)}
-                                            >
-                                                <span>Pricing</span>
-                                            </Link>
+                                            {/* Mobile menu for non-authenticated users */}
+                                            {publicNavItems.map((item) => (
+                                                <Link
+                                                    key={item.path}
+                                                    to={item.path}
+                                                    className="mobile-nav-link"
+                                                    onClick={() => setIsMobileMenuOpen(false)}
+                                                >
+                                                    <span>{item.label}</span>
+                                                </Link>
+                                            ))}
+
                                             <Link
                                                 to="/login"
                                                 className="mobile-nav-link"

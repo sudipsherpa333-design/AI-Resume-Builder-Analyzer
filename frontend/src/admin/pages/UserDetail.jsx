@@ -164,8 +164,8 @@ const UserDetail = () => {
                                     </select>
                                 ) : (
                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${user.isActive
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-red-100 text-red-800'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-red-100 text-red-800'
                                         }`}>
                                         {user.isActive ? 'Active' : 'Inactive'}
                                     </span>

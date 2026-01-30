@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import ProgressBar from './ui/ProgressIndicator';
+import ProgressBar from './ui/BuilderProgressTracker';
 
 const StepForm = ({
     currentStep,

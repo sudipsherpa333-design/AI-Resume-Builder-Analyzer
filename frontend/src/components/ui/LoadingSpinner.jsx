@@ -1,142 +1,74 @@
+// src/components/ui/LoadingSpinner.jsx - SIMPLER VERSION
 import React from 'react';
-import { motion } from 'framer-motion';
 
 const LoadingSpinner = ({
-    size = 'medium',
-    text = 'Loading...',
-    className = '',
-    showText = true
+    size = 'md',
+    message = 'Loading...',
+    showLogo = false,
+    className = ''
 }) => {
-    // Size configurations
-    const sizeConfig = {
-        small: {
-            spinner: 'w-6 h-6 border-3',
-            text: 'text-sm'
-        },
-        medium: {
-            spinner: 'w-12 h-12 border-4',
-            text: 'text-base'
-        },
-        large: {
-            spinner: 'w-16 h-16 border-4',
-            text: 'text-lg'
-        },
-        xl: {
-            spinner: 'w-20 h-20 border-4',
-            text: 'text-xl'
+    // Determine sizes directly
+    const getSpinnerSize = () => {
+        switch (size) {
+            case 'xs': return 'w-4 h-4';
+            case 'sm': return 'w-6 h-6';
+            case 'md': return 'w-8 h-8';
+            case 'lg': return 'w-12 h-12';
+            case 'xl': return 'w-16 h-16';
+            default: return 'w-8 h-8';
         }
     };
 
-    const { spinner: spinnerClass, text: textClass } = sizeConfig[size];
-
-    // Container variants for animation
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: { duration: 0.3 }
+    const getTextSize = () => {
+        switch (size) {
+            case 'xs': return 'text-xs';
+            case 'sm': return 'text-sm';
+            case 'md': return 'text-base';
+            case 'lg': return 'text-lg';
+            case 'xl': return 'text-xl';
+            default: return 'text-base';
         }
     };
+
+    const getContainerGap = () => {
+        switch (size) {
+            case 'xs':
+            case 'sm': return 'gap-2';
+            case 'md':
+            case 'lg':
+            case 'xl': return 'gap-3';
+            default: return 'gap-3';
+        }
+    };
+
+    const spinnerClass = getSpinnerSize();
+    const textClass = getTextSize();
+    const containerClass = getContainerGap();
 
     return (
-        <motion.div
-            className={`flex flex-col items-center justify-center ${className}`}
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-        >
-            {/* Spinner */}
-            <motion.div
-                className={`
-          ${spinnerClass}
-          border-indigo-200 
-          border-t-indigo-600 
-          rounded-full 
-          mb-3
-        `}
-                animate={{
-                    rotate: 360,
-                    scale: [1, 1.1, 1]
-                }}
-                transition={{
-                    rotate: {
-                        duration: 1,
-                        repeat: Infinity,
-                        ease: "linear"
-                    },
-                    scale: {
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: "easeInOut"
-                    }
-                }}
-            />
+        <div className={`flex flex-col items-center justify-center ${containerClass} ${className}`}>
+            <div className="relative">
+                <div className={`${spinnerClass} border-4 border-blue-200 rounded-full`}></div>
+                <div className={`${spinnerClass} border-4 border-blue-600 border-t-transparent rounded-full animate-spin absolute top-0 left-0`}></div>
 
-            {/* Loading Text */}
-            {showText && (
-                <motion.p
-                    className={`
-            ${textClass}
-            text-gray-600 
-            font-medium
-            text-center
-          `}
-                    animate={{
-                        opacity: [0.7, 1, 0.7]
-                    }}
-                    transition={{
-                        duration: 1.5,
-                        repeat: Infinity,
-                        ease: "easeInOut"
-                    }}
-                >
-                    {text}
-                </motion.p>
+                {showLogo && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-full p-1.5">
+                            <svg className="w-1/2 h-1/2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {message && (
+                <div className={`${textClass} text-gray-600 font-medium`}>
+                    {message}
+                </div>
             )}
-        </motion.div>
+        </div>
     );
 };
-
-// Additional specialized loading components
-export const PageLoader = () => (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <LoadingSpinner
-            size="large"
-            text="Preparing your experience..."
-        />
-    </div>
-);
-
-export const InlineLoader = ({ text = 'Loading...' }) => (
-    <div className="flex items-center justify-center py-4">
-        <LoadingSpinner
-            size="small"
-            text={text}
-            className="flex-row gap-3"
-        />
-    </div>
-);
-
-export const ButtonLoader = () => (
-    <div className="flex items-center justify-center">
-        <motion.div
-            className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-        />
-    </div>
-);
-
-export const CardLoader = () => (
-    <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-        <div className="flex items-center space-x-4">
-            <LoadingSpinner size="small" showText={false} />
-            <div className="flex-1">
-                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-            </div>
-        </div>
-    </div>
-);
 
 export default LoadingSpinner;

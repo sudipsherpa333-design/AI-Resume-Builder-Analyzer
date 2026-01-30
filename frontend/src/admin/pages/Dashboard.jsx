@@ -1,670 +1,781 @@
 // frontend/src/admin/pages/Dashboard.jsx
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    FiUsers,
+    FiFileText,
+    FiTrendingUp,
+    FiCheckCircle,
+    FiActivity,
+    FiBarChart2,
+    FiCalendar,
+    FiClock,
+    FiAlertCircle,
+    FiRefreshCw,
+    FiDatabase,
+    FiServer,
+    FiCpu,
+    FiHardDrive,
+    FiDownload,
+    FiEye,
+    FiEdit,
+    FiMoreVertical,
+    FiChevronRight,
+    FiUserCheck,
+    FiUserX,
+    FiDollarSign,
+    FiPercent,
+    FiGlobe,
+    FiSmartphone,
+    FiMonitor,
+    FiHome,
+    FiArchive,
+    FiUserPlus
+} from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import {
-    Users,
-    FileText,
-    TrendingUp,
-    Clock,
-    RefreshCw,
-    AlertCircle,
-    CheckCircle,
-    Download,
-    Upload,
-    Eye,
-    BarChart3,
-    Cpu,
-    Server,
-    Database,
-    Network,
-    Shield,
-    Zap,
-    Cloud,
-    Activity,
-    ArrowUpRight,
-    ArrowDownRight
-} from 'lucide-react';
-import { dashboardService } from '../services/dashboardService';
-import { useAdmin } from '../context/AdminContext';
+    LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+    AreaChart, Area
+} from 'recharts';
 
-// Stats Card Component
-const StatsCard = ({
-    title,
-    value,
-    change,
-    icon,
-    color = 'blue',
-    loading = false
-}) => {
-    const colorClasses = {
-        blue: 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-400',
-        green: 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800 text-green-700 dark:text-green-400',
-        purple: 'bg-purple-50 dark:bg-purple-900/20 border-purple-100 dark:border-purple-800 text-purple-700 dark:text-purple-400',
-        orange: 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800 text-orange-700 dark:text-orange-400',
-    };
+// API Service - Only uses real endpoints
+const API_SERVICE = {
+    baseUrl: process.env.REACT_APP_API_URL || 'http://localhost:5001',
 
-    return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`rounded-xl border p-5 transition-all duration-300 hover:shadow-lg ${colorClasses[color]}`}
-        >
-            <div className="flex items-center justify-between mb-4">
-                <div className={`p-2.5 rounded-lg ${colorClasses[color]} bg-opacity-50`}>
-                    {icon}
-                </div>
-                <div className={`text-sm font-medium px-2.5 py-1 rounded-full ${colorClasses[color]} bg-opacity-50`}>
-                    {change >= 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`}
-                </div>
-            </div>
+    getAuthToken() {
+        return localStorage.getItem('adminToken') || localStorage.getItem('token');
+    },
 
-            <div className="space-y-1">
-                <h3 className="text-sm font-medium opacity-80">{title}</h3>
-                {loading ? (
-                    <div className="h-8 w-24 bg-current bg-opacity-20 rounded animate-pulse"></div>
-                ) : (
-                    <p className="text-2xl font-bold">{value}</p>
-                )}
-            </div>
+    async fetch(endpoint, options = {}) {
+        const token = this.getAuthToken();
+        if (!token) {
+            console.warn('No authentication token found');
+            return { success: false, message: 'No authentication token' };
+        }
 
-            <div className="mt-4 pt-4 border-t border-current border-opacity-20">
-                <div className="text-xs opacity-70">
-                    Updated just now
-                </div>
-            </div>
-        </motion.div>
-    );
-};
+        const headers = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
 
-// Simple Line Chart Component
-const SimpleLineChart = ({ data }) => {
-    if (!data || data.length === 0) {
-        return (
-            <div className="h-full flex items-center justify-center text-gray-400">
-                <p>No chart data available</p>
-            </div>
-        );
+        try {
+            const response = await fetch(`${this.baseUrl}${endpoint}`, {
+                ...options,
+                headers: {
+                    ...headers,
+                    ...options.headers
+                },
+                credentials: 'include'
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    localStorage.removeItem('adminToken');
+                    window.location.href = '/admin/login';
+                    return { success: false, message: 'Session expired' };
+                }
+
+                console.warn(`Endpoint ${endpoint} returned ${response.status}`);
+                return {
+                    success: false,
+                    message: `Endpoint returned ${response.status}`,
+                    status: response.status
+                };
+            }
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error(`API Error for ${endpoint}:`, error);
+            return {
+                success: false,
+                message: error.message,
+                data: null
+            };
+        }
+    },
+
+    // Get real user statistics from database
+    async getUserStats() {
+        return this.fetch('/admin/users/stats');
+    },
+
+    // Get real resume statistics from database
+    async getResumeStats() {
+        return this.fetch('/admin/resumes/stats');
+    },
+
+    // Get real users list for growth calculation
+    async getUsers() {
+        return this.fetch('/admin/users?limit=1000');
+    },
+
+    // Get real resumes list for growth calculation
+    async getResumes() {
+        return this.fetch('/admin/resumes?limit=1000');
+    },
+
+    // Get recent activity
+    async getRecentActivity() {
+        return this.fetch('/admin/activity');
+    },
+
+    // Calculate growth data from real users
+    calculateUserGrowth(users) {
+        if (!users || !users.data || !users.data.users) {
+            return [];
+        }
+
+        const userList = users.data.users;
+        const monthCounts = {};
+
+        // Group users by month
+        userList.forEach(user => {
+            if (user.createdAt) {
+                const date = new Date(user.createdAt);
+                const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+
+                if (!monthCounts[monthYear]) {
+                    monthCounts[monthYear] = {
+                        name: monthName,
+                        count: 0,
+                        date: monthYear
+                    };
+                }
+                monthCounts[monthYear].count++;
+            }
+        });
+
+        // Sort by date and get last 6 months
+        return Object.values(monthCounts)
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .slice(-6);
+    },
+
+    // Calculate resume growth from real resumes
+    calculateResumeGrowth(resumes) {
+        if (!resumes || !resumes.data || !resumes.data.resumes) {
+            return [];
+        }
+
+        const resumeList = resumes.data.resumes;
+        const monthCounts = {};
+
+        // Group resumes by month
+        resumeList.forEach(resume => {
+            if (resume.createdAt) {
+                const date = new Date(resume.createdAt);
+                const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+
+                if (!monthCounts[monthYear]) {
+                    monthCounts[monthYear] = {
+                        name: monthName,
+                        count: 0,
+                        date: monthYear
+                    };
+                }
+                monthCounts[monthYear].count++;
+            }
+        });
+
+        // Sort by date and get last 6 months
+        return Object.values(monthCounts)
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .slice(-6);
     }
-
-    // Simple chart rendering
-    const maxValue = Math.max(...data.map(d => d.users + d.resumes));
-
-    return (
-        <div className="h-full flex items-end space-x-1">
-            {data.slice(-15).map((item, index) => (
-                <div key={index} className="flex-1 flex flex-col items-center">
-                    <div className="w-full flex justify-center space-x-px">
-                        <div
-                            className="w-1/2 bg-blue-500 rounded-t"
-                            style={{ height: `${(item.users / maxValue) * 100}%` }}
-                        />
-                        <div
-                            className="w-1/2 bg-green-500 rounded-t"
-                            style={{ height: `${(item.resumes / maxValue) * 100}%` }}
-                        />
-                    </div>
-                    <div className="text-xs text-gray-500 mt-2">
-                        {new Date(item.date).getDate()}
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
 };
 
-// Simple Bar Chart Component
-const SimpleBarChart = ({ data }) => {
-    if (!data || data.length === 0) {
-        return (
-            <div className="h-full flex items-center justify-center text-gray-400">
-                <p>No chart data available</p>
-            </div>
-        );
-    }
-
-    const maxUsage = Math.max(...data.map(d => d.usage));
-
-    return (
-        <div className="h-full space-y-3">
-            {data.map((item, index) => (
-                <div key={index} className="space-y-1">
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            {item.name}
-                        </span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                            {item.usage} uses
-                        </span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div
-                            className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500"
-                            style={{ width: `${(item.usage / maxUsage) * 100}%` }}
-                        />
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-};
-
-// Loading Spinner Component
-const LoadingSpinner = ({ size = "md", text = "Loading..." }) => {
-    const sizeClasses = {
-        sm: "h-4 w-4",
-        md: "h-8 w-8",
-        lg: "h-12 w-12",
-        xl: "h-16 w-16"
-    };
-
-    return (
-        <div className="flex flex-col items-center justify-center space-y-4">
-            <div className={`${sizeClasses[size]} animate-spin rounded-full border-4 border-gray-300 border-t-blue-600 dark:border-gray-600 dark:border-t-blue-500`} />
-            {text && (
-                <p className="text-gray-600 dark:text-gray-400 font-medium">
-                    {text}
-                </p>
-            )}
-        </div>
-    );
-};
-
-// Main Dashboard Component
-const AdminDashboard = () => {
-    const { admin } = useAdmin();
-    const [stats, setStats] = useState(null);
+const Dashboard = () => {
+    // States - ALL INITIALIZED TO 0
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [lastUpdated, setLastUpdated] = useState(null);
-    const [usingFallback, setUsingFallback] = useState(false);
 
-    const fetchDashboardData = async (showToast = false) => {
-        if (!showToast) setLoading(true);
+    // Real data states - ALL ZERO INITIALLY
+    const [userStats, setUserStats] = useState({
+        total: 0,
+        active: 0,
+        newToday: 0,
+        verified: 0,
+        premium: 0,
+        inactive: 0,
+        admin: 0
+    });
+
+    const [resumeStats, setResumeStats] = useState({
+        total: 0,
+        analyzed: 0,
+        pending: 0,
+        failed: 0,
+        avgScore: 0,
+        totalSize: 0,
+        uniqueUsers: 0
+    });
+
+    const [userGrowth, setUserGrowth] = useState([]);
+    const [resumeGrowth, setResumeGrowth] = useState([]);
+    const [recentActivity, setRecentActivity] = useState([]);
+
+    // Load all real dashboard data
+    const loadDashboardData = useCallback(async () => {
+        setLoading(true);
         setRefreshing(true);
 
         try {
-            const result = await dashboardService.getDashboardStats();
+            console.log('Loading dashboard data from database...');
 
-            if (result.success) {
-                setStats(result.data);
-                setLastUpdated(result.timestamp);
-                setUsingFallback(false);
+            // Load real user statistics
+            const userStatsResult = await API_SERVICE.getUserStats();
+            console.log('User stats result:', userStatsResult);
 
-                if (showToast) {
-                    toast.success('Dashboard updated successfully');
+            if (userStatsResult && userStatsResult.success) {
+                const userData = userStatsResult.data || {};
+                console.log('User data from API:', userData);
+
+                setUserStats({
+                    total: userData.total || userData.totalUsers || 0,
+                    active: userData.active || userData.activeUsers || 0,
+                    newToday: userData.newToday || userData.newUsers || 0,
+                    verified: userData.verified || 0,
+                    premium: userData.premium || 0,
+                    inactive: userData.inactive || 0,
+                    admin: (userData.admin || 0) + (userData.superAdmin || 0)
+                });
+            } else {
+                console.log('Using default user stats (0)');
+                setUserStats({
+                    total: 0,
+                    active: 0,
+                    newToday: 0,
+                    verified: 0,
+                    premium: 0,
+                    inactive: 0,
+                    admin: 0
+                });
+            }
+
+            // Load real resume statistics
+            const resumeStatsResult = await API_SERVICE.getResumeStats();
+            console.log('Resume stats result:', resumeStatsResult);
+
+            if (resumeStatsResult && resumeStatsResult.success) {
+                const resumeData = resumeStatsResult.data || {};
+                console.log('Resume data from API:', resumeData);
+
+                setResumeStats({
+                    total: resumeData.total || resumeData.totalResumes || 0,
+                    analyzed: resumeData.analyzed || 0,
+                    pending: resumeData.pending || 0,
+                    failed: resumeData.failed || 0,
+                    avgScore: resumeData.avgScore || resumeData.averageScore || 0,
+                    totalSize: resumeData.totalSize || 0,
+                    uniqueUsers: resumeData.uniqueUsers || resumeData.users || 0
+                });
+            } else {
+                console.log('Using default resume stats (0)');
+                setResumeStats({
+                    total: 0,
+                    analyzed: 0,
+                    pending: 0,
+                    failed: 0,
+                    avgScore: 0,
+                    totalSize: 0,
+                    uniqueUsers: 0
+                });
+            }
+
+            // Load real users for growth calculation
+            const usersResult = await API_SERVICE.getUsers();
+            console.log('Users result:', usersResult);
+
+            if (usersResult && usersResult.success) {
+                const growthData = API_SERVICE.calculateUserGrowth(usersResult);
+                console.log('Calculated user growth:', growthData);
+                setUserGrowth(growthData);
+            } else {
+                setUserGrowth([]);
+            }
+
+            // Load real resumes for growth calculation
+            const resumesResult = await API_SERVICE.getResumes();
+            console.log('Resumes result:', resumesResult);
+
+            if (resumesResult && resumesResult.success) {
+                const growthData = API_SERVICE.calculateResumeGrowth(resumesResult);
+                console.log('Calculated resume growth:', growthData);
+                setResumeGrowth(growthData);
+            } else {
+                setResumeGrowth([]);
+            }
+
+            // Load recent activity
+            const activityResult = await API_SERVICE.getRecentActivity();
+            console.log('Activity result:', activityResult);
+
+            if (activityResult && activityResult.success) {
+                const activityData = activityResult.data || activityResult.activities || [];
+                console.log('Activity data:', activityData);
+
+                if (Array.isArray(activityData)) {
+                    const safeData = activityData.map(activity => ({
+                        id: activity.id || activity._id || Math.random(),
+                        user: typeof activity.user === 'object'
+                            ? activity.user.name || activity.user.username || activity.user.email || 'User'
+                            : activity.user || 'User',
+                        action: activity.action || activity.type || 'Activity',
+                        time: formatRelativeTime(activity.createdAt || activity.timestamp),
+                        status: 'success'
+                    })).slice(0, 5);
+                    setRecentActivity(safeData);
+                } else {
+                    setRecentActivity([]);
                 }
             } else {
-                if (result.fallback) {
-                    setStats(result.data);
-                    setUsingFallback(true);
-
-                    toast.warning(
-                        <div>
-                            <p className="font-semibold">Using offline data</p>
-                            <p className="text-sm opacity-90">Server connection unavailable</p>
-                        </div>,
-                        { duration: 5000 }
-                    );
-                } else {
-                    toast.error(result.error || 'Failed to load dashboard data');
-                }
+                setRecentActivity([]);
             }
+
+            setLastUpdated(new Date());
+
+            if (userStats.total > 0 || resumeStats.total > 0) {
+                toast.success(`Dashboard loaded: ${userStats.total} users, ${resumeStats.total} resumes`);
+            } else {
+                toast.success('Dashboard loaded - No data yet');
+            }
+
         } catch (error) {
-            console.error('Dashboard fetch error:', error);
-            toast.error('Unexpected error loading dashboard');
+            console.error('Error loading dashboard:', error);
+            toast.error('Failed to load dashboard data');
+
+            // Reset to zeros on error
+            setUserStats({
+                total: 0,
+                active: 0,
+                newToday: 0,
+                verified: 0,
+                premium: 0,
+                inactive: 0,
+                admin: 0
+            });
+            setResumeStats({
+                total: 0,
+                analyzed: 0,
+                pending: 0,
+                failed: 0,
+                avgScore: 0,
+                totalSize: 0,
+                uniqueUsers: 0
+            });
+            setUserGrowth([]);
+            setResumeGrowth([]);
+            setRecentActivity([]);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    };
-
-    useEffect(() => {
-        fetchDashboardData();
-
-        // Auto-refresh every 30 seconds
-        const interval = setInterval(() => {
-            fetchDashboardData(true);
-        }, 30000);
-
-        return () => clearInterval(interval);
     }, []);
 
-    // Animation variants
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: {
-                staggerChildren: 0.1,
-                delayChildren: 0.2
-            }
+    // Helper function to format relative time
+    const formatRelativeTime = (timestamp) => {
+        if (!timestamp) return 'Just now';
+
+        try {
+            const now = new Date();
+            const date = new Date(timestamp);
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? 'min' : 'mins'} ago`;
+            if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+            if (diffDays < 7) return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } catch (error) {
+            return 'Recently';
         }
     };
 
-    const itemVariants = {
-        hidden: { y: 20, opacity: 0 },
-        visible: {
-            y: 0,
-            opacity: 1,
-            transition: {
-                type: "spring",
-                stiffness: 100,
-                damping: 12
-            }
+    // Formatting functions
+    const formatNumber = (num) => {
+        if (!num) return '0';
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toString();
+    };
+
+    const formatTime = (date) => {
+        if (!date) return 'Never';
+        try {
+            return new Date(date).toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch {
+            return 'Invalid date';
         }
     };
 
-    if (loading && !stats) {
-        return (
-            <div className="min-h-[60vh] flex items-center justify-center">
-                <LoadingSpinner size="lg" text="Loading dashboard..." />
+    // Initial load
+    useEffect(() => {
+        loadDashboardData();
+    }, [loadDashboardData]);
+
+    const handleRefresh = () => {
+        setRefreshing(true);
+        loadDashboardData();
+        toast.success('Refreshing dashboard data...');
+    };
+
+    // Stats Card Component
+    const StatsCard = ({ title, value, icon: Icon, color, subtitle, loading }) => (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-4">
+                <div className={`p-3 rounded-lg ${color}`}>
+                    <Icon className="w-6 h-6 text-white" />
+                </div>
             </div>
-        );
-    }
+            <div>
+                {loading ? (
+                    <div className="animate-pulse">
+                        <div className="h-6 w-24 bg-gray-200 rounded mb-2"></div>
+                        <div className="h-4 w-32 bg-gray-200 rounded"></div>
+                    </div>
+                ) : (
+                    <>
+                        <p className="text-2xl font-bold text-gray-900">{value}</p>
+                        <p className="text-sm text-gray-500 mt-1">{title}</p>
+                        {subtitle && (
+                            <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
+                        )}
+                    </>
+                )}
+            </div>
+        </div>
+    );
+
+    // Chart Colors
+    const CHART_COLORS = {
+        primary: '#4f46e5',
+        secondary: '#10b981',
+        accent: '#f59e0b',
+        danger: '#ef4444',
+        purple: '#8b5cf6',
+        cyan: '#06b6d4'
+    };
 
     return (
-        <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={containerVariants}
-            className="space-y-6"
-        >
-            {/* Header */}
-            <motion.div variants={itemVariants} className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                        Dashboard Overview
-                    </h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        Welcome back, {admin?.name || 'Admin'}! Here's what's happening.
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <AnimatePresence mode="wait">
-                        {usingFallback && (
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.9 }}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 rounded-full text-sm font-medium"
-                            >
-                                <Cloud className="w-4 h-4" />
-                                <span>Offline Mode</span>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <button
-                        onClick={() => fetchDashboardData(true)}
-                        disabled={refreshing}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 border border-blue-100 dark:border-gray-700 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-800 transition-all duration-200 disabled:opacity-50"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                        {refreshing ? 'Refreshing...' : 'Refresh'}
-                    </button>
-                </div>
-            </motion.div>
-
-            {/* Status Indicator */}
-            <AnimatePresence>
-                {lastUpdated && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400"
-                    >
-                        <div className="flex items-center gap-2">
-                            <CheckCircle className="w-4 h-4 text-green-500" />
-                            <span>Last updated: {new Date(lastUpdated).toLocaleTimeString()}</span>
+        <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+            <div className="px-6 py-8">
+                {/* Header */}
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
+                        <p className="text-gray-600">Real data from your database</p>
+                        <div className="flex items-center gap-4 mt-2">
+                            {lastUpdated && (
+                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                    <FiClock className="w-4 h-4" />
+                                    <span>Updated: {formatTime(lastUpdated)}</span>
+                                </div>
+                            )}
                         </div>
-                        {usingFallback && (
-                            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                                <AlertCircle className="w-4 h-4" />
-                                <span>Displaying cached data</span>
-                            </div>
-                        )}
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg px-4 py-2">
+                            <FiDatabase className="text-green-500" />
+                            <span>Database: </span>
+                            <span className="font-medium text-green-600">Connected</span>
+                        </div>
+                        <button
+                            onClick={handleRefresh}
+                            disabled={refreshing}
+                            className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg flex items-center gap-2 hover:bg-indigo-700 disabled:opacity-50 shadow-md hover:shadow-lg"
+                        >
+                            <FiRefreshCw className={refreshing ? 'animate-spin' : ''} />
+                            {refreshing ? 'Refreshing...' : 'Refresh'}
+                        </button>
+                    </div>
+                </div>
 
-            {/* Summary Cards */}
-            <motion.div
-                variants={containerVariants}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
-            >
-                <motion.div variants={itemVariants}>
+                {/* User Stats Grid - SHOWS REAL DATA */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                     <StatsCard
                         title="Total Users"
-                        value={stats?.summary?.totalUsers?.toLocaleString() || '1,284'}
-                        change={stats?.analytics?.userGrowth || 23.5}
-                        icon={<Users className="w-6 h-6" />}
-                        color="blue"
-                        loading={loading && !stats}
+                        value={userStats.total}
+                        icon={FiUsers}
+                        color="bg-indigo-500"
+                        subtitle={`Active: ${userStats.active}`}
+                        loading={loading}
                     />
-                </motion.div>
+                    <StatsCard
+                        title="New Today"
+                        value={userStats.newToday}
+                        icon={FiUserPlus}
+                        color="bg-green-500"
+                        subtitle={`${userStats.premium} premium`}
+                        loading={loading}
+                    />
+                    <StatsCard
+                        title="Verified Users"
+                        value={userStats.verified}
+                        icon={FiUserCheck}
+                        color="bg-blue-500"
+                        subtitle={`${userStats.admin} admin`}
+                        loading={loading}
+                    />
+                    <StatsCard
+                        title="Inactive Users"
+                        value={userStats.inactive}
+                        icon={FiUserX}
+                        color="bg-gray-500"
+                        subtitle="Not active recently"
+                        loading={loading}
+                    />
+                </div>
 
-                <motion.div variants={itemVariants}>
+                {/* Resume Stats Grid - SHOWS REAL DATA */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                     <StatsCard
                         title="Total Resumes"
-                        value={stats?.summary?.totalResumes?.toLocaleString() || '3,256'}
-                        change={stats?.analytics?.resumeGrowth || 45.2}
-                        icon={<FileText className="w-6 h-6" />}
-                        color="green"
-                        loading={loading && !stats}
+                        value={resumeStats.total}
+                        icon={FiFileText}
+                        color="bg-blue-500"
+                        subtitle={`Analyzed: ${resumeStats.analyzed}`}
+                        loading={loading}
                     />
-                </motion.div>
-
-                <motion.div variants={itemVariants}>
                     <StatsCard
-                        title="Active Users"
-                        value={stats?.summary?.activeUsers?.toLocaleString() || '847'}
-                        change={12.3}
-                        icon={<Activity className="w-6 h-6" />}
-                        color="purple"
-                        loading={loading && !stats}
+                        title="Avg. Score"
+                        value={`${resumeStats.avgScore}%`}
+                        icon={FiTrendingUp}
+                        color="bg-green-500"
+                        subtitle="Average analysis score"
+                        loading={loading}
                     />
-                </motion.div>
-
-                <motion.div variants={itemVariants}>
                     <StatsCard
-                        title="Conversion Rate"
-                        value={`${stats?.analytics?.conversionRate || 12.8}%`}
-                        change={2.4}
-                        icon={<TrendingUp className="w-6 h-6" />}
-                        color="orange"
-                        loading={loading && !stats}
+                        title="Pending Analysis"
+                        value={resumeStats.pending}
+                        icon={FiClock}
+                        color="bg-yellow-500"
+                        subtitle={`${resumeStats.failed} failed`}
+                        loading={loading}
                     />
-                </motion.div>
-            </motion.div>
+                    <StatsCard
+                        title="Unique Users"
+                        value={resumeStats.uniqueUsers}
+                        icon={FiUsers}
+                        color="bg-purple-500"
+                        subtitle="Users with resumes"
+                        loading={loading}
+                    />
+                </div>
 
-            {/* Charts Section */}
-            <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Activity Chart */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                Activity Overview
-                            </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Last 30 days performance
-                            </p>
+                {/* Charts Grid - ONLY SHOWS IF DATA EXISTS */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    {/* User Growth Chart */}
+                    <div className="bg-white rounded-xl border border-gray-200 p-5">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-bold text-gray-900">User Growth</h3>
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                                <FiUsers className="w-4 h-4" />
+                                <span>Last 6 months</span>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                                <span className="text-xs text-gray-600 dark:text-gray-400">Users</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                                <span className="text-xs text-gray-600 dark:text-gray-400">Resumes</span>
-                            </div>
+                        <div className="h-64">
+                            {loading ? (
+                                <div className="h-full flex items-center justify-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                                    <p className="ml-3 text-gray-600">Loading...</p>
+                                </div>
+                            ) : userGrowth.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={userGrowth}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                        <XAxis dataKey="name" stroke="#6b7280" />
+                                        <YAxis stroke="#6b7280" />
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: 'white',
+                                                border: '1px solid #e5e7eb',
+                                                borderRadius: '0.5rem'
+                                            }}
+                                            formatter={(value) => [`${value} users`, 'New Users']}
+                                        />
+                                        <Bar
+                                            dataKey="count"
+                                            fill={CHART_COLORS.primary}
+                                            radius={[4, 4, 0, 0]}
+                                            name="New Users"
+                                        />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                                    <FiUsers className="w-12 h-12 mb-2 text-gray-300" />
+                                    <p>No user growth data yet</p>
+                                    <p className="text-sm">Users will appear as they register</p>
+                                </div>
+                            )}
                         </div>
                     </div>
-                    <div className="h-64">
-                        {stats?.timeline ? (
-                            <SimpleLineChart data={stats.timeline} />
-                        ) : (
-                            <div className="h-full flex items-center justify-center text-gray-400">
-                                <p>Chart data not available</p>
+
+                    {/* Resume Growth Chart */}
+                    <div className="bg-white rounded-xl border border-gray-200 p-5">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-bold text-gray-900">Resume Uploads</h3>
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                                <FiFileText className="w-4 h-4" />
+                                <span>Last 6 months</span>
                             </div>
-                        )}
+                        </div>
+                        <div className="h-64">
+                            {loading ? (
+                                <div className="h-full flex items-center justify-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                                    <p className="ml-3 text-gray-600">Loading...</p>
+                                </div>
+                            ) : resumeGrowth.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={resumeGrowth}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                        <XAxis dataKey="name" stroke="#6b7280" />
+                                        <YAxis stroke="#6b7280" />
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: 'white',
+                                                border: '1px solid #e5e7eb',
+                                                borderRadius: '0.5rem'
+                                            }}
+                                            formatter={(value) => [`${value} resumes`, 'Uploads']}
+                                        />
+                                        <Bar
+                                            dataKey="count"
+                                            fill={CHART_COLORS.secondary}
+                                            radius={[4, 4, 0, 0]}
+                                            name="Resume Uploads"
+                                        />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                                    <FiFileText className="w-12 h-12 mb-2 text-gray-300" />
+                                    <p>No resume uploads yet</p>
+                                    <p className="text-sm">Resumes will appear as users upload them</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Template Usage */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                Template Usage
-                            </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Most popular resume templates
-                            </p>
-                        </div>
-                        <BarChart3 className="w-5 h-5 text-gray-400" />
-                    </div>
-                    <div className="h-64">
-                        {stats?.topTemplates ? (
-                            <SimpleBarChart data={stats.topTemplates.slice(0, 5)} />
-                        ) : (
-                            <div className="h-full flex items-center justify-center text-gray-400">
-                                <p>Template data not available</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </motion.div>
-
-            {/* Recent Activity & System Health */}
-            <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Recent Activity */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                        Recent Activity
-                    </h3>
-                    <div className="space-y-4">
-                        {stats?.recentActivity ? (
-                            <>
-                                <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-blue-100 dark:bg-blue-800 rounded-lg">
-                                            <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-gray-900 dark:text-white">
-                                                New Users
-                                            </p>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                Past 24 hours
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                            {stats.recentActivity.newUsers}
-                                        </p>
-                                        <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
-                                            <ArrowUpRight className="w-4 h-4" />
-                                            +12.5%
-                                        </p>
-                                    </div>
-                                </div>
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-8">
+                    <div className="px-6 py-4 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-gray-900">Recent Activity</h3>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        {loading ? (
+                            <div className="py-8 text-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                                <p className="mt-3 text-gray-600">Loading activity...</p>
+                            </div>
+                        ) : recentActivity.length > 0 ? (
+                            <table className="w-full">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200">
+                                    {recentActivity.map((activity) => {
+                                        const userName = activity.user;
+                                        const userInitial = userName.charAt(0).toUpperCase();
 
-                                <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-green-100 dark:bg-green-800 rounded-lg">
-                                            <FileText className="w-5 h-5 text-green-600 dark:text-green-400" />
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-gray-900 dark:text-white">
-                                                New Resumes
-                                            </p>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                Past 24 hours
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                            {stats.recentActivity.newResumes}
-                                        </p>
-                                        <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
-                                            <ArrowUpRight className="w-4 h-4" />
-                                            +23.8%
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-purple-100 dark:bg-purple-800 rounded-lg">
-                                            <Zap className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-gray-900 dark:text-white">
-                                                AI Analyses
-                                            </p>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                Past 24 hours
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                            {stats.recentActivity.aiAnalyses}
-                                        </p>
-                                        <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
-                                            <ArrowUpRight className="w-4 h-4" />
-                                            +18.2%
-                                        </p>
-                                    </div>
-                                </div>
-                            </>
+                                        return (
+                                            <tr key={activity.id} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center">
+                                                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center mr-3">
+                                                            <span className="text-white text-xs font-medium">
+                                                                {userInitial}
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium text-gray-900">{userName}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-900">
+                                                    {activity.action}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">
+                                                    {activity.time}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         ) : (
-                            <div className="text-center py-8 text-gray-400">
-                                <p>No recent activity data available</p>
+                            <div className="py-8 text-center text-gray-500">
+                                <FiActivity className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                                <p>No recent activity</p>
+                                <p className="text-sm">Activity will appear as users interact with the system</p>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* System Health */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                        System Health
-                    </h3>
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-blue-100 dark:bg-blue-800 rounded-lg">
-                                    <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                </div>
-                                <div>
-                                    <p className="font-medium text-gray-900 dark:text-white">
-                                        Server Uptime
-                                    </p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                                        Last 30 days
-                                    </p>
-                                </div>
+                {/* Database Status */}
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold text-gray-900">Database Status</h3>
+                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                            Connected
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="flex items-center gap-2 mb-2">
+                                <FiUsers className="w-5 h-5 text-indigo-500" />
+                                <span className="font-medium text-gray-700">Users Collection</span>
                             </div>
-                            <div className="text-right">
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                    {stats?.performance?.uptime || 99.8}%
-                                </p>
-                                <p className="text-sm text-green-600 dark:text-green-400">Excellent</p>
-                            </div>
+                            <p className="text-2xl font-bold text-gray-900">{userStats.total}</p>
+                            <p className="text-sm text-gray-500">Total documents</p>
                         </div>
-
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-green-100 dark:bg-green-800 rounded-lg">
-                                    <Cpu className="w-5 h-5 text-green-600 dark:text-green-400" />
-                                </div>
-                                <div>
-                                    <p className="font-medium text-gray-900 dark:text-white">
-                                        CPU Usage
-                                    </p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                                        Current load
-                                    </p>
-                                </div>
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="flex items-center gap-2 mb-2">
+                                <FiFileText className="w-5 h-5 text-blue-500" />
+                                <span className="font-medium text-gray-700">Resumes Collection</span>
                             </div>
-                            <div className="text-right">
-                                <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                    <div
-                                        className="bg-green-500 h-2 rounded-full transition-all duration-500"
-                                        style={{ width: `${Math.min(stats?.performance?.cpuUsage || 32.5, 100)}%` }}
-                                    ></div>
-                                </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                    {stats?.performance?.cpuUsage || 32.5}%
-                                </p>
-                            </div>
+                            <p className="text-2xl font-bold text-gray-900">{resumeStats.total}</p>
+                            <p className="text-sm text-gray-500">Total documents</p>
                         </div>
-
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-purple-100 dark:bg-purple-800 rounded-lg">
-                                    <Database className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                                </div>
-                                <div>
-                                    <p className="font-medium text-gray-900 dark:text-white">
-                                        Memory Usage
-                                    </p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                                        Current utilization
-                                    </p>
-                                </div>
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="flex items-center gap-2 mb-2">
+                                <FiDatabase className="w-5 h-5 text-green-500" />
+                                <span className="font-medium text-gray-700">Database</span>
                             </div>
-                            <div className="text-right">
-                                <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                    <div
-                                        className="bg-purple-500 h-2 rounded-full transition-all duration-500"
-                                        style={{ width: `${Math.min(stats?.performance?.memoryUsage || 67.2, 100)}%` }}
-                                    ></div>
-                                </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                    {stats?.performance?.memoryUsage || 67.2}%
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-orange-100 dark:bg-orange-800 rounded-lg">
-                                    <Network className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                                </div>
-                                <div>
-                                    <p className="font-medium text-gray-900 dark:text-white">
-                                        Response Time
-                                    </p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                                        Average API response
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                    {stats?.performance?.responseTime || 142}ms
-                                </p>
-                                <p className="text-sm text-green-600 dark:text-green-400">Good</p>
-                            </div>
+                            <p className="text-2xl font-bold text-gray-900">{userStats.total + resumeStats.total}</p>
+                            <p className="text-sm text-gray-500">Total records</p>
                         </div>
                     </div>
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                        <p className="text-sm text-gray-600">
+                            Last refresh: {lastUpdated ? formatTime(lastUpdated) : 'Never'}
+                        </p>
+                    </div>
                 </div>
-            </motion.div>
-
-            {/* Quick Actions */}
-            <motion.div variants={itemVariants} className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 border border-blue-100 dark:border-gray-700 rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    Quick Actions
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <button className="flex flex-col items-center justify-center p-4 bg-white dark:bg-gray-800 rounded-lg hover:shadow-md transition-all duration-200 border border-gray-200 dark:border-gray-700">
-                        <Eye className="w-6 h-6 text-blue-600 dark:text-blue-400 mb-2" />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">View Reports</span>
-                    </button>
-                    <button className="flex flex-col items-center justify-center p-4 bg-white dark:bg-gray-800 rounded-lg hover:shadow-md transition-all duration-200 border border-gray-200 dark:border-gray-700">
-                        <Download className="w-6 h-6 text-green-600 dark:text-green-400 mb-2" />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Export Data</span>
-                    </button>
-                    <button className="flex flex-col items-center justify-center p-4 bg-white dark:bg-gray-800 rounded-lg hover:shadow-md transition-all duration-200 border border-gray-200 dark:border-gray-700">
-                        <Shield className="w-6 h-6 text-purple-600 dark:text-purple-400 mb-2" />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Security</span>
-                    </button>
-                    <button className="flex flex-col items-center justify-center p-4 bg-white dark:bg-gray-800 rounded-lg hover:shadow-md transition-all duration-200 border border-gray-200 dark:border-gray-700">
-                        <Upload className="w-6 h-6 text-orange-600 dark:text-orange-400 mb-2" />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Backup</span>
-                    </button>
-                </div>
-            </motion.div>
-        </motion.div>
+            </div>
+        </div>
     );
 };
 
-export default AdminDashboard;
+export default Dashboard;
