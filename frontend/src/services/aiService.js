@@ -160,6 +160,182 @@ export const aiService = {
         return this.enhanceSection(section, content, targetRole);
     },
 
+    // Generate ghost text suggestions (for inline AI)
+    async generateGhostText(text, section) {
+        try {
+            if (USE_MOCK_AI) {
+                const suggestions = {
+                    summary: ' with expertise in building scalable applications and leading high-performing teams.',
+                    experience: '\n• Delivered projects on time and under budget\n• Improved team productivity by 25%',
+                    skills: ', Cloud Architecture, DevOps, CI/CD',
+                };
+                return suggestions[section] || '';
+            }
+
+            const response = await apiClient.post('/api/ai/generate-ghost-text', { text, section });
+            return response.data.ghostText || '';
+        } catch (error) {
+            console.error('Ghost text generation failed:', error);
+            return '';
+        }
+    },
+
+    // Generate full resume from job description
+    async generateFullResumeFromJD(jobDescription, targetRole = '', currentResume = {}) {
+        try {
+            if (USE_MOCK_AI) {
+                return {
+                    summary: `Dedicated ${targetRole || 'professional'} with proven expertise matching job requirements.`,
+                    experience: [],
+                    skills: ['JavaScript', 'React', 'Node.js', 'AWS', 'TypeScript', 'Docker'],
+                    keywords: jobDescription.match(/\b[a-z]+\b/gi)?.slice(0, 10) || []
+                };
+            }
+
+            const response = await apiClient.post('/api/ai/generate-full-resume-jd', {
+                jobDescription,
+                targetRole,
+                currentResume
+            });
+            return response.data || {};
+        } catch (error) {
+            console.error('Full resume generation failed:', error);
+            return {};
+        }
+    },
+
+    // Enhance full resume
+    async aiEnhanceFullResume(resumeData, context = {}) {
+        try {
+            if (USE_MOCK_AI) {
+                return {
+                    ...resumeData,
+                    summary: resumeData.summary + ' (AI-enhanced)',
+                    skills: resumeData.skills || []
+                };
+            }
+
+            const response = await apiClient.post('/api/ai/enhance-full-resume', {
+                resumeData,
+                context
+            });
+            return response.data || resumeData;
+        } catch (error) {
+            console.error('Full resume enhancement failed:', error);
+            return resumeData;
+        }
+    },
+
+    // Get section suggestions
+    async getSectionSuggestions(section, currentContent, targetRole = '', jobDescription = '') {
+        try {
+            if (USE_MOCK_AI) {
+                const suggestions = {
+                    summary: ['Add quantifiable achievements', 'Include years of experience', 'Mention key technical skills'],
+                    experience: ['Use action verbs', 'Add metrics and results', 'Quantify impact'],
+                    skills: ['Add technical proficiencies', 'Include soft skills', 'Prioritize by relevance'],
+                };
+                return suggestions[section] || [];
+            }
+
+            const response = await apiClient.post('/api/ai/section-suggestions', {
+                section,
+                currentContent,
+                targetRole,
+                jobDescription
+            });
+            return response.data.suggestions || [];
+        } catch (error) {
+            console.error('Section suggestions failed:', error);
+            return [];
+        }
+    },
+
+    // MAGIC RESUME - Generate complete resume from job description
+    async magicResume(jobDescription, targetRole = '') {
+        try {
+            if (USE_MOCK_AI) {
+                console.log('🔮 [MOCK] Generating magic resume from JD...');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                return {
+                    success: true,
+                    summary: `Results-driven ${targetRole || 'professional'} with extensive experience in software development, team leadership, and cutting-edge technologies. Proven track record of delivering scalable solutions that improve efficiency by 40%+ and drive revenue growth.`,
+                    experience: [
+                        {
+                            company: 'Tech Solutions Inc',
+                            position: 'Senior Software Engineer',
+                            startDate: '01/2021',
+                            endDate: 'Present',
+                            current: true,
+                            description: 'Led development of microservices architecture',
+                            achievements: [
+                                'Architected and implemented React/Node.js microservices reducing load times by 35%',
+                                'Led team of 5 engineers, mentoring junior developers and establishing best practices',
+                                'Deployed 50+ features to production with zero critical bugs using CI/CD pipelines',
+                                'Optimized database queries, improving API response time from 500ms to 120ms'
+                            ]
+                        },
+                        {
+                            company: 'Digital Innovations',
+                            position: 'Full Stack Developer',
+                            startDate: '06/2018',
+                            endDate: '12/2020',
+                            current: false,
+                            description: 'Developed full-stack web applications',
+                            achievements: [
+                                'Built 15+ production applications serving 100K+ users using React and Node.js',
+                                'Reduced page load time by 45% through code splitting and lazy loading strategies',
+                                'Implemented automated testing, achieving 85% code coverage'
+                            ]
+                        }
+                    ],
+                    skills: [
+                        { name: 'JavaScript', level: 'Expert', category: 'Technical' },
+                        { name: 'React', level: 'Expert', category: 'Technical' },
+                        { name: 'Node.js', level: 'Expert', category: 'Technical' },
+                        { name: 'TypeScript', level: 'Advanced', category: 'Technical' },
+                        { name: 'AWS', level: 'Advanced', category: 'Tools' },
+                        { name: 'Docker', level: 'Advanced', category: 'Tools' },
+                        { name: 'MongoDB', level: 'Advanced', category: 'Technical' },
+                        { name: 'Team Leadership', level: 'Advanced', category: 'Soft Skills' }
+                    ],
+                    atsScore: 92,
+                    keywords: this.extractKeywords(jobDescription),
+                    confidence: 0.92
+                };
+            }
+
+            const response = await apiClient.post('/api/ai/magic-resume', {
+                jobDescription,
+                targetRole
+            });
+
+            return {
+                success: true,
+                ...response.data
+            };
+        } catch (error) {
+            console.error('Magic resume generation failed:', error);
+            // Return mock data on failure
+            return {
+                success: false,
+                error: error.message,
+                fallback: true
+            };
+        }
+    },
+
+    // Extract keywords from job description
+    extractKeywords(text = '') {
+        if (!text) return [];
+        const keywords = [
+            'JavaScript', 'React', 'Node.js', 'TypeScript', 'Python', 'Java', 'AWS', 'Docker',
+            'MongoDB', 'PostgreSQL', 'REST API', 'GraphQL', 'Git', 'Agile', 'CI/CD'
+        ];
+        return keywords.filter(k => text.toLowerCase().includes(k.toLowerCase()));
+    },
+
     // Check backend health
     async checkBackendHealth() {
         try {

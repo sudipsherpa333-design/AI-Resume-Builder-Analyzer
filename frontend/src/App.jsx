@@ -98,7 +98,7 @@ function lazyWithRetry(componentImport, fallbackText = "Component") {
 
 // ================= PAGE IMPORTS =================
 // Public Pages
-const Home = lazyWithRetry(() => import("./pages/public/Home"), "Home");
+const Home = lazyWithRetry(() => import("./pages/Home"), "Home");
 const About = lazyWithRetry(() => import("./pages/public/About"), "About");
 const Contact = lazyWithRetry(() => import("./pages/public/Contact"), "Contact");
 const PrivacyPolicy = lazyWithRetry(() => import("./pages/public/PrivacyPolicy"), "Privacy Policy");
@@ -119,6 +119,7 @@ const ResumeDetail = lazyWithRetry(() => import("./pages/dashboard/ResumeDetail"
 
 // Builder Pages - UPDATED: Remove EntryScreen import, it's inside Builder
 const BuilderHome = lazyWithRetry(() => import("./pages/builder/BuilderHome"), "Builder Home");
+const BuilderSelect = lazyWithRetry(() => import("./pages/BuilderSelect"), "Builder Select");
 const Builder = lazyWithRetry(() => import("./pages/builder/Builder"), "Resume Builder");
 const ImportResume = lazyWithRetry(() => import("./pages/builder/ImportResume"), "Import Resume");
 const Templates = lazyWithRetry(() => import("./pages/builder/TemplateSelect"), "Templates");
@@ -419,7 +420,9 @@ function AppContent() {
 
                     {/* Builder Routes */}
                     <Route element={<ProtectedRoute><BuilderLayout /></ProtectedRoute>}>
-                        <Route path="/builder" element={<BuilderHome />} />
+                        <Route path="/builder/select" element={<BuilderSelect />} />
+                        <Route path="/builder" element={<Builder />} />
+                        <Route path="/builder/home" element={<BuilderHome />} />
                         <Route path="/builder/import" element={<ImportResume />} />
                         <Route path="/builder/templates" element={<Templates />} />
                         <Route path="/builder/new" element={<Builder />} />
