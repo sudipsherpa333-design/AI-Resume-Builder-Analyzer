@@ -1019,10 +1019,62 @@ const Builder = () => {
     // AI-enhanced save handler
     const saveMutation = useMutation({
         mutationFn: async (data) => {
-            if (resumeId === 'new' || data._id?.startsWith('ai_temp_')) {
-                return await createResume(data);
-            } else {
-                return await updateResume(data._id, data);
+            try {
+                if (resumeId === 'new' || data._id?.startsWith('ai_temp_')) {
+                    // Create new resume
+                    const newResume = await createResume({
+                        title: data.title || 'AI-Generated Resume',
+                        template: data.template || 'modern-pro',
+                        data: {
+                            personalInfo: data.personalInfo || {},
+                            summary: data.summary || '',
+                            experience: data.experience || [],
+                            education: data.education || [],
+                            skills: data.skills || [],
+                            projects: data.projects || [],
+                            certifications: data.certifications || [],
+                            languages: data.languages || [],
+                            references: data.references || []
+                        },
+                        settings: data.settings || {},
+                        status: data.status || 'draft',
+                        targetRole: data.targetRole || '',
+                        jobDescription: data.jobDescription || '',
+                        keywords: data.keywords || [],
+                        aiMetadata: data.aiMetadata || {},
+                        aiEnhancements: data.aiEnhancements || {}
+                    });
+                    return newResume;
+                } else {
+                    // Update existing resume
+                    const updatedResume = await updateResume(data._id, {
+                        title: data.title,
+                        template: data.template,
+                        data: {
+                            personalInfo: data.personalInfo || {},
+                            summary: data.summary || '',
+                            experience: data.experience || [],
+                            education: data.education || [],
+                            skills: data.skills || [],
+                            projects: data.projects || [],
+                            certifications: data.certifications || [],
+                            languages: data.languages || [],
+                            references: data.references || []
+                        },
+                        settings: data.settings || {},
+                        status: data.status || 'draft',
+                        targetRole: data.targetRole || '',
+                        jobDescription: data.jobDescription || '',
+                        keywords: data.keywords || [],
+                        aiMetadata: data.aiMetadata || {},
+                        aiEnhancements: data.aiEnhancements || {},
+                        version: data.version
+                    });
+                    return updatedResume;
+                }
+            } catch (error) {
+                console.error('Save mutation error:', error);
+                throw error;
             }
         },
         onSuccess: (savedData) => {
