@@ -155,6 +155,11 @@ export const aiService = {
         }
     },
 
+    // Alias for backward compatibility - some code uses aiEnhanceSection
+    async aiEnhanceSection(section, content, targetRole = '') {
+        return this.enhanceSection(section, content, targetRole);
+    },
+
     // Check backend health
     async checkBackendHealth() {
         try {
