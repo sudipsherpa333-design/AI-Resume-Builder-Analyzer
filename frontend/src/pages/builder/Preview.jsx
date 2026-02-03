@@ -1,7 +1,7 @@
-// src/pages/Preview.jsx - FIXED VERSION (with correct imports)
+// src/pages/Preview.jsx - UPDATED VERSION
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion'; // FIXED: Added AnimatePresence
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import {
     ArrowLeft,
@@ -41,6 +41,7 @@ import {
     X
 } from 'lucide-react';
 
+// FIXED: Import useResume instead of useResumes
 import { useResume } from '../../context/ResumeContext';
 import Navbar from '../../components/Navbar';
 
@@ -52,7 +53,7 @@ const Preview = () => {
         loadResume,
         isLoading,
         cloudStatus
-    } = useResume();
+    } = useResume(); // Now using useResume hook
 
     const [template, setTemplate] = useState('modern');
     const [showSettings, setShowSettings] = useState(false);
@@ -229,7 +230,7 @@ const Preview = () => {
     }
 
     // Get resume data
-    const { personalInfo, summary, experience, education, skills, projects, certifications, languages, references } = currentResume;
+    const { personalInfo, summary, experience, education, skills, projects, certifications, languages } = currentResume;
 
     // Format date
     const formatDate = (dateString) => {
@@ -285,7 +286,7 @@ const Preview = () => {
                                 </button>
 
                                 <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                    <div className={`w-3 h-3 rounded-full ${cloudStatus?.isConnected ? 'bg-green-500' : 'bg-amber-500'}`}></div>
                                     <span className="text-sm text-gray-600">
                                         {cloudStatus?.isConnected ? 'Synced to cloud' : 'Local only'}
                                     </span>
@@ -458,13 +459,13 @@ const Preview = () => {
                         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
                             <div className="flex-1">
                                 <h1 className="text-4xl font-bold mb-2" style={{ color: currentTemplate.text }}>
-                                    {personalInfo?.firstName} {personalInfo?.lastName}
+                                    {personalInfo?.fullName || `${personalInfo?.firstName || ''} ${personalInfo?.lastName || ''}`.trim() || 'Your Name'}
                                 </h1>
                                 <div className="text-2xl font-semibold mb-4" style={{ color: currentTemplate.primary }}>
-                                    {personalInfo?.jobTitle || 'Professional'}
+                                    {personalInfo?.jobTitle || currentResume?.title || 'Professional'}
                                 </div>
                                 <p className="text-gray-600 text-lg max-w-2xl">
-                                    {summary || 'Results-driven professional with extensive experience.'}
+                                    {summary || currentResume?.personalInfo?.summary || 'Results-driven professional with extensive experience.'}
                                 </p>
                             </div>
 
@@ -516,7 +517,7 @@ const Preview = () => {
                                                 <div key={index} className="border-l-4 pl-4" style={{ borderColor: currentTemplate.primary }}>
                                                     <div className="flex justify-between items-start mb-2">
                                                         <div>
-                                                            <h3 className="text-xl font-semibold">{exp.jobTitle}</h3>
+                                                            <h3 className="text-xl font-semibold">{exp.jobTitle || exp.title}</h3>
                                                             <div className="text-gray-700 font-medium">{exp.company}</div>
                                                         </div>
                                                         <div className="text-gray-600">
@@ -613,7 +614,7 @@ const Preview = () => {
                                                     key={index}
                                                     className="px-3 py-2 bg-gray-100 text-gray-800 rounded-lg text-sm font-medium"
                                                 >
-                                                    {skill}
+                                                    {typeof skill === 'object' ? skill.name : skill}
                                                 </span>
                                             ))}
                                         </div>
@@ -632,7 +633,7 @@ const Preview = () => {
                                                 <div key={index} className="flex items-start gap-3">
                                                     <Award className="w-5 h-5 text-gray-500 mt-1" />
                                                     <div>
-                                                        <div className="font-medium">{cert.name}</div>
+                                                        <div className="font-medium">{cert.name || cert}</div>
                                                         {cert.issuer && (
                                                             <div className="text-sm text-gray-600">{cert.issuer}</div>
                                                         )}
@@ -656,8 +657,10 @@ const Preview = () => {
                                         <div className="space-y-3">
                                             {languages.map((lang, index) => (
                                                 <div key={index} className="flex justify-between items-center">
-                                                    <span className="font-medium">{lang.language || lang}</span>
-                                                    <span className="text-gray-600 text-sm">{lang.proficiency || 'Fluent'}</span>
+                                                    <span className="font-medium">{typeof lang === 'object' ? lang.language : lang}</span>
+                                                    <span className="text-gray-600 text-sm">
+                                                        {typeof lang === 'object' ? lang.proficiency : 'Fluent'}
+                                                    </span>
                                                 </div>
                                             ))}
                                         </div>

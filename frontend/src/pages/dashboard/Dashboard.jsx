@@ -1,557 +1,869 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { useQuery } from '@tanstack/react-query';
+// src/pages/dashboard/Dashboard.jsx - COMPLETELY UPDATED VERSION
+import React, { useState, useCallback, useMemo, useDeferredValue, Suspense, lazy, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Import the unified API service - FIXED IMPORT
+import apiService from '../../services/api';
+
+// Context - FIXED: Changed from useResume to useResumes
+import { useAuth } from '../../context/AuthContext';
+import { useResumes } from '../../context/ResumeContext';
+
+// Icons
 import {
-    Users,
-    FileText,
-    CheckCircle,
-    Clock,
-    Edit,
-    TrendingUp,
-    Download,
-    Eye,
-    Star,
-    Search,
     Plus,
-    Filter,
-    RefreshCw,
+    Sparkle,
+    FileText,
+    Download,
+    Loader2,
     AlertCircle,
+    Clock,
+    Zap,
+    RefreshCw,
+    FilePlus,
     BarChart3,
-    Award,
-    Target,
-    Zap
+    Moon,
+    Sun,
+    TrendingUp,
+    TrendingDown,
+    Star,
+    AlertTriangle,
+    CheckCircle,
+    HardDrive,
+    Activity,
+    Wifi,
+    WifiOff,
+    Search,
+    BarChart,
+    DownloadCloud,
+    Info,
+    Edit,
+    Trash2,
+    LayoutDashboard,
+    Settings
 } from 'lucide-react';
 
-// Context
-import { useAuth } from '../../context/AuthContext';
-import { useResumes } from '../../context/ResumeContext'; // ✅ Changed to useResumes
+// Lazy load components
+const DashboardSkeleton = lazy(() => import('../../components/dashboard/DashboardSkeleton'));
+const DeleteConfirmationModal = lazy(() => import('../../components/dashboard/DeleteConfirmationModal'));
+const RecentResumesGrid = lazy(() => import('../../components/dashboard/RecentResumesGrid'));
+const ResumeFilters = lazy(() => import('../../components/dashboard/ResumeFilters'));
+const StatsCards = lazy(() => import('../../components/dashboard/StatsCards'));
+const ATSInsightsPanel = lazy(() => import('../../components/dashboard/ATSInsightsPanel'));
+const Navbar = lazy(() => import('../../components/Navbar'));
 
-// Services
-import apiService from '../../services/api'; // ✅ Fixed import
-// OR: import { dashboardService } from '../../services/api';
+// ==================== CUSTOM HOOKS ====================
 
-// Components
-import Navbar from '../../components/Navbar';
-import QuickActions from '../../components/dashboard/QuickActions';
-import ResumeCard from '../../components/dashboard/ResumeCard';
-import StatsCard from '../../components/dashboard/StatsCard';
-import ActivityFeed from '../../components/dashboard/ActivityFeed';
-import ATSMeter from '../../components/dashboard/ATSMeter';
-import RecentResumes from '../../components/dashboard/RecentResumes';
-import StorageUsage from '../../components/dashboard/StorageUsage';
-import EmptyState from '../../components/dashboard/EmptyState';
-import LoadingSpinner from '../../components/ui/LoadingSpinner';
+const useDashboardStats = (userId) => {
+    return useQuery({
+        queryKey: ['dashboardStats', userId],
+        queryFn: async () => {
+            if (!userId) throw new Error('User ID required');
+            try {
+                // FIX: Use correct API service - use apiService.dashboard.getDashboardStats
+                const stats = await apiService.dashboard.getDashboardStats(userId);
+                return {
+                    totalResumes: stats.totalResumes || 0,
+                    completedResumes: stats.completedResumes || 0,
+                    inProgressResumes: stats.inProgressResumes || 0,
+                    draftResumes: stats.draftResumes || 0,
+                    averageAtsScore: stats.averageAtsScore || 0,
+                    onlineUsers: stats.onlineUsers || 1,
+                    activeSessions: stats.activeSessions || 0,
+                    storageUsed: stats.storageUsed || '0 MB',
+                    storageLimit: stats.storageLimit || '500 MB',
+                    lastSynced: new Date().toISOString(),
+                    recentActivity: stats.recentActivity || [],
+                    totalViews: stats.totalViews || 0,
+                    totalDownloads: stats.totalDownloads || 0,
+                    highScoreResumes: stats.highScoreResumes || 0,
+                    needsImprovementResumes: stats.needsImprovementResumes || 0,
+                    completionRate: stats.completionRate || 0
+                };
+            } catch (error) {
+                console.error('Failed to fetch dashboard stats from DB:', error);
+                // Return fallback data
+                return {
+                    totalResumes: 0,
+                    completedResumes: 0,
+                    inProgressResumes: 0,
+                    draftResumes: 0,
+                    averageAtsScore: 0,
+                    onlineUsers: 1,
+                    activeSessions: 1,
+                    storageUsed: '0 MB',
+                    storageLimit: '500 MB',
+                    lastSynced: new Date().toISOString(),
+                    recentActivity: [],
+                    totalViews: 0,
+                    totalDownloads: 0,
+                    highScoreResumes: 0,
+                    needsImprovementResumes: 0,
+                    completionRate: 0
+                };
+            }
+        },
+        enabled: !!userId,
+        staleTime: 2 * 60 * 1000,
+        gcTime: 10 * 60 * 1000,
+        retry: 1
+    });
+};
+
+const useUserResumes = (userId) => {
+    return useQuery({
+        queryKey: ['userResumes', userId],
+        queryFn: async () => {
+            if (!userId) throw new Error('User ID required');
+            try {
+                // FIX: Use correct API service - use apiService.resume.getUserResumes
+                const resumes = await apiService.resume.getUserResumes(userId);
+
+                // Handle different response formats
+                let resumesData = [];
+                if (Array.isArray(resumes)) {
+                    resumesData = resumes;
+                } else if (resumes?.data && Array.isArray(resumes.data)) {
+                    resumesData = resumes.data;
+                } else if (resumes?.resumes && Array.isArray(resumes.resumes)) {
+                    resumesData = resumes.resumes;
+                } else {
+                    // If it's already an object with resumes data, use it directly
+                    resumesData = resumes || [];
+                }
+
+                console.log('Fetched resumes data:', resumesData); // Debug log
+
+                if (!Array.isArray(resumesData)) {
+                    return []; // Return empty array if not an array
+                }
+
+                return resumesData.map(resume => ({
+                    _id: resume._id || resume.id,
+                    id: resume._id || resume.id,
+                    title: resume.title || 'Untitled Resume',
+                    template: resume.template || 'modern',
+                    status: resume.status || 'draft',
+                    isPrimary: resume.isPrimary || false,
+                    isStarred: resume.isStarred || false,
+                    analysis: resume.analysis || {
+                        atsScore: resume.atsScore || 0,
+                        completeness: resume.completeness || 0,
+                        suggestions: resume.suggestions || []
+                    },
+                    personalInfo: resume.personalInfo || {
+                        fullName: resume.personalInfo?.fullName || resume.fullName || '',
+                        email: resume.personalInfo?.email || resume.email || '',
+                        phone: resume.personalInfo?.phone || resume.phone || ''
+                    },
+                    updatedAt: resume.updatedAt || resume.lastUpdated || new Date().toISOString(),
+                    createdAt: resume.createdAt || new Date().toISOString(),
+                    tags: Array.isArray(resume.tags) ? resume.tags : [],
+                    views: resume.views || 0,
+                    downloads: resume.downloads || 0,
+                    userId: resume.userId || userId
+                }));
+            } catch (error) {
+                console.error('Failed to fetch resumes from DB:', error);
+                return []; // Return empty array on error
+            }
+        },
+        enabled: !!userId,
+        staleTime: 3 * 60 * 1000,
+        gcTime: 15 * 60 * 1000,
+        retry: 1
+    });
+};
+
+// ==================== UTILITY FUNCTIONS ====================
+
+const filterAndSortResumes = (resumes, searchQuery, filters) => {
+    const query = searchQuery.toLowerCase().trim();
+    let filtered = [...resumes];
+
+    if (query) {
+        filtered = filtered.filter(resume => {
+            const titleMatch = resume.title?.toLowerCase().includes(query);
+            const nameMatch = resume.personalInfo?.fullName?.toLowerCase().includes(query);
+            return titleMatch || nameMatch;
+        });
+    }
+
+    if (filters.status !== 'all') {
+        filtered = filtered.filter(resume => {
+            if (filters.status === 'completed') return resume.status === 'completed';
+            if (filters.status === 'draft') return resume.status === 'draft';
+            if (filters.status === 'starred') return resume.isStarred;
+            if (filters.status === 'primary') return resume.isPrimary;
+            if (filters.status === 'ats-high') return resume.analysis?.atsScore >= 80;
+            if (filters.status === 'ats-low') return resume.analysis?.atsScore < 60;
+            return resume.status === filters.status;
+        });
+    }
+
+    filtered.sort((a, b) => {
+        const aDate = new Date(a.updatedAt || a.createdAt);
+        const bDate = new Date(b.updatedAt || b.createdAt);
+
+        switch (filters.sortBy) {
+            case 'updatedAt':
+                return filters.sortOrder === 'desc' ? bDate.getTime() - aDate.getTime() : aDate.getTime() - bDate.getTime();
+            case 'atsScore':
+                return filters.sortOrder === 'desc' ? (b.analysis?.atsScore || 0) - (a.analysis?.atsScore || 0) : (a.analysis?.atsScore || 0) - (b.analysis?.atsScore || 0);
+            case 'title':
+                return filters.sortOrder === 'desc' ? b.title?.localeCompare(a.title || '') : a.title?.localeCompare(b.title || '');
+            default:
+                return 0;
+        }
+    });
+
+    return filtered;
+};
+
+const calculateEnhancedStats = (dashboardStats, rawResumes, selectedResumes) => {
+    const totalResumes = rawResumes.length;
+    const completedResumes = rawResumes.filter(r => r.status === 'completed').length;
+    const draftResumes = rawResumes.filter(r => r.status === 'draft').length;
+
+    const atsScores = rawResumes.filter(r => r.analysis?.atsScore).map(r => r.analysis.atsScore);
+    const averageAtsScore = atsScores.length > 0 ? Math.round(atsScores.reduce((a, b) => a + b, 0) / atsScores.length) : 0;
+
+    const highScoreResumes = rawResumes.filter(r => r.analysis?.atsScore >= 80).length;
+    const needsImprovementResumes = rawResumes.filter(r => r.analysis?.atsScore < 60).length;
+
+    const totalViews = rawResumes.reduce((sum, r) => sum + (r.views || 0), 0);
+    const totalDownloads = rawResumes.reduce((sum, r) => sum + (r.downloads || 0), 0);
+
+    const storageUsedMB = parseFloat(dashboardStats.storageUsed?.replace(' MB', '') || 0);
+    const storageLimitMB = parseFloat(dashboardStats.storageLimit?.replace(' MB', '') || 500);
+
+    return {
+        ...dashboardStats,
+        totalResumes,
+        completedResumes,
+        draftResumes,
+        averageAtsScore,
+        highScoreResumes,
+        needsImprovementResumes,
+        totalViews,
+        totalDownloads,
+        selectedCount: selectedResumes.length,
+        storageUsedPercentage: storageLimitMB > 0 ? (storageUsedMB / storageLimitMB) * 100 : 0,
+        hasResumes: totalResumes > 0,
+        completionRate: totalResumes > 0 ? Math.round((completedResumes / totalResumes) * 100) : 0
+    };
+};
+
+// ATS Score Card Component
+const ATSMetricCard = ({ title, value, icon: Icon, color, description, darkMode, onClick }) => {
+    return (
+        <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onClick}
+            className={`p-4 rounded-xl border cursor-pointer transition-all ${darkMode
+                ? 'bg-gray-800/50 border-gray-700 hover:border-blue-500 hover:bg-gray-800'
+                : 'bg-white border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                }`}
+        >
+            <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        <Icon className={`w-5 h-5 ${color}`} />
+                    </div>
+                    <div>
+                        <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {title}
+                        </h3>
+                        <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {description}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div className="mb-1">
+                <div className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {value}
+                </div>
+            </div>
+        </motion.div>
+    );
+};
+
+// ==================== MAIN COMPONENT ====================
 
 const Dashboard = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const { user } = useAuth();
-    const { resumes: contextResumes, loading: contextLoading, refreshResumes } = useResumes(); // ✅ Changed to useResumes
+
+    // FIXED: Changed from useResume to useResumes
+    const { refreshResumes } = useResumes();
 
     // State
-    const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [stats, setStats] = useState(null);
-    const [loadingStats, setLoadingStats] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filter, setFilter] = useState('all');
-    const [sortBy, setSortBy] = useState('updatedAt');
+    const [searchQuery, setSearchQuery] = useState('');
+    const deferredSearchQuery = useDeferredValue(searchQuery);
+    const [filters, setFilters] = useState({
+        status: 'all',
+        sortBy: 'updatedAt',
+        sortOrder: 'desc',
+        template: 'all'
+    });
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [resumeToDelete, setResumeToDelete] = useState(null);
+    const [selectedResumes, setSelectedResumes] = useState([]);
+    const [darkMode, setDarkMode] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
-    // Fetch dashboard stats using React Query
+    // Apply dark mode class to document
+    useEffect(() => {
+        if (darkMode) {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+        }
+    }, [darkMode]);
+
+    // Check for stored theme preference
+    useEffect(() => {
+        const storedTheme = localStorage.getItem('theme');
+        if (storedTheme === 'dark') {
+            setDarkMode(true);
+        }
+    }, []);
+
+    // Queries using unified API service - FIXED endpoints
     const {
-        data: queryStats,
-        isLoading: queryStatsLoading,
-        error: queryStatsError,
+        data: dashboardStatsData,
+        isLoading: isStatsLoading,
         refetch: refetchStats
-    } = useQuery({
-        queryKey: ['dashboardStats', user?.id],
-        queryFn: async () => {
-            if (!user?.id) {
-                return null;
-            }
+    } = useDashboardStats(user?._id || user?.id);
 
-            try {
-                // ✅ FIXED: Use apiService.dashboard.getDashboardStats
-                const statsData = await apiService.dashboard.getDashboardStats(user.id);
-                return statsData;
-            } catch (error) {
-                console.error('Failed to fetch dashboard stats:', error);
-                // Return default stats on error
-                return getDefaultStats();
+    const {
+        data: rawResumes = [],
+        isLoading: isResumesLoading,
+        refetch: refetchResumes
+    } = useUserResumes(user?._id || user?.id);
+
+    // Derived Data
+    const filteredResumes = useMemo(() =>
+        filterAndSortResumes(rawResumes, deferredSearchQuery, filters),
+        [rawResumes, deferredSearchQuery, filters]
+    );
+
+    const enhancedStats = useMemo(() =>
+        calculateEnhancedStats(dashboardStatsData || {}, rawResumes, selectedResumes),
+        [dashboardStatsData, rawResumes, selectedResumes]
+    );
+
+    // ATS Metrics Cards
+    const atsMetrics = [
+        {
+            title: 'Overall Score',
+            value: `${enhancedStats.averageAtsScore}%`,
+            icon: BarChart,
+            color: enhancedStats.averageAtsScore >= 80 ? 'text-green-600' :
+                enhancedStats.averageAtsScore >= 60 ? 'text-blue-600' :
+                    'text-amber-600',
+            description: 'Average ATS compatibility',
+            onClick: () => navigate('/analyzer')
+        },
+        {
+            title: 'High Scores',
+            value: enhancedStats.highScoreResumes,
+            icon: Star,
+            color: 'text-green-600',
+            description: 'Resumes with 80+ ATS score',
+            onClick: () => setFilters(prev => ({ ...prev, status: 'ats-high' }))
+        },
+        {
+            title: 'Need Improvement',
+            value: enhancedStats.needsImprovementResumes,
+            icon: AlertTriangle,
+            color: 'text-red-600',
+            description: 'Resumes below 60 ATS score',
+            onClick: () => setFilters(prev => ({ ...prev, status: 'ats-low' }))
+        },
+        {
+            title: 'Completion Rate',
+            value: `${enhancedStats.completionRate}%`,
+            icon: CheckCircle,
+            color: enhancedStats.completionRate >= 80 ? 'text-green-600' :
+                enhancedStats.completionRate >= 60 ? 'text-blue-600' :
+                    'text-amber-600',
+            description: 'Complete resumes',
+            onClick: () => setFilters(prev => ({ ...prev, status: 'completed' }))
+        }
+    ];
+
+    // Create resume mutation - FIXED: Use apiService.resume.createResume
+    const createMutation = useMutation({
+        mutationFn: (resumeData) => apiService.resume.createResume(resumeData),
+        onMutate: () => {
+            toast.loading('Creating resume...', { id: 'create-resume' });
+        },
+        onSuccess: (createdResume) => {
+            toast.success('Resume created successfully!', { id: 'create-resume', icon: '📄' });
+
+            // Get the resume ID from response
+            const resumeId = createdResume._id || createdResume.id || createdResume.data?._id;
+
+            if (resumeId && !resumeId.startsWith('temp_')) {
+                // Navigate immediately with real ID
+                navigate(`/builder/edit/${resumeId}`);
+            } else {
+                console.error('Invalid resume ID returned from create:', createdResume);
+                toast.error('Failed to get valid resume ID from server');
             }
         },
-        enabled: !!user?.id,
-        staleTime: 5 * 60 * 1000, // 5 minutes
-        gcTime: 10 * 60 * 1000, // 10 minutes
-        retry: 2,
-        retryDelay: 1000
+        onError: (err) => {
+            toast.error('Failed to create resume: ' + (err.message || 'Please try again'), { id: 'create-resume' });
+            console.error('Create resume error:', err);
+        },
+        onSettled: () => {
+            // Invalidate queries to refetch from server
+            queryClient.invalidateQueries({ queryKey: ['userResumes', user?._id || user?.id] });
+            queryClient.invalidateQueries({ queryKey: ['dashboardStats', user?._id || user?.id] });
+        },
     });
 
-    // Update local stats when query returns data
-    useEffect(() => {
-        if (queryStats) {
-            setStats(queryStats);
-            setLoadingStats(false);
-        } else if (queryStatsError) {
-            setStats(getDefaultStats());
-            setLoadingStats(false);
+    // Delete resume mutation - FIXED: Use apiService.resume.deleteResume
+    const deleteMutation = useMutation({
+        mutationFn: (resumeId) => apiService.resume.deleteResume(resumeId),
+        onSuccess: () => {
+            toast.success('Resume deleted successfully');
+            setSelectedResumes(prev => prev.filter(id => id !== resumeToDelete?._id));
+        },
+        onError: (err) => toast.error('Failed to delete resume: ' + (err.message || 'Please try again')),
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['userResumes', user?._id || user?.id] });
+            queryClient.invalidateQueries({ queryKey: ['dashboardStats', user?._id || user?.id] });
+        },
+    });
+
+    // Export resume mutation - FIXED: Use apiService.resume.exportResume
+    const exportMutation = useMutation({
+        mutationFn: ({ resumeId, format }) => apiService.resume.exportResume(resumeId, format),
+        onMutate: ({ resumeId }) => toast.loading('Exporting...', { id: `export-${resumeId}` }),
+        onSuccess: (data, { resumeId, format }) => {
+            toast.success(`Exported as ${format.toUpperCase()}!`, { id: `export-${resumeId}` });
+            // Note: exportResume should handle the download internally
+            // No need to create download link here
+        },
+        onError: (err, { resumeId }) => toast.error('Export failed: ' + (err.message || 'Please try again'), { id: `export-${resumeId}` }),
+    });
+
+    // Event Handlers
+    const handleCreateResume = useCallback(() => {
+        if (!user?._id && !user?.id) {
+            toast.error('User not authenticated');
+            return;
         }
-    }, [queryStats, queryStatsError]);
 
-    // Fetch local stats as fallback
-    useEffect(() => {
-        const fetchLocalStats = async () => {
-            try {
-                // Calculate stats from local resumes if API fails
-                const completed = contextResumes.filter(r => r.status === 'completed').length;
-                const inProgress = contextResumes.filter(r => r.status === 'in-progress').length;
-                const drafts = contextResumes.filter(r => r.status === 'draft').length;
-                const avgScore = contextResumes.length > 0
-                    ? Math.round(contextResumes.reduce((sum, r) => sum + (r.analysis?.atsScore || 0), 0) / contextResumes.length)
-                    : 0;
-                const highScore = contextResumes.filter(r => (r.analysis?.atsScore || 0) >= 80).length;
-                const needsImprovement = contextResumes.filter(r => (r.analysis?.atsScore || 0) < 60).length;
-                const totalViews = contextResumes.reduce((sum, r) => sum + (r.views || 0), 0);
-                const totalDownloads = contextResumes.reduce((sum, r) => sum + (r.downloads || 0), 0);
-
-                setStats(prev => ({
-                    ...prev,
-                    totalResumes: contextResumes.length,
-                    completedResumes: completed,
-                    inProgressResumes: inProgress,
-                    draftResumes: drafts,
-                    averageAtsScore: avgScore,
-                    totalViews: totalViews,
-                    totalDownloads: totalDownloads,
-                    highScoreResumes: highScore,
-                    needsImprovementResumes: needsImprovement,
-                    completionRate: contextResumes.length > 0
-                        ? Math.round((completed / contextResumes.length) * 100)
-                        : 0
-                }));
-                setLoadingStats(false);
-            } catch (error) {
-                console.error('Error calculating local stats:', error);
-                setStats(getDefaultStats());
-                setLoadingStats(false);
-            }
+        const newResumeData = {
+            title: `${user?.name?.split(' ')[0] || 'My'}'s Resume`,
+            template: 'modern',
+            personalInfo: {
+                fullName: user?.name || '',
+                email: user?.email || ''
+            },
+            status: 'draft',
+            isPrimary: rawResumes.length === 0,
+            userId: user._id || user.id
         };
+        createMutation.mutate(newResumeData);
+    }, [user, createMutation, rawResumes.length]);
 
-        if (!stats && contextResumes.length > 0) {
-            fetchLocalStats();
+    const handleDeleteResume = useCallback((resume) => {
+        setResumeToDelete(resume);
+        setIsDeleteModalOpen(true);
+    }, []);
+
+    const confirmDeleteResume = useCallback(() => {
+        if (!resumeToDelete?._id) return;
+        deleteMutation.mutate(resumeToDelete._id);
+        setIsDeleteModalOpen(false);
+        setResumeToDelete(null);
+    }, [resumeToDelete, deleteMutation]);
+
+    const handleExportResume = useCallback((resumeId, format = 'pdf') => {
+        exportMutation.mutate({ resumeId, format });
+    }, [exportMutation]);
+
+    const handleRefresh = useCallback(() => {
+        setIsSyncing(true);
+        Promise.all([
+            refetchStats(),
+            refetchResumes(),
+            refreshResumes && refreshResumes()
+        ])
+            .then(() => {
+                toast.success('Dashboard refreshed!');
+            })
+            .catch((error) => {
+                console.error('Refresh error:', error);
+                toast.error('Refresh failed: ' + (error.message || 'Please try again'));
+            })
+            .finally(() => {
+                setIsSyncing(false);
+            });
+    }, [refetchStats, refetchResumes, refreshResumes]);
+
+    const handleSelectResume = useCallback((resumeId) => {
+        setSelectedResumes(prev => prev.includes(resumeId) ? prev.filter(id => id !== resumeId) : [...prev, resumeId]);
+    }, []);
+
+    const handleBulkExport = useCallback(async (format = 'pdf') => {
+        if (selectedResumes.length === 0) {
+            toast.error('No resumes selected');
+            return;
         }
-    }, [contextResumes, stats]);
-
-    // Default stats function
-    const getDefaultStats = () => {
-        return {
-            totalResumes: 0,
-            completedResumes: 0,
-            inProgressResumes: 0,
-            draftResumes: 0,
-            averageAtsScore: 0,
-            onlineUsers: 1,
-            activeSessions: 1,
-            storageUsed: '0 MB',
-            storageLimit: '500 MB',
-            lastSynced: new Date().toISOString(),
-            recentActivity: [],
-            totalViews: 0,
-            totalDownloads: 0,
-            highScoreResumes: 0,
-            needsImprovementResumes: 0,
-            completionRate: 0
-        };
-    };
-
-    // Filter and sort resumes
-    const filteredResumes = useMemo(() => {
-        let filtered = [...contextResumes];
-
-        // Apply search filter
-        if (searchTerm) {
-            filtered = filtered.filter(resume =>
-                resume.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                resume.personalInfo?.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (resume.tags && resume.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
-            );
-        }
-
-        // Apply status filter
-        if (filter !== 'all') {
-            filtered = filtered.filter(resume => resume.status === filter);
-        }
-
-        // Apply sorting
-        filtered.sort((a, b) => {
-            switch (sortBy) {
-                case 'updatedAt':
-                    return new Date(b.updatedAt) - new Date(a.updatedAt);
-                case 'createdAt':
-                    return new Date(b.createdAt) - new Date(a.createdAt);
-                case 'title':
-                    return a.title.localeCompare(b.title);
-                case 'atsScore':
-                    return (b.analysis?.atsScore || 0) - (a.analysis?.atsScore || 0);
-                default:
-                    return 0;
-            }
-        });
-
-        return filtered;
-    }, [contextResumes, searchTerm, filter, sortBy]);
-
-    // Handle refresh
-    const handleRefresh = async () => {
+        toast.loading(`Exporting ${selectedResumes.length} resumes...`, { id: 'bulk-export' });
         try {
-            await Promise.all([
-                refetchStats(),
-                refreshResumes()
-            ]);
-            toast.success('Dashboard refreshed');
+            // For bulk export, we'll handle each individually for now
+            const promises = selectedResumes.map(resumeId =>
+                apiService.resume.exportResume(resumeId, format)
+            );
+            const results = await Promise.all(promises);
+            toast.success(`Exported ${selectedResumes.length} resumes!`, { id: 'bulk-export' });
         } catch (error) {
-            toast.error('Failed to refresh');
+            toast.error('Bulk export failed: ' + (error.message || 'Please try again'), { id: 'bulk-export' });
         }
-    };
+    }, [selectedResumes]);
 
-    // Handle create new resume
-    const handleCreateResume = () => {
-        navigate('/builder/new');
-    };
+    // Navigation
+    const navMenuItems = [
+        { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, active: true },
+        { label: 'Builder', href: '/builder', icon: FilePlus },
+        { label: 'Templates', href: '/templates', icon: FileText },
+        { label: 'Analyzer', href: '/analyzer', icon: BarChart3 },
+        { label: 'Settings', href: '/settings', icon: Settings }
+    ];
 
-    // Handle resume click
-    const handleResumeClick = (resumeId) => {
-        navigate(`/builder/edit/${resumeId}`);
-    };
-
-    // Handle analyze resume
-    const handleAnalyzeResume = (resumeId) => {
-        navigate(`/analyzer/results/${resumeId}`);
-    };
-
-    // Loading state
-    if (contextLoading || loadingStats) {
+    // Loading & Error States
+    if (isResumesLoading || isStatsLoading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-                <Navbar />
-                <div className="pt-16">
-                    <LoadingSpinner
-                        message="Loading your dashboard..."
-                        size="lg"
-                    />
-                </div>
-            </div>
+            <Suspense fallback={<div className="min-h-screen bg-gray-50 dark:bg-gray-900" />}>
+                <DashboardSkeleton darkMode={darkMode} />
+            </Suspense>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-            <Navbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+        <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-gray-100' : 'bg-gradient-to-b from-gray-50 to-blue-50/30'}`}>
+            {/* Navbar */}
+            <Suspense fallback={<div className="h-16 border-b dark:border-gray-700" />}>
+                <Navbar
+                    user={user}
+                    menuItems={navMenuItems}
+                    onSearch={setSearchQuery}
+                    searchQuery={searchQuery}
+                    darkMode={darkMode}
+                    onToggleDarkMode={() => setDarkMode(!darkMode)}
+                />
+            </Suspense>
 
-            <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-
-            <div className={`transition-all duration-200 ${sidebarOpen ? 'ml-64' : 'ml-0'} pt-16`}>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                    {/* Header */}
-                    <div className="mb-8">
+            {/* Main Content */}
+            <main className="pt-20 pb-8">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    {/* Header Section */}
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-8"
+                    >
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex-1">
+                                {/* Welcome & Stats Row */}
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h1 className={`text-2xl md:text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-1`}>
+                                            Welcome back,{' '}
+                                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+                                                {user?.name?.split(' ')[0] || 'User'}
+                                            </span>
+                                        </h1>
+                                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                            {enhancedStats.hasResumes
+                                                ? `You have ${enhancedStats.totalResumes} resume${enhancedStats.totalResumes !== 1 ? 's' : ''} • ${enhancedStats.averageAtsScore}% avg ATS score`
+                                                : 'Create your first professional resume to get started'
+                                            }
+                                        </p>
+                                    </div>
+                                    <div className="hidden md:flex items-center gap-3">
+                                        <button
+                                            onClick={handleRefresh}
+                                            disabled={isSyncing}
+                                            className={`p-2 rounded-lg transition-colors ${darkMode
+                                                ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-800 disabled:opacity-50'
+                                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 disabled:opacity-50'
+                                                }`}
+                                        >
+                                            {isSyncing ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <RefreshCw className="w-4 h-4" />
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Date & Create Button Row */}
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className={`flex items-center gap-2 text-sm ${darkMode ? 'text-gray-500' : 'text-gray-600'}`}>
+                                            <Clock className="w-4 h-4" />
+                                            {new Date().toLocaleDateString('en-US', {
+                                                weekday: 'long',
+                                                month: 'long',
+                                                day: 'numeric'
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handleCreateResume}
+                                            disabled={createMutation.isPending}
+                                            className="hidden md:flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium transition-all duration-200 hover:shadow-lg hover:shadow-blue-500/20 disabled:opacity-50 group"
+                                        >
+                                            {createMutation.isPending ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
+                                            )}
+                                            <span>New Resume</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+
+                    {/* Selection Bar */}
+                    {selectedResumes.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`mb-6 p-4 rounded-xl border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100'}`}
+                        >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg ${darkMode ? 'bg-blue-900/30' : 'bg-blue-100'}`}>
+                                        <FileText className="w-4 h-4 text-blue-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                            {selectedResumes.length} resume{selectedResumes.length !== 1 ? 's' : ''} selected
+                                        </h3>
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        onClick={() => handleBulkExport('pdf')}
+                                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        Export All
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedResumes([])}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${darkMode
+                                            ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                                            }`}
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* ATS Metrics Grid */}
+                    <div className="mb-8">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                ATS Performance Overview
+                            </h2>
+                            <button
+                                onClick={() => navigate('/analyzer')}
+                                className="px-3 py-1.5 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center gap-2"
+                            >
+                                <BarChart3 className="w-4 h-4" />
+                                Full Analysis
+                            </button>
+                        </div>
+
+                        {/* ATS Metrics Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                            {atsMetrics.map((metric, index) => (
+                                <ATSMetricCard
+                                    key={index}
+                                    title={metric.title}
+                                    value={metric.value}
+                                    icon={metric.icon}
+                                    color={metric.color}
+                                    description={metric.description}
+                                    darkMode={darkMode}
+                                    onClick={metric.onClick}
+                                />
+                            ))}
+                        </div>
+
+                        {/* Stats Cards */}
+                        <Suspense fallback={<div className="grid grid-cols-2 md:grid-cols-4 gap-4 h-32" />}>
+                            <StatsCards
+                                stats={enhancedStats}
+                                loading={isStatsLoading}
+                                darkMode={darkMode}
+                                onStatClick={(statKey) => {
+                                    if (statKey === 'totalResumes') document.getElementById('resumes-section')?.scrollIntoView({ behavior: 'smooth' });
+                                }}
+                            />
+                        </Suspense>
+                    </div>
+
+                    {/* Mobile Create Button */}
+                    <div className="mb-6 md:hidden">
+                        <button
+                            onClick={handleCreateResume}
+                            disabled={createMutation.isPending}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium transition-all duration-200 hover:shadow-lg hover:shadow-blue-500/20 disabled:opacity-50"
+                        >
+                            {createMutation.isPending ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Plus className="w-4 h-4" />
+                            )}
+                            <span>Create New Resume</span>
+                        </button>
+                    </div>
+
+                    {/* Resume Section */}
+                    <div id="resumes-section" className="mb-8">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
                             <div>
-                                <h1 className="text-3xl font-bold text-gray-900">
-                                    Welcome back, {user?.name?.split(' ')[0] || 'User'}!
-                                </h1>
-                                <p className="text-gray-600 mt-2">
-                                    Here's what's happening with your resumes today.
+                                <h2 className={`text-xl font-semibold mb-1 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    <FileText className="w-5 h-5 text-blue-600" />
+                                    Your Resumes
+                                    {enhancedStats.totalResumes > 0 && (
+                                        <span className={`text-sm font-normal ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                                            ({enhancedStats.totalResumes})
+                                        </span>
+                                    )}
+                                </h2>
+                                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {filteredResumes.length} of {rawResumes.length} shown
+                                    {searchQuery && ` • Searching: "${searchQuery}"`}
                                 </p>
                             </div>
 
-                            <div className="flex flex-wrap gap-3">
-                                <button
-                                    onClick={handleRefresh}
-                                    className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-gray-700"
-                                >
-                                    <RefreshCw className="w-4 h-4" />
-                                    Refresh
-                                </button>
-
-                                <button
-                                    onClick={handleCreateResume}
-                                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:shadow-md flex items-center gap-2"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    New Resume
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Search and Filter */}
-                        <div className="mt-6 flex flex-col md:flex-row gap-4">
-                            <div className="flex-1">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search resumes by title, name, or tags..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                            {/* Search and Filters */}
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <Suspense fallback={<div className={`w-64 h-10 rounded-lg animate-pulse ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />}>
+                                    <ResumeFilters
+                                        searchQuery={searchQuery}
+                                        onSearch={setSearchQuery}
+                                        filters={filters}
+                                        onFilterChange={setFilters}
+                                        totalResumes={rawResumes.length}
+                                        filteredResumesCount={filteredResumes.length}
+                                        onClearFilters={() => {
+                                            setSearchQuery('');
+                                            setFilters({ status: 'all', sortBy: 'updatedAt', sortOrder: 'desc' });
+                                        }}
+                                        darkMode={darkMode}
                                     />
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3">
-                                <select
-                                    value={filter}
-                                    onChange={(e) => setFilter(e.target.value)}
-                                    className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                                >
-                                    <option value="all">All Status</option>
-                                    <option value="completed">Completed</option>
-                                    <option value="in-progress">In Progress</option>
-                                    <option value="draft">Draft</option>
-                                </select>
-
-                                <select
-                                    value={sortBy}
-                                    onChange={(e) => setSortBy(e.target.value)}
-                                    className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                                >
-                                    <option value="updatedAt">Last Updated</option>
-                                    <option value="createdAt">Date Created</option>
-                                    <option value="title">Title (A-Z)</option>
-                                    <option value="atsScore">ATS Score</option>
-                                </select>
+                                </Suspense>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                        <StatsCard
-                            title="Total Resumes"
-                            value={stats?.totalResumes || 0}
-                            icon={FileText}
-                            color="from-blue-500 to-cyan-500"
-                            trend={stats?.totalResumes > 0 ? 'positive' : 'neutral'}
-                        />
-
-                        <StatsCard
-                            title="Completed"
-                            value={stats?.completedResumes || 0}
-                            icon={CheckCircle}
-                            color="from-green-500 to-emerald-500"
-                            trend="positive"
-                        />
-
-                        <StatsCard
-                            title="In Progress"
-                            value={stats?.inProgressResumes || 0}
-                            icon={Clock}
-                            color="from-amber-500 to-orange-500"
-                            trend="neutral"
-                        />
-
-                        <StatsCard
-                            title="Average ATS Score"
-                            value={`${stats?.averageAtsScore || 0}%`}
-                            icon={TrendingUp}
-                            color="from-purple-500 to-pink-500"
-                            trend={stats?.averageAtsScore > 70 ? 'positive' : stats?.averageAtsScore > 50 ? 'neutral' : 'negative'}
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Left Column - Main Content */}
-                        <div className="lg:col-span-2 space-y-8">
-                            {/* Quick Actions */}
-                            <QuickActions
+                        {/* Recent Resumes Grid */}
+                        <Suspense fallback={<div className={`rounded-xl shadow-sm border p-6 h-96 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`} />}>
+                            <RecentResumesGrid
+                                resumes={filteredResumes}
+                                searchQuery={deferredSearchQuery}
+                                filters={filters}
+                                selectedResumes={selectedResumes}
+                                onEdit={(resume) => navigate(`/builder/edit/${resume._id || resume.id}`)}
+                                onView={(resumeId) => navigate(`/preview/${resumeId}`)}
+                                onDelete={handleDeleteResume}
+                                onExport={handleExportResume}
+                                onSelect={handleSelectResume}
                                 onCreateResume={handleCreateResume}
-                                onAnalyzeAll={() => navigate('/analyzer')}
-                                onViewTemplates={() => navigate('/builder/templates')}
-                                onExportAll={() => toast.info('Export all feature coming soon')}
+                                isCreating={createMutation.isPending}
+                                isLoading={isResumesLoading}
+                                isEmpty={filteredResumes.length === 0}
+                                hasSelection={selectedResumes.length > 0}
+                                darkMode={darkMode}
                             />
+                        </Suspense>
+                    </div>
 
-                            {/* Resumes List */}
-                            <div className="bg-white rounded-xl shadow-md p-6">
-                                <div className="flex items-center justify-between mb-6">
-                                    <div>
-                                        <h2 className="text-xl font-bold text-gray-900">
-                                            Your Resumes ({filteredResumes.length})
-                                        </h2>
-                                        <p className="text-gray-600 text-sm mt-1">
-                                            {searchTerm ? `Search results for "${searchTerm}"` : 'All your resumes'}
-                                        </p>
-                                    </div>
-
-                                    <div className="text-sm text-gray-500">
-                                        Showing {filteredResumes.length} of {contextResumes.length}
-                                    </div>
+                    {/* Storage Usage */}
+                    {enhancedStats.storageUsed && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`rounded-xl shadow-sm border p-5 mb-8 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className={`font-semibold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    <HardDrive className="w-4 h-4 text-gray-500" />
+                                    Storage Usage
+                                </h3>
+                                <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {enhancedStats.storageUsed} / {enhancedStats.storageLimit}
+                                </span>
+                            </div>
+                            <div className="mb-3">
+                                <div className="flex justify-between text-xs mb-1">
+                                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Usage</span>
+                                    <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                                        {Math.round(enhancedStats.storageUsedPercentage)}%
+                                    </span>
                                 </div>
-
-                                {filteredResumes.length === 0 ? (
-                                    <EmptyState
-                                        title={searchTerm ? "No matching resumes" : "No resumes yet"}
-                                        message={searchTerm ? "Try a different search term" : "Create your first resume to get started"}
-                                        icon={searchTerm ? Search : FileText}
-                                        actionText="Create Resume"
-                                        onAction={handleCreateResume}
+                                <div className={`w-full rounded-full h-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                    <div
+                                        className={`h-2 rounded-full transition-all duration-300 ${enhancedStats.storageUsedPercentage > 80
+                                            ? 'bg-gradient-to-r from-red-500 to-pink-500'
+                                            : enhancedStats.storageUsedPercentage > 60
+                                                ? 'bg-gradient-to-r from-amber-500 to-orange-500'
+                                                : 'bg-gradient-to-r from-green-500 to-emerald-500'
+                                            }`}
+                                        style={{ width: `${Math.min(100, enhancedStats.storageUsedPercentage)}%` }}
                                     />
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {filteredResumes.slice(0, 6).map((resume) => (
-                                            <ResumeCard
-                                                key={resume._id || resume.id}
-                                                resume={resume}
-                                                onClick={() => handleResumeClick(resume._id || resume.id)}
-                                                onAnalyze={() => handleAnalyzeResume(resume._id || resume.id)}
-                                                onEdit={() => handleResumeClick(resume._id || resume.id)}
-                                                onStar={() => toast.info('Star feature coming soon')}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-
-                                {filteredResumes.length > 6 && (
-                                    <div className="mt-6 text-center">
-                                        <Link
-                                            to="/resumes"
-                                            className="inline-flex items-center gap-2 px-4 py-2 text-blue-600 hover:text-blue-800 font-medium"
-                                        >
-                                            View all {filteredResumes.length} resumes
-                                            <span>→</span>
-                                        </Link>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* ATS Meter */}
-                            <ATSMeter
-                                score={stats?.averageAtsScore || 0}
-                                highScore={stats?.highScoreResumes || 0}
-                                needsImprovement={stats?.needsImprovementResumes || 0}
-                                onImprove={() => navigate('/analyzer/ats')}
-                            />
-                        </div>
-
-                        {/* Right Column - Sidebar */}
-                        <div className="space-y-8">
-                            {/* Recent Activity */}
-                            <ActivityFeed
-                                activities={stats?.recentActivity || []}
-                                loading={false}
-                                onViewAll={() => navigate('/dashboard/activity')}
-                            />
-
-                            {/* Recent Resumes */}
-                            <RecentResumes
-                                resumes={contextResumes.slice(0, 3)}
-                                onResumeClick={handleResumeClick}
-                            />
-
-                            {/* Storage Usage */}
-                            <StorageUsage
-                                used={stats?.storageUsed || '0 MB'}
-                                limit={stats?.storageLimit || '500 MB'}
-                                onUpgrade={() => toast.info('Upgrade feature coming soon')}
-                            />
-
-                            {/* Completion Progress */}
-                            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl shadow-md p-6 border border-blue-100">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="p-2 bg-blue-100 rounded-lg">
-                                        <Target className="w-5 h-5 text-blue-600" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-semibold text-gray-900">Completion Progress</h3>
-                                        <p className="text-sm text-gray-600">Overall resume completion</p>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <div>
-                                        <div className="flex justify-between text-sm mb-1">
-                                            <span className="text-gray-700">Completion Rate</span>
-                                            <span className="font-semibold text-gray-900">{stats?.completionRate || 0}%</span>
-                                        </div>
-                                        <div className="h-2 bg-blue-100 rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-500"
-                                                style={{ width: `${stats?.completionRate || 0}%` }}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4 pt-3">
-                                        <div className="text-center p-3 bg-white rounded-lg border border-blue-100">
-                                            <div className="text-2xl font-bold text-blue-600">{stats?.totalViews || 0}</div>
-                                            <div className="text-xs text-gray-600 mt-1">Total Views</div>
-                                        </div>
-                                        <div className="text-center p-3 bg-white rounded-lg border border-blue-100">
-                                            <div className="text-2xl font-bold text-cyan-600">{stats?.totalDownloads || 0}</div>
-                                            <div className="text-xs text-gray-600 mt-1">Downloads</div>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
+                        </motion.div>
+                    )}
 
-                            {/* Quick Tips */}
-                            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl shadow-md p-6 border border-amber-100">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="p-2 bg-amber-100 rounded-lg">
-                                        <Zap className="w-5 h-5 text-amber-600" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-semibold text-gray-900">Quick Tips</h3>
-                                        <p className="text-sm text-gray-600">Improve your resumes</p>
-                                    </div>
-                                </div>
-
-                                <ul className="space-y-3">
-                                    <li className="flex items-start gap-2 text-sm">
-                                        <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                                        <span>Complete all required sections for better ATS scores</span>
-                                    </li>
-                                    <li className="flex items-start gap-2 text-sm">
-                                        <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                                        <span>Use action verbs and quantify achievements</span>
-                                    </li>
-                                    <li className="flex items-start gap-2 text-sm">
-                                        <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                                        <span>Run ATS analysis before applying to jobs</span>
-                                    </li>
-                                    <li className="flex items-start gap-2 text-sm">
-                                        <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                                        <span>Export as PDF for best compatibility</span>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
+                    {/* Delete Confirmation Modal */}
+                    <Suspense fallback={null}>
+                        <AnimatePresence>
+                            {isDeleteModalOpen && resumeToDelete && (
+                                <DeleteConfirmationModal
+                                    isOpen={isDeleteModalOpen}
+                                    onClose={() => {
+                                        setIsDeleteModalOpen(false);
+                                        setResumeToDelete(null);
+                                    }}
+                                    onConfirm={confirmDeleteResume}
+                                    isLoading={deleteMutation.isPending}
+                                    resumeTitle={resumeToDelete.title}
+                                    darkMode={darkMode}
+                                />
+                            )}
+                        </AnimatePresence>
+                    </Suspense>
                 </div>
-            </div>
-
-            {/* Footer */}
-            <div className="mt-8 border-t border-gray-200">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <div className="flex flex-col md:flex-row justify-between items-center text-sm text-gray-500">
-                        <div className="mb-4 md:mb-0">
-                            <p>Last synced: {stats?.lastSynced ? new Date(stats.lastSynced).toLocaleString() : 'Never'}</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <span className="flex items-center gap-1">
-                                <div className={`w-2 h-2 rounded-full ${stats?.onlineUsers > 0 ? 'bg-green-500' : 'bg-gray-400'}`} />
-                                <span>{stats?.onlineUsers || 0} online</span>
-                            </span>
-                            <button
-                                onClick={handleRefresh}
-                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                            >
-                                <RefreshCw className="w-3 h-3" />
-                                <span>Sync Now</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            </main>
         </div>
     );
 };

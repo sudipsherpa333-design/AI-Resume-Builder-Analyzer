@@ -1,7 +1,6 @@
-// backend/src/app.js - FIXED VERSION (No export conflicts)
+// backend/src/app.js - FIXED VERSION (No duplicate declarations)
 import dotenv from 'dotenv';
 dotenv.config();
-
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -24,6 +23,9 @@ import winstonDailyRotateFile from 'winston-daily-rotate-file';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
+import aiRoutes from './routes/aiRoutes.js';
+import server from './server.js';
+server.startServer().catch(console.error);
 
 // Get current directory
 const __filename = fileURLToPath(import.meta.url);
@@ -32,7 +34,7 @@ const __dirname = path.dirname(__filename);
 // ======================
 // CONFIGURATION
 // ======================
-const PORT = parseInt(process.env.PORT) || 5001;
+const PORT = parseInt(process.env.PORT) || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -91,17 +93,14 @@ const corsOptions = {
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-
         // Allow all origins in development
         if (NODE_ENV === 'development') {
             return callback(null, true);
         }
-
         // In production, check against allowed origins
         const allowedOrigins = process.env.CORS_ORIGIN
             ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
             : [FRONTEND_URL];
-
         if (allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
@@ -184,6 +183,7 @@ const helmetConfig = {
     crossOriginResourcePolicy: { policy: "cross-origin" },
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 };
+
 if (NODE_ENV === 'production') {
     app.use(helmet(helmetConfig));
 } else {
@@ -256,7 +256,6 @@ app.use('/api', (req, res, next) => {
     }
     return apiLimiter(req, res, next);
 });
-
 app.use('/admin', adminLimiter);
 app.use('/api/admin', adminLimiter);
 
@@ -300,6 +299,7 @@ app.use(compression({
 app.use(mongoSanitize({
     replaceWith: '_',
 }));
+
 app.use(hpp());
 
 // ======================
@@ -344,11 +344,9 @@ app.use((req, res, next) => {
 const connectAppDB = async () => {
     try {
         logger.info('🔗 Connecting to MongoDB...');
-
         if (!process.env.MONGODB_URI) {
             throw new Error('MONGODB_URI not found in environment variables');
         }
-
         const options = {
             maxPoolSize: parseInt(process.env.MONGODB_MAX_POOL_SIZE) || 50,
             minPoolSize: parseInt(process.env.MONGODB_MIN_POOL_SIZE) || 5,
@@ -357,9 +355,7 @@ const connectAppDB = async () => {
             retryWrites: true,
             w: 'majority',
         };
-
         await mongoose.connect(process.env.MONGODB_URI, options);
-
         logger.info('✅ MongoDB Connected Successfully', {
             database: mongoose.connection.name,
             host: mongoose.connection.host,
@@ -380,7 +376,6 @@ const connectAppDB = async () => {
         });
 
         return mongoose.connection;
-
     } catch (error) {
         logger.error('❌ MongoDB Connection Failed:', error);
         throw error;
@@ -443,7 +438,6 @@ userSchema.pre('save', async function (next) {
     if (!this.isModified('password') || (this.isOAuth && !this.password)) {
         return next();
     }
-
     try {
         const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_SALT_ROUNDS) || 12);
         this.password = await bcrypt.hash(this.password, salt);
@@ -469,7 +463,6 @@ const User = mongoose.models.User || mongoose.model('User', userSchema);
 const authenticateUser = async (req, res, next) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
-
         if (!token) {
             return res.status(401).json({
                 success: false,
@@ -511,7 +504,6 @@ const authenticateUser = async (req, res, next) => {
 const authenticateAdmin = async (req, res, next) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
-
         if (!token) {
             return res.status(401).json({
                 success: false,
@@ -529,7 +521,6 @@ const authenticateAdmin = async (req, res, next) => {
         }
 
         const user = await User.findById(decoded.userId).select('-password');
-
         if (!user) {
             return res.status(401).json({
                 success: false,
@@ -585,7 +576,6 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 // ======================
 // CORE ROUTES
 // ======================
-
 // Health check
 app.get('/health', (req, res) => {
     const dbStatus = mongoose.connection?.readyState === 1 ? 'connected' : 'disconnected';
@@ -642,7 +632,6 @@ app.get('/', (req, res) => {
 // ======================
 // USER AUTHENTICATION ROUTES
 // ======================
-
 // User registration
 app.post('/api/auth/register', async (req, res) => {
     const { name, email, password } = req.body;
@@ -685,7 +674,6 @@ app.post('/api/auth/register', async (req, res) => {
             password,
             isActive: true
         });
-
         await user.save();
 
         // Generate JWT token
@@ -714,10 +702,8 @@ app.post('/api/auth/register', async (req, res) => {
             },
             requestId
         });
-
     } catch (error) {
         logger.error('❌ Registration error:', { error: error.message, requestId });
-
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
@@ -725,7 +711,6 @@ app.post('/api/auth/register', async (req, res) => {
                 requestId
             });
         }
-
         res.status(500).json({
             success: false,
             error: NODE_ENV === 'production' ? 'Registration failed' : error.message,
@@ -753,7 +738,6 @@ app.post('/api/auth/login', async (req, res) => {
 
         // Find user with password
         const user = await User.findOne({ email }).select('+password');
-
         if (!user) {
             return res.status(401).json({
                 success: false,
@@ -812,10 +796,8 @@ app.post('/api/auth/login', async (req, res) => {
             },
             requestId
         });
-
     } catch (error) {
         logger.error('❌ Login error:', { error: error.message, requestId });
-
         res.status(500).json({
             success: false,
             error: NODE_ENV === 'production' ? 'Login failed' : error.message,
@@ -828,7 +810,6 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/auth/me', authenticateUser, (req, res) => {
     const userResponse = req.user.toObject();
     delete userResponse.password;
-
     res.json({
         success: true,
         data: userResponse,
@@ -848,7 +829,6 @@ app.post('/api/auth/logout', authenticateUser, (req, res) => {
 // ======================
 // GOOGLE OAUTH ROUTES
 // ======================
-
 // Google OAuth redirect
 app.get('/api/auth/google', (req, res) => {
     if (!googleClient) {
@@ -921,7 +901,6 @@ app.get('/api/auth/google/callback', async (req, res) => {
                 isActive: true,
                 lastLogin: new Date()
             });
-
             await user.save();
             logger.info(`✅ New Google user created: ${email}`, { requestId });
         } else {
@@ -929,11 +908,9 @@ app.get('/api/auth/google/callback', async (req, res) => {
             user.googleId = googleId;
             user.isOAuth = true;
             user.lastLogin = new Date();
-
             if (!user.avatar && picture) {
                 user.avatar = picture;
             }
-
             await user.save();
             logger.info(`✅ Existing user updated with Google: ${email}`, { requestId });
         }
@@ -958,7 +935,6 @@ app.get('/api/auth/google/callback', async (req, res) => {
         // Redirect to frontend with token
         const redirectUrl = `${FRONTEND_URL}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userResponse))}`;
         res.redirect(redirectUrl);
-
     } catch (error) {
         logger.error('❌ Google OAuth error:', { error: error.message, requestId });
         res.redirect(`${FRONTEND_URL}/login?error=google_auth_failed`);
@@ -968,7 +944,6 @@ app.get('/api/auth/google/callback', async (req, res) => {
 // Google token verification (for frontend Google Sign-In)
 app.post('/api/auth/google/verify', async (req, res) => {
     const requestId = req.headers['x-request-id'];
-
     console.log('Google verify request received:', {
         body: req.body,
         headers: req.headers
@@ -985,7 +960,6 @@ app.post('/api/auth/google/verify', async (req, res) => {
 
     // Accept either credential or access_token
     const credential = req.body.credential || req.body.access_token;
-
     if (!credential) {
         console.error('No credential provided');
         return res.status(400).json({
@@ -997,7 +971,6 @@ app.post('/api/auth/google/verify', async (req, res) => {
 
     try {
         console.log('Verifying Google token...');
-
         // Verify Google token
         const ticket = await googleClient.verifyIdToken({
             idToken: credential,
@@ -1033,7 +1006,6 @@ app.post('/api/auth/google/verify', async (req, res) => {
                 isActive: true,
                 lastLogin: new Date()
             });
-
             await user.save();
             logger.info(`✅ New Google user created via verify: ${email}`, { requestId });
             console.log('New user created:', email);
@@ -1042,11 +1014,9 @@ app.post('/api/auth/google/verify', async (req, res) => {
             user.googleId = googleId;
             user.isOAuth = true;
             user.lastLogin = new Date();
-
             if (!user.avatar && picture) {
                 user.avatar = picture;
             }
-
             await user.save();
             logger.info(`✅ Existing user updated via verify: ${email}`, { requestId });
             console.log('Existing user updated:', email);
@@ -1070,7 +1040,6 @@ app.post('/api/auth/google/verify', async (req, res) => {
         delete userResponse.password;
 
         console.log('Google auth successful, sending response for:', email);
-
         const responseData = {
             success: true,
             message: 'Google authentication successful',
@@ -1080,10 +1049,8 @@ app.post('/api/auth/google/verify', async (req, res) => {
             },
             requestId
         };
-
         console.log('Sending response:', responseData);
         res.json(responseData);
-
     } catch (error) {
         console.error('❌ Google verification error:', error);
         logger.error('Google token verification error:', {
@@ -1091,7 +1058,6 @@ app.post('/api/auth/google/verify', async (req, res) => {
             stack: error.stack,
             requestId
         });
-
         res.status(401).json({
             success: false,
             error: 'Google authentication failed: ' + error.message,
@@ -1103,7 +1069,6 @@ app.post('/api/auth/google/verify', async (req, res) => {
 // ======================
 // RESUME API ROUTES
 // ======================
-
 // Resume Model
 const resumeSchema = new mongoose.Schema({
     userId: {
@@ -1232,7 +1197,6 @@ const Resume = mongoose.models.Resume || mongoose.model('Resume', resumeSchema);
 // ======================
 // RESUME API ROUTES
 // ======================
-
 // Get user's resumes
 app.get('/api/resumes', authenticateUser, async (req, res) => {
     const {
@@ -1248,18 +1212,15 @@ app.get('/api/resumes', authenticateUser, async (req, res) => {
     try {
         // Build query
         const query = { userId: req.user._id };
-
         if (status) {
             query.status = status;
         }
-
         if (search) {
             query.$or = [
                 { title: { $regex: search, $options: 'i' } },
                 { content: { $regex: search, $options: 'i' } }
             ];
         }
-
         if (tag) {
             query.tags = { $in: [tag] };
         }
@@ -1311,20 +1272,18 @@ app.get('/api/resumes', authenticateUser, async (req, res) => {
                     prevPage: hasPrev ? pageNum - 1 : null
                 }
             },
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
     } catch (error) {
         logger.error('Failed to fetch resumes', {
             error: error.message,
             userId: req.user._id,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
         res.status(500).json({
             success: false,
             error: 'Failed to fetch resumes',
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
     }
 });
@@ -1341,7 +1300,7 @@ app.get('/api/resumes/:id', authenticateUser, async (req, res) => {
             return res.status(404).json({
                 success: false,
                 error: 'Resume not found',
-                requestId: req.id
+                requestId: req.headers['x-request-id']
             });
         }
 
@@ -1354,27 +1313,25 @@ app.get('/api/resumes/:id', authenticateUser, async (req, res) => {
         logger.info('Resume fetched', {
             resumeId: resume._id,
             userId: req.user._id,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
 
         res.json({
             success: true,
             data: resume,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
     } catch (error) {
         logger.error('Failed to fetch resume', {
             error: error.message,
             resumeId: req.params.id,
             userId: req.user._id,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
         res.status(500).json({
             success: false,
             error: 'Failed to fetch resume',
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
     }
 });
@@ -1389,7 +1346,7 @@ app.post('/api/resumes', authenticateUser, async (req, res) => {
             return res.status(400).json({
                 success: false,
                 error: 'Title and content are required',
-                requestId: req.id
+                requestId: req.headers['x-request-id']
             });
         }
 
@@ -1397,7 +1354,7 @@ app.post('/api/resumes', authenticateUser, async (req, res) => {
             return res.status(400).json({
                 success: false,
                 error: 'Resume content must be at least 100 characters',
-                requestId: req.id
+                requestId: req.headers['x-request-id']
             });
         }
 
@@ -1417,37 +1374,34 @@ app.post('/api/resumes', authenticateUser, async (req, res) => {
             resumeId: resume._id,
             userId: req.user._id,
             title,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
 
         res.status(201).json({
             success: true,
             message: 'Resume created successfully',
             data: resume,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
     } catch (error) {
         logger.error('Failed to create resume', {
             error: error.message,
             userId: req.user._id,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
         if (error.name === 'ValidationError') {
             const errors = Object.values(error.errors).map(err => err.message);
             return res.status(400).json({
                 success: false,
                 error: 'Validation failed',
                 details: errors,
-                requestId: req.id
+                requestId: req.headers['x-request-id']
             });
         }
-
         res.status(500).json({
             success: false,
             error: 'Failed to create resume',
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
     }
 });
@@ -1464,7 +1418,7 @@ app.put('/api/resumes/:id', authenticateUser, async (req, res) => {
             return res.status(404).json({
                 success: false,
                 error: 'Resume not found',
-                requestId: req.id
+                requestId: req.headers['x-request-id']
             });
         }
 
@@ -1482,28 +1436,26 @@ app.put('/api/resumes/:id', authenticateUser, async (req, res) => {
             resumeId: resume._id,
             userId: req.user._id,
             updates: Object.keys(req.body),
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
 
         res.json({
             success: true,
             message: 'Resume updated successfully',
             data: resume,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
     } catch (error) {
         logger.error('Failed to update resume', {
             error: error.message,
             resumeId: req.params.id,
             userId: req.user._id,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
         res.status(500).json({
             success: false,
             error: 'Failed to update resume',
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
     }
 });
@@ -1520,34 +1472,32 @@ app.delete('/api/resumes/:id', authenticateUser, async (req, res) => {
             return res.status(404).json({
                 success: false,
                 error: 'Resume not found',
-                requestId: req.id
+                requestId: req.headers['x-request-id']
             });
         }
 
         logger.info('Resume deleted', {
             resumeId: resume._id,
             userId: req.user._id,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
 
         res.json({
             success: true,
             message: 'Resume deleted successfully',
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
     } catch (error) {
         logger.error('Failed to delete resume', {
             error: error.message,
             resumeId: req.params.id,
             userId: req.user._id,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
         res.status(500).json({
             success: false,
             error: 'Failed to delete resume',
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
     }
 });
@@ -1564,7 +1514,7 @@ app.post('/api/resumes/:id/analyze', authenticateUser, async (req, res) => {
             return res.status(404).json({
                 success: false,
                 error: 'Resume not found',
-                requestId: req.id
+                requestId: req.headers['x-request-id']
             });
         }
 
@@ -1575,7 +1525,7 @@ app.post('/api/resumes/:id/analyze', authenticateUser, async (req, res) => {
         logger.info('Resume analysis started', {
             resumeId: resume._id,
             userId: req.user._id,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
 
         // Send immediate response
@@ -1587,7 +1537,7 @@ app.post('/api/resumes/:id/analyze', authenticateUser, async (req, res) => {
                 status: 'processing',
                 analysisId: `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
             },
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
 
         // Simulate analysis in background
@@ -1642,7 +1592,6 @@ app.post('/api/resumes/:id/analyze', authenticateUser, async (req, res) => {
                     userId: req.user._id,
                     score: analysisResult.score
                 });
-
             } catch (analysisError) {
                 logger.error('Background analysis failed', {
                     error: analysisError.message,
@@ -1651,19 +1600,17 @@ app.post('/api/resumes/:id/analyze', authenticateUser, async (req, res) => {
                 });
             }
         }, 3000); // 3 second delay for simulation
-
     } catch (error) {
         logger.error('Failed to start resume analysis', {
             error: error.message,
             resumeId: req.params.id,
             userId: req.user._id,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
         res.status(500).json({
             success: false,
             error: 'Failed to start resume analysis',
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
     }
 });
@@ -1744,26 +1691,24 @@ app.get('/api/resumes/stats', authenticateUser, async (req, res) => {
         logger.info('Resume stats fetched', {
             userId,
             totalResumes,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
 
         res.json({
             success: true,
             data: stats,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
     } catch (error) {
         logger.error('Failed to fetch resume stats', {
             error: error.message,
             userId: req.user._id,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
         res.status(500).json({
             success: false,
             error: 'Failed to fetch resume stats',
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
     }
 });
@@ -1835,22 +1780,20 @@ app.get('/api/dashboard/stats', authenticateUser, async (req, res) => {
         logger.info('Dashboard stats fetched', {
             userId,
             totalResumes,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
 
         res.json({
             success: true,
             data: stats,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
     } catch (error) {
         logger.error('Failed to fetch dashboard stats', {
             error: error.message,
             userId: req.user._id,
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
-
         // Return mock data for development
         if (NODE_ENV === 'development') {
             logger.debug('Development: Returning mock dashboard stats');
@@ -1893,14 +1836,13 @@ app.get('/api/dashboard/stats', authenticateUser, async (req, res) => {
                         { label: 'View Templates', icon: '🎨', action: '/templates' }
                     ]
                 },
-                requestId: req.id
+                requestId: req.headers['x-request-id']
             });
         }
-
         res.status(500).json({
             success: false,
             error: 'Failed to fetch dashboard stats',
-            requestId: req.id
+            requestId: req.headers['x-request-id']
         });
     }
 });
@@ -1908,7 +1850,6 @@ app.get('/api/dashboard/stats', authenticateUser, async (req, res) => {
 // ======================
 // ADMIN ROUTES
 // ======================
-
 // Admin login
 app.post('/api/admin/auth/login', async (req, res) => {
     const { email, password } = req.body;
@@ -1932,7 +1873,6 @@ app.post('/api/admin/auth/login', async (req, res) => {
 
         // In production, use bcrypt comparison
         let isValidPassword = false;
-
         if (email === ADMIN_EMAIL) {
             if (NODE_ENV === 'production') {
                 // Hash the provided password and compare with stored hash
@@ -1955,7 +1895,6 @@ app.post('/api/admin/auth/login', async (req, res) => {
         if (email === ADMIN_EMAIL && isValidPassword) {
             // Create or update admin user
             let adminUser = await User.findOne({ email: ADMIN_EMAIL });
-
             if (!adminUser) {
                 adminUser = new User({
                     name: 'System Administrator',
@@ -2002,17 +1941,14 @@ app.post('/api/admin/auth/login', async (req, res) => {
             });
         } else {
             logger.warn(`❌ Admin login failed: Invalid credentials for ${email}`, { requestId });
-
             res.status(401).json({
                 success: false,
                 error: 'Invalid admin credentials',
                 requestId
             });
         }
-
     } catch (error) {
         logger.error('❌ Admin login error:', { error: error.message, requestId });
-
         res.status(500).json({
             success: false,
             error: NODE_ENV === 'production' ? 'Admin login failed' : error.message,
@@ -2025,7 +1961,6 @@ app.post('/api/admin/auth/login', async (req, res) => {
 app.get('/api/admin/auth/status', authenticateAdmin, (req, res) => {
     const userResponse = req.user.toObject();
     delete userResponse.password;
-
     res.json({
         success: true,
         authenticated: true,
@@ -2059,10 +1994,8 @@ app.get('/api/admin/dashboard/stats', authenticateAdmin, async (req, res) => {
             data: stats,
             requestId
         });
-
     } catch (error) {
         logger.error('❌ Admin stats error:', { error: error.message, requestId });
-
         res.status(500).json({
             success: false,
             error: 'Failed to fetch dashboard stats',
@@ -2118,11 +2051,9 @@ app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
     try {
         // Build query
         const query = { isActive: status === 'active' ? true : status === 'inactive' ? false : { $exists: true } };
-
         if (role !== 'all') {
             query.role = role;
         }
-
         if (search) {
             query.$or = [
                 { name: { $regex: search, $options: 'i' } },
@@ -2137,7 +2068,6 @@ app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));
-
         const total = await User.countDocuments(query);
 
         res.json({
@@ -2153,10 +2083,8 @@ app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
             },
             requestId
         });
-
     } catch (error) {
         logger.error('❌ Admin users error:', { error: error.message, requestId });
-
         res.status(500).json({
             success: false,
             error: 'Failed to fetch users',
@@ -2166,19 +2094,22 @@ app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
 });
 
 // ======================
+// AI ROUTES
+// ======================
+app.use('/api/ai', aiRoutes);
+
+// ======================
 // SOCKET.IO HANDLERS
 // ======================
 io.on('connection', (socket) => {
     const clientId = socket.id;
     logger.info(`🔌 Socket.IO connected: ${clientId}`);
-
     socket.data.connectedAt = new Date();
     socket.data.userAgent = socket.handshake.headers['user-agent'];
 
     // Resume analysis
     socket.on('resume:analyze', async (data) => {
         const jobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
         logger.info(`📄 Resume analysis requested via WebSocket: ${jobId}`, {
             clientId,
             userId: data.userId,
@@ -2202,7 +2133,6 @@ io.on('connection', (socket) => {
 
         const interval = setInterval(() => {
             const currentStep = steps.find(step => progress < step.progress) || steps[steps.length - 1];
-
             socket.emit('resume:analysis:progress', {
                 jobId,
                 progress,
@@ -2215,7 +2145,6 @@ io.on('connection', (socket) => {
 
             if (progress >= 100) {
                 clearInterval(interval);
-
                 const analysisResult = {
                     jobId,
                     success: true,
@@ -2242,7 +2171,6 @@ io.on('connection', (socket) => {
                     },
                     timestamp: new Date().toISOString(),
                 };
-
                 socket.emit('resume:analysis:complete', analysisResult);
                 logger.info(`✅ Resume analysis completed: ${jobId}`);
             }
@@ -2274,7 +2202,6 @@ app.use('*', (req, res) => {
 
 app.use((err, req, res, next) => {
     const errorId = Math.random().toString(36).substring(2, 9);
-
     logger.error(`Error [${errorId}]:`, {
         message: err.message,
         stack: err.stack,
@@ -2284,7 +2211,6 @@ app.use((err, req, res, next) => {
     });
 
     const statusCode = err.statusCode || 500;
-
     res.status(statusCode).json({
         success: false,
         error: NODE_ENV === 'production' && statusCode === 500
@@ -2318,7 +2244,6 @@ const initializeApplication = async () => {
             mongoose: mongoose.connection,
             logger
         };
-
     } catch (error) {
         logger.error('❌ Application initialization failed:', error);
         throw error;
@@ -2349,12 +2274,11 @@ const createRequiredDirectories = async () => {
 const displayStartupBanner = () => {
     const banner = `
     ╔══════════════════════════════════════════════════════════════╗
-    ║                 AI RESUME BUILDER - BACKEND                  ║
-    ║                    Version ${process.env.API_VERSION || '2.0.0'}                        ║
-    ║                    Environment: ${NODE_ENV.toUpperCase()}                     ║
+    ║ AI RESUME BUILDER - BACKEND ║
+    ║ Version ${process.env.API_VERSION || '2.0.0'} ║
+    ║ Environment: ${NODE_ENV.toUpperCase()} ║
     ╚══════════════════════════════════════════════════════════════╝
     `;
-
     console.log('\x1b[36m%s\x1b[0m', banner);
 
     logger.info('🚀 Starting AI Resume Builder Backend', {

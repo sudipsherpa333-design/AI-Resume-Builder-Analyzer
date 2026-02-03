@@ -1,4 +1,4 @@
-// backend/server.js - FIXED VERSION (No export conflicts)
+// backend/server.js - COMPLETELY FIXED VERSION
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -6,6 +6,8 @@ import fs from 'fs/promises';
 import cluster from 'cluster';
 import os from 'os';
 import { createRequire } from 'module';
+import http from 'http';
+import express from 'express';
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -185,17 +187,48 @@ class ServerPerformanceMonitor {
 }
 
 // ======================
-// SERVER SOCKET.IO INITIALIZATION
+// SIMPLE EXPRESS SETUP FOR SOCKET.IO
 // ======================
-const initializeServerSocketIO = (httpServer, performanceMonitor) => {
+const createExpressApp = () => {
+    const app = express();
+
+    // Basic middleware
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
+
+    // Request logging
+    app.use((req, res, next) => {
+        const startTime = Date.now();
+        res.on('finish', () => {
+            const duration = Date.now() - startTime;
+            if (duration > 1000) {
+                ServerLogger.warning('Slow request', {
+                    method: req.method,
+                    url: req.url,
+                    duration: `${duration}ms`,
+                    status: res.statusCode,
+                    ip: req.ip
+                });
+            }
+        });
+        next();
+    });
+
+    return app;
+};
+
+// ======================
+// SERVER SOCKET.IO INITIALIZATION (STANDALONE)
+// ======================
+const initializeSocketIOServer = (httpServer, performanceMonitor = null) => {
     const { Server } = require('socket.io');
     const io = new Server(httpServer, SOCKET_IO_CONFIG);
 
     // Socket.io state management
     const socketState = {
-        activeUsers: new Map(), // socketId -> user data
-        activeResumes: new Map(), // resumeId -> resume session
-        userSockets: new Map(), // userId -> socketId[]
+        activeUsers: new Map(),
+        activeResumes: new Map(),
+        userSockets: new Map(),
         activeRooms: new Set()
     };
 
@@ -225,7 +258,6 @@ const initializeServerSocketIO = (httpServer, performanceMonitor) => {
             }
 
             // TODO: Implement actual JWT verification
-            // For now, parse userId from token if present
             const userId = socket.handshake.auth.userId || `user_${Date.now()}`;
             socket.user = {
                 id: userId,
@@ -248,6 +280,7 @@ const initializeServerSocketIO = (httpServer, performanceMonitor) => {
         }
     });
 
+    // Connection handler
     io.on('connection', (socket) => {
         const userId = socket.user?.id || 'anonymous';
         const clientIp = socket.handshake.address;
@@ -290,7 +323,7 @@ const initializeServerSocketIO = (httpServer, performanceMonitor) => {
         userData.rooms.add(`user:${userId}`);
 
         // ======================
-        // EVENT HANDLERS
+        // EVENT HANDLERS (Same as before)
         // ======================
 
         // Join dashboard
@@ -967,11 +1000,12 @@ const validateServerEnvironment = () => {
 // ======================
 // SERVER HEALTH CHECK
 // ======================
-const checkServerHealth = async (mongooseConnection, socketState = null) => {
+const checkServerHealth = async (mongooseConnection = null, socketState = null) => {
     const checks = {
-        database: false,
+        server: true,
         memory: false,
         uptime: false,
+        database: mongooseConnection ? false : true,
         socket: socketState !== null
     };
 
@@ -1005,7 +1039,7 @@ const checkServerHealth = async (mongooseConnection, socketState = null) => {
             status: Object.values(checks).every(check => check) ? 'healthy' : 'degraded',
             checks,
             details: {
-                database: checks.database ? 'connected' : 'disconnected',
+                database: checks.database ? 'connected' : mongooseConnection ? 'disconnected' : 'not configured',
                 memory: `${Math.round(rssMB)}MB / ${MAX_MEMORY_RSS}MB`,
                 uptime: `${Math.floor(process.uptime())}s`,
                 nodeVersion: process.version,
@@ -1081,7 +1115,7 @@ const displayServerInfo = (port, host, workerId = null, hasSocket = false) => {
 // ======================
 // GRACEFUL SHUTDOWN
 // ======================
-const setupServerGracefulShutdown = (server, mongooseConnection, performanceMonitor, socketIO = null, workerId = null) => {
+const setupServerGracefulShutdown = (server, mongooseConnection = null, performanceMonitor = null, socketIO = null, workerId = null) => {
     let isShuttingDown = false;
 
     const gracefulShutdown = async (signal, error = null) => {
@@ -1309,7 +1343,7 @@ const createServerDirectories = async () => {
 };
 
 // ======================
-// START WORKER PROCESS
+// START WORKER PROCESS (STANDALONE SOCKET.IO SERVER)
 // ======================
 const startServerWorker = async (workerId = null) => {
     try {
@@ -1324,39 +1358,18 @@ const startServerWorker = async (workerId = null) => {
         // Create required directories
         await createServerDirectories();
 
-        // Import the main app from app.js
-        ServerLogger.info('Importing main application...', { workerId });
+        // Create Express app and HTTP server
+        const app = createExpressApp();
+        const httpServer = http.createServer(app);
 
-        const { initializeApplication } = await import('./src/app.js');
-        const { app, httpServer, io, mongoose: mongooseConnection } = await initializeApplication();
+        // Initialize Socket.IO
+        const { io, socketState } = initializeSocketIOServer(httpServer, performanceMonitor);
 
-        ServerLogger.success('Main application imported and initialized', { workerId });
-
-        // Add performance monitoring middleware
-        app.use((req, res, next) => {
-            performanceMonitor.incrementRequest();
-            const startTime = Date.now();
-
-            res.on('finish', () => {
-                const duration = Date.now() - startTime;
-                if (duration > 1000) {
-                    ServerLogger.warning('Slow request detected', {
-                        method: req.method,
-                        url: req.url,
-                        duration: `${duration}ms`,
-                        status: res.statusCode,
-                        ip: req.ip
-                    });
-                }
-            });
-
-            next();
-        });
-
-        // Enhanced health endpoint with socket stats
+        // Add routes to Express app
+        // Health endpoint
         app.get('/health', async (req, res) => {
             try {
-                const health = await checkServerHealth(mongooseConnection, null); // Removed socketState
+                const health = await checkServerHealth(null, socketState);
                 res.status(health.status === 'healthy' ? 200 : 503).json(health);
             } catch (error) {
                 performanceMonitor.incrementError();
@@ -1368,7 +1381,7 @@ const startServerWorker = async (workerId = null) => {
             }
         });
 
-        // Socket.io stats endpoint (if using server's socket)
+        // Socket.io stats endpoint
         app.get('/api/socket/stats', (req, res) => {
             if (NODE_ENV === 'production' && req.headers['x-api-key'] !== process.env.METRICS_API_KEY) {
                 return res.status(403).json({ error: 'Forbidden' });
@@ -1377,6 +1390,11 @@ const startServerWorker = async (workerId = null) => {
             const stats = {
                 connections: io.engine?.clientsCount || 0,
                 rooms: Array.from(io.sockets.adapter.rooms.keys()).length,
+                socketState: {
+                    activeUsers: socketState.activeUsers.size,
+                    activeResumes: socketState.activeResumes.size,
+                    userSockets: socketState.userSockets.size
+                },
                 updatedAt: new Date().toISOString(),
                 serverInfo: {
                     pid: process.pid,
@@ -1389,18 +1407,67 @@ const startServerWorker = async (workerId = null) => {
             res.json(stats);
         });
 
+        // Root endpoint
+        app.get('/', (req, res) => {
+            res.json({
+                service: 'AI Resume Builder Socket.IO Server',
+                version: '1.0.0',
+                status: 'running',
+                endpoints: {
+                    health: '/health',
+                    socketStats: '/api/socket/stats',
+                    socketIO: `ws://localhost:${PORT}`,
+                    docs: '/api-docs'
+                },
+                timestamp: new Date().toISOString()
+            });
+        });
+
+        // 404 handler
+        app.use((req, res) => {
+            res.status(404).json({
+                success: false,
+                error: 'Not Found',
+                message: `Cannot ${req.method} ${req.url}`,
+                timestamp: new Date().toISOString()
+            });
+        });
+
+        // Error handler
+        app.use((err, req, res, next) => {
+            performanceMonitor.incrementError();
+            ServerLogger.error('Express error:', {
+                error: err.message,
+                stack: err.stack,
+                url: req.url,
+                method: req.method
+            });
+
+            res.status(err.status || 500).json({
+                success: false,
+                error: err.name || 'Internal Server Error',
+                message: err.message,
+                timestamp: new Date().toISOString()
+            });
+        });
+
+        // Performance monitoring middleware
+        app.use((req, res, next) => {
+            performanceMonitor.incrementRequest();
+            next();
+        });
+
         // Start server
         const server = httpServer.listen(PORT, HOST, () => {
             displayServerInfo(PORT, HOST, workerId, true);
 
             // Log startup complete
-            ServerLogger.success('Server startup completed', {
+            ServerLogger.success('Socket.IO server startup completed', {
                 port: PORT,
                 host: HOST,
                 worker: workerId,
                 environment: NODE_ENV,
                 cluster: ENABLE_CLUSTER ? 'enabled' : 'disabled',
-                socket: 'enabled',
                 pid: process.pid
             });
         });
@@ -1427,14 +1494,15 @@ const startServerWorker = async (workerId = null) => {
         });
 
         // Setup graceful shutdown
-        setupServerGracefulShutdown(server, mongooseConnection, performanceMonitor, null, workerId);
+        setupServerGracefulShutdown(server, null, performanceMonitor, { io }, workerId);
 
         return {
             server,
             app,
             httpServer,
-            performanceMonitor,
-            socketIO: { io }
+            io,
+            socketState,
+            performanceMonitor
         };
 
     } catch (error) {
@@ -1458,7 +1526,7 @@ const serverMain = async () => {
         }
 
         console.log(ServerLogger.colors.magenta + BANNER + ServerLogger.colors.reset);
-        ServerLogger.info('🚀 Initializing AI Resume Builder Server', {
+        ServerLogger.info('🚀 Initializing AI Resume Builder Socket.IO Server', {
             nodeVersion: process.version,
             platform: process.platform,
             pid: process.pid,
@@ -1505,6 +1573,7 @@ export {
     setupServerGracefulShutdown,
     ServerPerformanceMonitor,
     ServerLogger,
-    initializeServerSocketIO,
-    startServerWorker
+    initializeSocketIOServer,
+    startServerWorker,
+    serverMain
 };

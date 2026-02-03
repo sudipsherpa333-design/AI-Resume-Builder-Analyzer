@@ -1,508 +1,419 @@
-// src/components/layout/BuilderSidebar.jsx - FIXED SIZE, NO SCROLL VERSION
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+// ------------------- BuilderSidebar.jsx -------------------
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import {
-    ChevronLeft, ChevronRight, X, Sparkles, CheckCircle,
-    Home, Cloud, CloudOff, AlertCircle, Save, Eye, Download,
-    User, FileText, Briefcase, GraduationCap, Code, Award,
-    Globe, Users, FileCheck, Settings, HelpCircle, LogOut
+    Home,
+    FileText,
+    Briefcase,
+    GraduationCap,
+    Cpu,
+    Layers,
+    Award,
+    Globe,
+    Users,
+    Sparkles,
+    BarChart,
+    Download,
+    Eye,
+    Save,
+    Share2,
+    Printer,
+    Settings,
+    ChevronRight,
+    CheckCircle,
+    Circle,
+    PanelLeftClose,
+    PanelLeftOpen,
+    WifiOff,
+    Cloud,
+    Zap,
+    Target,
+    User,
+    Calendar,
+    MapPin,
+    Mail,
+    Phone,
+    Linkedin,
+    Github,
+    ExternalLink,
+    Loader2
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 
 const BuilderSidebar = ({
     isOpen = true,
     isMobileOpen = false,
-    onClose,
-    onToggle,
-    sections,
-    activeSection,
+    onClose = () => { },
+    onToggle = () => { },
+    sections = [],
+    activeSection = '',
     completedSections = {},
-    onSectionChange,
+    onSectionChange = () => { },
     resumeTitle = 'Untitled Resume',
     resumeProgress = 0,
     isOnline = true,
-    onSave = null,
-    onPreview = null,
-    onExport = null
+    onSave = () => { },
+    onPreview = () => { },
+    onExport = () => { },
+    atsScore = 0,
+    aiSuggestions = 0
 }) => {
-    const navigate = useNavigate();
-    const sidebarRef = useRef(null);
-    const [isHovered, setIsHovered] = useState(false);
+    const [collapsedGroups, setCollapsedGroups] = useState({});
+    const [saving, setSaving] = useState(false);
 
-    // Close mobile sidebar when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (isMobileOpen && sidebarRef.current && !sidebarRef.current.contains(event.target)) {
-                onClose();
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isMobileOpen, onClose]);
-
-    // Prevent body scroll when mobile sidebar is open
-    useEffect(() => {
-        if (isMobileOpen) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'unset';
-        }
-        return () => {
-            document.body.style.overflow = 'unset';
-        };
-    }, [isMobileOpen]);
-
-    const isSectionComplete = (sectionId) => {
-        return completedSections[sectionId] || false;
+    const toggleGroup = (groupId) => {
+        setCollapsedGroups(prev => ({
+            ...prev,
+            [groupId]: !prev[groupId]
+        }));
     };
+
+    const getSectionIcon = (sectionId) => {
+        switch (sectionId) {
+            case 'personalInfo': return User;
+            case 'targetRole': return Target;
+            case 'summary': return FileText;
+            case 'experience': return Briefcase;
+            case 'education': return GraduationCap;
+            case 'skills': return Cpu;
+            case 'projects': return Layers;
+            case 'certifications': return Award;
+            case 'languages': return Globe;
+            case 'references': return Users;
+            default: return FileText;
+        }
+    };
+
+    // Safely define section groups with default empty array
+    const sectionGroups = [
+        {
+            id: 'basic',
+            name: 'Basics',
+            sections: sections.filter(s => s && ['personalInfo', 'targetRole', 'summary'].includes(s.id))
+        },
+        {
+            id: 'experience',
+            name: 'Experience & Skills',
+            sections: sections.filter(s => s && ['experience', 'education', 'skills'].includes(s.id))
+        },
+        {
+            id: 'additional',
+            name: 'Additional Sections',
+            sections: sections.filter(s => s && ['projects', 'certifications', 'languages', 'references'].includes(s.id))
+        }
+    ];
 
     const handleSectionClick = (sectionId) => {
         onSectionChange(sectionId);
-        if (isMobileOpen) onClose();
+        if (isMobileOpen) {
+            onClose();
+        }
     };
 
-    const handleExit = () => {
-        navigate('/dashboard');
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            await onSave();
+            toast.success('Resume saved with AI analysis');
+        } catch (error) {
+            toast.error('Failed to save resume');
+        } finally {
+            setSaving(false);
+        }
     };
 
-    // Progress indicator with color based on completion
-    const getProgressColor = () => {
-        if (resumeProgress < 30) return 'from-red-500 to-orange-500';
-        if (resumeProgress < 70) return 'from-amber-500 to-yellow-500';
-        return 'from-green-500 to-emerald-500';
+    const handleExport = () => {
+        onExport();
+        toast.success('Preparing your resume for export...');
     };
 
-    // Get section icon component
-    const getSectionIcon = (sectionId) => {
-        const section = sections?.find(s => s.id === sectionId);
-        return section?.icon || FileText;
+    const handlePreview = () => {
+        onPreview();
+        toast.success('Opening preview...');
     };
 
-    // Truncate text for collapsed sidebar
-    const truncateText = (text, maxLength = 20) => {
-        if (!text) return '';
-        if (text.length <= maxLength) return text;
-        return text.substring(0, maxLength) + '...';
-    };
-
-    // Desktop sidebar - FIXED HEIGHT, NO SCROLL
-    const renderDesktopSidebar = () => (
-        <aside
-            ref={sidebarRef}
-            className={`h-screen bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out fixed z-40 ${isOpen
-                    ? 'w-72 shadow-lg'
-                    : 'w-16 hover:w-72 group transition-all duration-300'
-                }`}
-            onMouseEnter={() => !isOpen && setIsHovered(true)}
-            onMouseLeave={() => !isOpen && setIsHovered(false)}
-            style={{
-                height: '100vh',
-                maxHeight: '100vh',
-                overflow: 'hidden'
-            }}
-        >
-            {/* Header - Fixed height */}
-            <div className="p-5 border-b border-gray-200 flex-shrink-0" style={{ height: '140px' }}>
-                <div className="flex items-center justify-between h-10">
-                    {isOpen || isHovered ? (
-                        <>
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
-                                    <Sparkles className="w-5 h-5 text-white" />
-                                </div>
-                                <div className="min-w-0">
-                                    <h1 className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent truncate">
-                                        ResumeCraft
-                                    </h1>
-                                    <p className="text-xs text-gray-500 truncate">Builder</p>
+    // If no sections are available yet, show loading state
+    if (sections.length === 0) {
+        return (
+            <div className={`h-full flex flex-col bg-white border-r border-gray-200 ${isMobileOpen ? 'fixed inset-y-0 left-0 z-50 w-80 shadow-2xl' : 'w-80'}`}>
+                <div className="p-6 border-b border-gray-200">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg animate-pulse">
+                                <FileText className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <div className="h-4 w-32 bg-gray-200 rounded mb-2 animate-pulse"></div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-gray-300 animate-pulse" />
+                                    <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
                                 </div>
                             </div>
-                            <button
-                                onClick={onToggle}
-                                className="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
-                                title={isOpen ? "Collapse sidebar" : "Expand sidebar"}
-                                aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
-                            >
-                                <ChevronLeft className={`w-4 h-4 text-gray-600 transition-transform ${isOpen ? '' : 'rotate-180'}`} />
-                            </button>
-                        </>
-                    ) : (
-                        <button
-                            onClick={onToggle}
-                            className="p-2 rounded-lg hover:bg-gray-100 transition-colors w-full flex justify-center"
-                            title="Expand sidebar"
-                            aria-label="Expand sidebar"
-                        >
-                            <ChevronRight className="w-4 h-4 text-gray-600" />
-                        </button>
-                    )}
-                </div>
-
-                {(isOpen || isHovered) && (
-                    <div className="mt-4 space-y-3">
-                        <div>
-                            <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
-                                Current Resume
-                            </h2>
-                            <p className="text-sm font-semibold text-gray-800 truncate bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-                                {truncateText(resumeTitle, 25)}
-                            </p>
                         </div>
-
-                        {/* Progress Bar - Fixed position */}
-                        <div>
-                            <div className="flex justify-between items-center mb-1">
-                                <span className="text-xs font-medium text-gray-700">Progress</span>
-                                <span className="text-xs font-bold text-gray-900">{resumeProgress}%</span>
-                            </div>
-                            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                <div
-                                    className={`h-full bg-gradient-to-r ${getProgressColor()} rounded-full transition-all duration-500`}
-                                    style={{ width: `${resumeProgress}%` }}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Quick Actions - Fixed height, always visible */}
-            {(isOpen || isHovered) && (
-                <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-                    <div className="grid grid-cols-3 gap-2">
-                        <button
-                            onClick={onSave}
-                            className="flex flex-col items-center justify-center p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                            title="Save Resume"
-                        >
-                            <Save className="w-4 h-4 text-gray-600 mb-1" />
-                            <span className="text-xs text-gray-700">Save</span>
-                        </button>
-                        <button
-                            onClick={onPreview}
-                            className="flex flex-col items-center justify-center p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                            title="Preview"
-                        >
-                            <Eye className="w-4 h-4 text-gray-600 mb-1" />
-                            <span className="text-xs text-gray-700">Preview</span>
-                        </button>
-                        <button
-                            onClick={onExport}
-                            className="flex flex-col items-center justify-center p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                            title="Export"
-                        >
-                            <Download className="w-4 h-4 text-gray-600 mb-1" />
-                            <span className="text-xs text-gray-700">Export</span>
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Sections List - FIXED HEIGHT, NO SCROLL */}
-            <div
-                className="flex-1 py-4"
-                style={{
-                    height: 'calc(100vh - 280px)', // Calculated height
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column'
-                }}
-            >
-                {/* Online Status - Fixed at top of sections */}
-                <div className="px-4 mb-3">
-                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${isOnline ? 'bg-green-50' : 'bg-amber-50'}`}>
-                        <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-amber-500'}`} />
-                            <span className="text-xs font-medium text-gray-700">
-                                {isOnline ? 'Online' : 'Offline'}
-                            </span>
-                        </div>
-                        {isOnline ? (
-                            <Cloud className="w-4 h-4 text-green-500" />
-                        ) : (
-                            <CloudOff className="w-4 h-4 text-amber-500" />
-                        )}
                     </div>
                 </div>
 
-                {/* Sections Grid - Fixed layout, no scroll */}
-                <div className="px-2" style={{ overflow: 'hidden', flex: 1 }}>
-                    <div className="grid grid-cols-1 gap-1" style={{ height: '100%' }}>
-                        {sections?.slice(0, 8).map((section) => { // Limit to 8 sections for fixed height
-                            const Icon = section.icon;
-                            const isActive = activeSection === section.id;
-                            const isComplete = isSectionComplete(section.id);
-                            const isRequired = section.required;
-
-                            return (
-                                <button
-                                    key={section.id}
-                                    onClick={() => handleSectionClick(section.id)}
-                                    className={`flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${isActive
-                                            ? 'bg-gradient-to-r from-indigo-50 to-blue-50 text-indigo-700 border border-indigo-100 shadow-sm'
-                                            : 'hover:bg-gray-50 text-gray-700'
-                                        }`}
-                                    title={section.label}
-                                    aria-label={section.label}
-                                >
-                                    <div className="relative flex-shrink-0">
-                                        <Icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-gray-500'}`} />
-                                        {!isComplete && isRequired && (
-                                            <AlertCircle className="absolute -top-1 -right-1 w-3 h-3 text-red-500" />
-                                        )}
-                                    </div>
-
-                                    {(isOpen || isHovered) && (
-                                        <>
-                                            <div className="flex-1 text-left min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-medium truncate">
-                                                        {section.label}
-                                                    </span>
-                                                    {!isRequired && (
-                                                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded flex-shrink-0">
-                                                            Optional
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                {section.description && (
-                                                    <p className="text-xs text-gray-500 mt-1 truncate">
-                                                        {section.description}
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center flex-shrink-0">
-                                                {isComplete ? (
-                                                    <CheckCircle className="w-4 h-4 text-green-500" />
-                                                ) : (
-                                                    <div className="w-4 h-4 border-2 border-gray-300 rounded-full" />
-                                                )}
-                                            </div>
-                                        </>
-                                    )}
-                                </button>
-                            );
-                        })}
+                <div className="flex-1 flex items-center justify-center p-4">
+                    <div className="text-center">
+                        <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-3" />
+                        <p className="text-gray-600 text-sm">Loading sections...</p>
                     </div>
                 </div>
             </div>
-
-            {/* Footer - Fixed at bottom */}
-            <div className="p-4 border-t border-gray-200 flex-shrink-0" style={{ height: '80px' }}>
-                {(isOpen || isHovered) ? (
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <button
-                                onClick={handleExit}
-                                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                                <LogOut className="w-4 h-4" />
-                                <span>Exit</span>
-                            </button>
-                            <div className="text-xs text-gray-500">
-                                v1.0
-                            </div>
-                        </div>
-                        <div className="text-xs text-gray-400 text-center">
-                            {new Date().getFullYear()} • ResumeCraft AI
-                        </div>
-                    </div>
-                ) : (
-                    <button
-                        onClick={handleExit}
-                        className="w-full flex justify-center p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-                        title="Exit Builder"
-                    >
-                        <Home className="w-5 h-5" />
-                    </button>
-                )}
-            </div>
-        </aside>
-    );
-
-    // Mobile sidebar overlay - Still scrollable on mobile
-    const renderMobileSidebar = () => (
-        <AnimatePresence>
-            {isMobileOpen && (
-                <>
-                    {/* Backdrop */}
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black bg-opacity-50 z-50 lg:hidden backdrop-blur-sm"
-                        onClick={onClose}
-                    />
-
-                    {/* Sidebar Drawer */}
-                    <motion.aside
-                        ref={sidebarRef}
-                        initial={{ x: '-100%' }}
-                        animate={{ x: 0 }}
-                        exit={{ x: '-100%' }}
-                        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                        className="fixed inset-y-0 left-0 w-80 bg-white z-50 lg:hidden flex flex-col shadow-2xl"
-                        style={{ height: '100vh', maxHeight: '100vh' }}
-                    >
-                        {/* Mobile Header */}
-                        <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white flex-shrink-0">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-                                        <Sparkles className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <h1 className="text-lg font-bold text-gray-900">ResumeCraft</h1>
-                                        <p className="text-xs text-gray-600">Resume Builder</p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={onClose}
-                                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                                    aria-label="Close sidebar"
-                                >
-                                    <X className="w-5 h-5 text-gray-600" />
-                                </button>
-                            </div>
-
-                            <div className="mt-5 space-y-4">
-                                <div>
-                                    <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-                                        Working on
-                                    </h2>
-                                    <p className="text-sm font-semibold text-gray-800 truncate bg-white px-3 py-2 rounded-lg border border-gray-300 shadow-sm">
-                                        {resumeTitle}
-                                    </p>
-                                </div>
-
-                                {/* Progress Bar */}
-                                <div>
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="text-sm font-medium text-gray-700">Progress</span>
-                                        <span className="text-sm font-bold text-gray-900">{resumeProgress}%</span>
-                                    </div>
-                                    <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
-                                        <motion.div
-                                            className={`h-full bg-gradient-to-r ${getProgressColor()} rounded-full`}
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${resumeProgress}%` }}
-                                            transition={{ duration: 1, ease: "easeOut" }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Mobile Actions */}
-                        <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-                            <div className="flex justify-between gap-2">
-                                <button
-                                    onClick={onSave}
-                                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                                >
-                                    <Save className="w-4 h-4" />
-                                    Save
-                                </button>
-                                <button
-                                    onClick={onPreview}
-                                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                                >
-                                    <Eye className="w-4 h-4" />
-                                    Preview
-                                </button>
-                                <button
-                                    onClick={onExport}
-                                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                                >
-                                    <Download className="w-4 h-4" />
-                                    Export
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Mobile Sections List - Scrollable on mobile */}
-                        <div className="flex-1 overflow-y-auto py-4">
-                            <nav className="space-y-1 px-3">
-                                {sections?.map((section) => {
-                                    const Icon = section.icon;
-                                    const isActive = activeSection === section.id;
-                                    const isComplete = isSectionComplete(section.id);
-                                    const isRequired = section.required;
-
-                                    return (
-                                        <button
-                                            key={section.id}
-                                            onClick={() => handleSectionClick(section.id)}
-                                            className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${isActive
-                                                    ? 'bg-gradient-to-r from-indigo-50 to-blue-50 text-indigo-700 border border-indigo-100 shadow-sm'
-                                                    : 'hover:bg-gray-50 text-gray-700'
-                                                }`}
-                                        >
-                                            <div className="relative">
-                                                <Icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-gray-500'}`} />
-                                                {!isComplete && isRequired && (
-                                                    <AlertCircle className="absolute -top-1 -right-1 w-3 h-3 text-red-500" />
-                                                )}
-                                            </div>
-                                            <div className="flex-1 text-left">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-medium">{section.label}</span>
-                                                    {!isRequired && (
-                                                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                                                            Optional
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                {section.description && (
-                                                    <p className="text-xs text-gray-500 mt-1">
-                                                        {section.description}
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center">
-                                                {isComplete ? (
-                                                    <CheckCircle className="w-4 h-4 text-green-500" />
-                                                ) : (
-                                                    <div className="w-4 h-4 border-2 border-gray-300 rounded-full" />
-                                                )}
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </nav>
-                        </div>
-
-                        {/* Mobile Footer */}
-                        <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-                            <button
-                                onClick={handleExit}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors font-medium shadow-sm"
-                            >
-                                <Home className="w-4 h-4" />
-                                Back to Dashboard
-                            </button>
-                            <div className="mt-3 text-xs text-gray-500 text-center">
-                                Tap outside to close • v1.0
-                            </div>
-                        </div>
-                    </motion.aside>
-                </>
-            )}
-        </AnimatePresence>
-    );
+        );
+    }
 
     return (
         <>
-            {renderDesktopSidebar()}
-            {renderMobileSidebar()}
+            <div className={`h-full flex flex-col bg-white border-r border-gray-200 ${isMobileOpen ? 'fixed inset-y-0 left-0 z-50 w-80 shadow-2xl' : 'w-80'}`}>
+                <div className="p-6 border-b border-gray-200">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg">
+                                <FileText className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <h2 className="font-bold text-gray-900">AI Resume Builder</h2>
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`} />
+                                    <span className="text-xs text-gray-600">
+                                        {isOnline ? 'AI Auto-save on' : 'Working offline'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
 
-            {/* Spacer for fixed sidebar */}
-            <div
-                className={`transition-all duration-300 ease-in-out ${isOpen ? 'lg:ml-72' : 'lg:ml-16'
-                    }`}
-                style={{ minHeight: '100vh' }}
-            />
+                        <button
+                            onClick={onToggle}
+                            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                            aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+                        >
+                            {isOpen ? (
+                                <PanelLeftClose className="w-5 h-5 text-gray-600" />
+                            ) : (
+                                <PanelLeftOpen className="w-5 h-5 text-gray-600" />
+                            )}
+                        </button>
+                    </div>
+
+                    <div className="mb-4">
+                        <h3 className="font-bold text-gray-900 truncate" title={resumeTitle}>
+                            {resumeTitle}
+                        </h3>
+                        <p className="text-sm text-gray-600">AI-powered editing in progress</p>
+                    </div>
+
+                    <div className="mb-2">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-gray-700">AI Progress</span>
+                            <span className="text-sm font-bold text-blue-600">{resumeProgress}%</span>
+                        </div>
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${resumeProgress}%` }}
+                                transition={{ duration: 0.5, ease: "easeOut" }}
+                                className="h-full bg-gradient-to-r from-blue-500 to-cyan-500"
+                            />
+                        </div>
+                    </div>
+
+                    {atsScore > 0 && (
+                        <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Target className="w-4 h-4 text-blue-600" />
+                                    <span className="text-sm font-medium text-gray-900">ATS Score</span>
+                                </div>
+                                <div className={`px-2 py-1 rounded-full text-xs font-bold ${atsScore >= 80 ? 'bg-green-100 text-green-700' : atsScore >= 60 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                    {atsScore}%
+                                </div>
+                            </div>
+                            <p className="text-xs text-gray-600 mt-2">
+                                {atsScore >= 80 ? 'Excellent! Resume is ATS-friendly' :
+                                    atsScore >= 60 ? 'Good, but can be improved' :
+                                        'Needs optimization for ATS'}
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4">
+                    {sectionGroups.map((group) => {
+                        // Skip empty groups
+                        if (!group.sections || group.sections.length === 0) {
+                            return null;
+                        }
+
+                        return (
+                            <div key={group.id} className="mb-6">
+                                <button
+                                    onClick={() => toggleGroup(group.id)}
+                                    className="flex items-center justify-between w-full mb-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                    aria-expanded={!collapsedGroups[group.id]}
+                                >
+                                    <span className="text-sm font-semibold text-gray-700">{group.name}</span>
+                                    <ChevronRight
+                                        className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${collapsedGroups[group.id] ? '' : 'rotate-90'}`}
+                                    />
+                                </button>
+
+                                {!collapsedGroups[group.id] && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="space-y-1 ml-2"
+                                    >
+                                        {group.sections.map((section) => {
+                                            if (!section) return null;
+
+                                            const Icon = getSectionIcon(section.id);
+                                            const isActive = activeSection === section.id;
+                                            const isCompleted = completedSections[section.id];
+
+                                            return (
+                                                <button
+                                                    key={section.id}
+                                                    onClick={() => handleSectionClick(section.id)}
+                                                    className={`flex items-center gap-3 w-full p-3 rounded-lg transition-all ${isActive ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-100'}`}
+                                                    aria-current={isActive ? 'true' : 'false'}
+                                                >
+                                                    <div className={`p-2 rounded-lg ${isActive ? 'bg-blue-500 text-white' : isCompleted ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                                                        <Icon className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="flex-1 text-left">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className={`font-medium ${isActive ? 'text-blue-700' : 'text-gray-700'}`}>
+                                                                {section.label || section.id}
+                                                            </span>
+                                                            {isCompleted ? (
+                                                                <CheckCircle className="w-4 h-4 text-green-500" />
+                                                            ) : (
+                                                                <Circle className="w-4 h-4 text-gray-300" />
+                                                            )}
+                                                        </div>
+                                                        {section.description && (
+                                                            <p className="text-xs text-gray-500 mt-1">{section.description}</p>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </motion.div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {aiSuggestions > 0 && (
+                    <div className="mx-4 mb-4">
+                        <button
+                            className="w-full p-3 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg hover:shadow-sm transition-shadow"
+                            onClick={() => toast.success(`Showing ${aiSuggestions} AI suggestions`)}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
+                                    <Sparkles className="w-4 h-4 text-white" />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-medium text-gray-900">{aiSuggestions} AI Suggestions</div>
+                                    <div className="text-sm text-gray-600">Click to review</div>
+                                </div>
+                                <div className="ml-auto">
+                                    <div className="px-2 py-1 bg-white border border-purple-300 rounded-full text-xs font-medium text-purple-700">
+                                        New
+                                    </div>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                )}
+
+                <div className="p-4 border-t border-gray-200 space-y-3">
+                    <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                        {saving ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Saving...
+                            </>
+                        ) : (
+                            <>
+                                <Save className="w-4 h-4" />
+                                Save with AI
+                            </>
+                        )}
+                    </button>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                            onClick={handlePreview}
+                            className="px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors"
+                        >
+                            <Eye className="w-4 h-4 text-gray-600" />
+                            <span className="text-sm font-medium text-gray-700">Preview</span>
+                        </button>
+
+                        <button
+                            onClick={handleExport}
+                            className="px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors"
+                        >
+                            <Download className="w-4 h-4 text-gray-600" />
+                            <span className="text-sm font-medium text-gray-700">Export</span>
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                            className="px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors"
+                            onClick={() => toast.success('Share link copied to clipboard')}
+                        >
+                            <Share2 className="w-4 h-4 text-gray-600" />
+                            <span className="text-sm font-medium text-gray-700">Share</span>
+                        </button>
+
+                        <button
+                            className="px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors"
+                            onClick={() => toast.success('Opening print dialog...')}
+                        >
+                            <Printer className="w-4 h-4 text-gray-600" />
+                            <span className="text-sm font-medium text-gray-700">Print</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-4 border-t border-gray-200 bg-gray-50">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            {isOnline ? (
+                                <Cloud className="w-4 h-4 text-green-500" />
+                            ) : (
+                                <WifiOff className="w-4 h-4 text-amber-500" />
+                            )}
+                            <span className="text-xs text-gray-600">
+                                {isOnline ? 'AI analysis ready' : 'AI offline'}
+                            </span>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                            v2.5.1 • Beta
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {isMobileOpen && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-40"
+                    onClick={onClose}
+                    aria-hidden="true"
+                />
+            )}
         </>
     );
 };

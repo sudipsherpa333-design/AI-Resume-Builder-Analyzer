@@ -1,10 +1,11 @@
+// src/context/ResumeContext.jsx - UPDATED VERSION
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { resumeService } from '../services/api';
 
 // Create context
 const ResumeContext = createContext();
 
-// Custom hook to use resume context
+// Custom hook to use resume context (plural - for all resumes)
 export const useResumes = () => {
   const context = useContext(ResumeContext);
   if (!context) {
@@ -13,13 +14,24 @@ export const useResumes = () => {
   return context;
 };
 
+// Custom hook for single resume operations (singular)
+export const useResume = () => {
+  const context = useContext(ResumeContext);
+  if (!context) {
+    throw new Error('useResume must be used within a ResumeProvider');
+  }
+  return context;
+};
+
 // Provider component
 export const ResumeProvider = ({ children }) => {
   const [resumes, setResumes] = useState([]);
+  const [currentResume, setCurrentResume] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [cloudStatus, setCloudStatus] = useState({ isConnected: true, lastSynced: new Date() });
 
   // Load resumes from API
   const loadResumes = useCallback(async () => {
@@ -33,6 +45,7 @@ export const ResumeProvider = ({ children }) => {
 
       setResumes(resumesData);
       setLastUpdated(new Date());
+      setCloudStatus({ isConnected: true, lastSynced: new Date() });
 
       // Load stats
       try {
@@ -47,10 +60,39 @@ export const ResumeProvider = ({ children }) => {
     } catch (err) {
       console.error('❌ Failed to load resumes:', err);
       setError(err.message || 'Failed to load resumes');
+      setCloudStatus({ isConnected: false, lastSynced: new Date() });
 
       // Set empty arrays
       setResumes([]);
       setStats(resumeService.getDefaultStats());
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Load single resume
+  const loadResume = useCallback(async (id) => {
+    if (!id || id === 'new') {
+      const emptyResume = resumeService.getEmptyResume();
+      setCurrentResume(emptyResume);
+      return emptyResume;
+    }
+
+    setLoading(true);
+    try {
+      console.log(`📥 Loading resume: ${id}`);
+      const resumeData = await resumeService.getResume(id);
+      console.log('✅ Resume loaded:', resumeData?.title);
+
+      setCurrentResume(resumeData);
+      setCloudStatus({ isConnected: true, lastSynced: new Date() });
+
+      return resumeData;
+    } catch (err) {
+      console.error('❌ Failed to load resume:', err);
+      setError(err.message || 'Failed to load resume');
+      setCloudStatus({ isConnected: false, lastSynced: new Date() });
+      return null;
     } finally {
       setLoading(false);
     }
@@ -69,7 +111,9 @@ export const ResumeProvider = ({ children }) => {
 
       // Update local state
       setResumes(prev => [newResume, ...prev]);
+      setCurrentResume(newResume);
       setLastUpdated(new Date());
+      setCloudStatus({ isConnected: true, lastSynced: new Date() });
 
       // Update stats
       const updatedStats = await resumeService.getResumeStats();
@@ -79,6 +123,7 @@ export const ResumeProvider = ({ children }) => {
     } catch (err) {
       console.error('Failed to create resume:', err);
       setError(err.message || 'Failed to create resume');
+      setCloudStatus({ isConnected: false, lastSynced: new Date() });
       throw err;
     } finally {
       setLoading(false);
@@ -88,13 +133,20 @@ export const ResumeProvider = ({ children }) => {
   // Update existing resume
   const updateResume = async (id, resumeData) => {
     try {
+      setLoading(true);
       const updatedResume = await resumeService.updateResume(id, resumeData);
 
       // Update local state
       setResumes(prev => prev.map(resume =>
         resume._id === id || resume.id === id ? updatedResume : resume
       ));
+
+      if (currentResume && (currentResume._id === id || currentResume.id === id)) {
+        setCurrentResume(updatedResume);
+      }
+
       setLastUpdated(new Date());
+      setCloudStatus({ isConnected: true, lastSynced: new Date() });
 
       // Update stats
       const updatedStats = await resumeService.getResumeStats();
@@ -103,12 +155,14 @@ export const ResumeProvider = ({ children }) => {
       return updatedResume;
     } catch (err) {
       console.error('Failed to update resume:', err);
+      setCloudStatus({ isConnected: false, lastSynced: new Date() });
 
       // If offline, we still update local state
       if (err.message.includes('offline') || !err.response) {
         const localResume = {
           ...resumeData,
           _id: id,
+          id: id,
           updatedAt: new Date().toISOString(),
           offline: true
         };
@@ -116,6 +170,10 @@ export const ResumeProvider = ({ children }) => {
         setResumes(prev => prev.map(resume =>
           resume._id === id || resume.id === id ? localResume : resume
         ));
+
+        if (currentResume && (currentResume._id === id || currentResume.id === id)) {
+          setCurrentResume(localResume);
+        }
 
         // Update stats locally
         const updatedResumes = resumes.map(r =>
@@ -127,13 +185,17 @@ export const ResumeProvider = ({ children }) => {
         return localResume;
       }
 
+      setError(err.message || 'Failed to update resume');
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
   // Delete resume
   const deleteResume = async (id) => {
     try {
+      setLoading(true);
       const result = await resumeService.deleteResume(id);
 
       if (result.success) {
@@ -141,7 +203,13 @@ export const ResumeProvider = ({ children }) => {
         setResumes(prev => prev.filter(resume =>
           resume._id !== id && resume.id !== id
         ));
+
+        if (currentResume && (currentResume._id === id || currentResume.id === id)) {
+          setCurrentResume(null);
+        }
+
         setLastUpdated(new Date());
+        setCloudStatus({ isConnected: !result.offline, lastSynced: new Date() });
 
         // Update stats
         const updatedStats = await resumeService.getResumeStats();
@@ -158,6 +226,12 @@ export const ResumeProvider = ({ children }) => {
           resume._id !== id && resume.id !== id
         ));
 
+        if (currentResume && (currentResume._id === id || currentResume.id === id)) {
+          setCurrentResume(null);
+        }
+
+        setCloudStatus({ isConnected: false, lastSynced: new Date() });
+
         // Update stats locally
         const updatedResumes = resumes.filter(r => r._id !== id && r.id !== id);
         const localStats = resumeService.calculateStatsFromResumes(updatedResumes);
@@ -166,11 +240,14 @@ export const ResumeProvider = ({ children }) => {
         return { success: true, offline: true };
       }
 
+      setError(err.message || 'Failed to delete resume');
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Get single resume
+  // Get single resume (without setting as current)
   const getResume = async (id) => {
     if (!id || id === 'new') {
       return resumeService.getEmptyResume();
@@ -196,7 +273,7 @@ export const ResumeProvider = ({ children }) => {
     await loadResumes();
   };
 
-  // Get resume by ID
+  // Get resume by ID from local state
   const getResumeById = (id) => {
     return resumes.find(r => r._id === id || r.id === id);
   };
@@ -241,23 +318,39 @@ export const ResumeProvider = ({ children }) => {
     }
   };
 
+  // Clear current resume
+  const clearCurrentResume = () => {
+    setCurrentResume(null);
+  };
+
+  // Set current resume
+  const setCurrentResumeData = (resume) => {
+    setCurrentResume(resume);
+  };
+
   // Context value
   const value = {
+    // State
     resumes,
+    currentResume,
     stats,
     loading,
     error,
     lastUpdated,
+    cloudStatus,
 
     // Actions
     createResume,
     updateResume,
     deleteResume,
     getResume,
+    loadResume,
     refreshResumes,
     getResumeById,
     toggleStar,
     setPrimary,
+    clearCurrentResume,
+    setCurrentResumeData,
 
     // Computed values
     starredResumes: resumes.filter(r => r.isStarred),

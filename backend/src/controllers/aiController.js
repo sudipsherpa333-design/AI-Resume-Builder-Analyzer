@@ -1,5 +1,5 @@
 // server/controllers/aiController.js
-import AIService from '../services/AIService.js';
+import AIService from '../services/aiService.js';
 import Resume from '../models/Resume.js';
 import User from '../models/User.js';
 

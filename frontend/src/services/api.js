@@ -1,8 +1,9 @@
+// src/services/api.js - FIXED IMPORT ISSUES
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
-// Use import.meta.env for Vite
-const API_BASE_URL = import.meta.env?.VITE_API_URL || 'http://localhost:5000/api';
+// Use import.meta.env for Vite - FIXED PORT TO 5001
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -203,7 +204,7 @@ let backendHealth = {
     maxRetries: 3
 };
 
-// Check backend health
+// Check backend health - SIMPLIFIED FOR DEVELOPMENT
 const checkBackendHealth = async () => {
     const now = Date.now();
 
@@ -213,74 +214,52 @@ const checkBackendHealth = async () => {
     }
 
     try {
-        // Try multiple endpoints
+        // Try a simple endpoint - UPDATED FOR PORT 5001
+        const baseUrl = API_BASE_URL.replace('/api', '');
         const endpoints = [
+            `${baseUrl}/health`,
+            `${baseUrl}/`,
             `${API_BASE_URL}/health`,
-            `${API_BASE_URL.replace('/api', '')}/health`,
-            `${API_BASE_URL}/`,
-            `${API_BASE_URL.replace('/api', '')}/`
+            `${API_BASE_URL}/`
         ];
 
         for (const endpoint of endpoints) {
             try {
-                const response = await axios.get(endpoint, { timeout: 2000 });
+                const response = await axios.get(endpoint, {
+                    timeout: 2000,
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
                 if (response.status === 200) {
                     backendHealth.isHealthy = true;
                     backendHealth.lastChecked = now;
                     backendHealth.retryCount = 0;
-
-                    if (window.location.hostname === 'localhost') {
-                        console.log('✅ Backend is healthy at:', endpoint);
-                    }
                     return true;
                 }
             } catch (e) {
                 // Try next endpoint
+                continue;
             }
         }
 
-        throw new Error('All endpoints failed');
-
-    } catch (error) {
+        // If we get here, all endpoints failed
         backendHealth.isHealthy = false;
         backendHealth.lastChecked = now;
         backendHealth.retryCount++;
 
-        if (window.location.hostname === 'localhost' && backendHealth.retryCount === 1) {
-            console.warn('⚠️ Backend not available, using local data');
-            console.log('ℹ️ Start your backend server or work offline with local data');
+        // Don't show errors in console after first try
+        if (backendHealth.retryCount === 1) {
+            console.warn('⚠️ Backend not available at', API_BASE_URL);
+            console.log('🔄 Running in offline mode with local data');
         }
 
         return false;
-    }
-};
-
-// Store data locally when offline
-const storeLocally = (key, data, operation = 'create') => {
-    try {
-        const pendingOps = JSON.parse(localStorage.getItem('pending_operations') || '[]');
-        const operationId = `op_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-        pendingOps.push({
-            id: operationId,
-            type: operation,
-            key: key,
-            data: data,
-            timestamp: new Date().toISOString(),
-            retryCount: 0
-        });
-
-        localStorage.setItem('pending_operations', JSON.stringify(pendingOps));
-
-        // Also store the actual data if it's a resume
-        if (key.includes('resume_')) {
-            localStorage.setItem(key, JSON.stringify(data));
-        }
-
-        return operationId;
     } catch (error) {
-        console.error('Failed to store data locally:', error);
-        return null;
+        backendHealth.isHealthy = false;
+        backendHealth.lastChecked = now;
+        backendHealth.retryCount++;
+        return false;
     }
 };
 
@@ -316,7 +295,6 @@ api.interceptors.response.use(
         backendHealth.isHealthy = true;
         backendHealth.lastChecked = Date.now();
         backendHealth.retryCount = 0;
-
         return response;
     },
     async (error) => {
@@ -328,7 +306,7 @@ api.interceptors.response.use(
             backendHealth.lastChecked = Date.now();
 
             if (error.code === 'ECONNABORTED') {
-                // Don't show toast for timeout, it's expected when backend is down
+                // Timeout error - common when backend is down
             } else if (!navigator.onLine) {
                 toast.error('You are offline. Changes will be saved locally.', {
                     duration: 4000,
@@ -336,25 +314,31 @@ api.interceptors.response.use(
                 });
             }
 
-            // Return offline response for POST/PUT/DELETE operations
-            if (originalRequest.method === 'post' && originalRequest.url.includes('/resumes')) {
-                return Promise.resolve({
-                    data: {
-                        success: true,
-                        message: 'Saved locally (offline mode)',
-                        data: { ...JSON.parse(originalRequest.data), _id: `local_${Date.now()}` },
-                        offline: true
-                    },
-                    status: 200,
-                    statusText: 'OK',
-                    config: originalRequest
-                });
+            // For development, return offline response
+            if (window.location.hostname === 'localhost') {
+                if (originalRequest.method === 'post' && originalRequest.url.includes('/resumes')) {
+                    return Promise.resolve({
+                        data: {
+                            success: true,
+                            message: 'Saved locally (offline mode)',
+                            data: {
+                                ...JSON.parse(originalRequest.data),
+                                _id: `local_${Date.now()}`,
+                                offline: true
+                            },
+                            offline: true
+                        },
+                        status: 200,
+                        statusText: 'OK',
+                        config: originalRequest
+                    });
+                }
             }
 
             throw error;
         }
 
-        const { status, data } = error.response;
+        const { status } = error.response;
 
         if (status === 401) {
             localStorage.removeItem('token');
@@ -374,22 +358,26 @@ api.interceptors.response.use(
 // ==================== CORE API METHODS WITH OFFLINE SUPPORT ====================
 const apiMethods = {
     async get(url, config = {}) {
-        // Always check backend health first
+        // For development, always return local data first
+        if (window.location.hostname === 'localhost') {
+            const localData = this.getLocalData(url);
+            if (localData) {
+                console.log('📁 Development: Using local data for', url);
+                return localData;
+            }
+        }
+
+        // Check if backend is available
         const isHealthy = await checkBackendHealth();
 
         if (!isHealthy) {
-            // Try to get data from local storage
-            if (url.includes('/resumes') || url.includes('/dashboard')) {
-                const userId = getUserId();
-                const localData = this.getLocalData(url, userId);
-
-                if (localData) {
-                    console.log('📁 Using local data for:', url);
-                    return localData;
-                }
+            const localData = this.getLocalData(url);
+            if (localData) {
+                console.log('📁 Backend down: Using local data for', url);
+                return localData;
             }
 
-            // For development, return empty data instead of throwing
+            // Return empty response for development
             if (window.location.hostname === 'localhost') {
                 console.log('🔄 Development: No backend, returning empty data');
                 return this.getEmptyResponse(url);
@@ -405,15 +393,11 @@ const apiMethods = {
             });
             return response.data;
         } catch (error) {
-            // If backend was healthy but request failed, try local data
-            if (url.includes('/resumes') || url.includes('/dashboard')) {
-                const userId = getUserId();
-                const localData = this.getLocalData(url, userId);
-
-                if (localData) {
-                    console.log('📁 Using local data after API failure:', url);
-                    return localData;
-                }
+            // Try local data on API failure
+            const localData = this.getLocalData(url);
+            if (localData) {
+                console.log('📁 API failed: Using local data for', url);
+                return localData;
             }
 
             // For development, return empty data
@@ -427,15 +411,49 @@ const apiMethods = {
     },
 
     async post(url, data = {}, config = {}) {
+        // For development, handle locally
+        if (window.location.hostname === 'localhost') {
+            const operationId = `local_${Date.now()}`;
+            const localData = {
+                ...data,
+                _id: operationId,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            // Store in localStorage
+            const key = url.includes('/resumes') ? 'local_resumes' : 'local_data';
+            const existing = JSON.parse(localStorage.getItem(key) || '[]');
+            existing.push(localData);
+            localStorage.setItem(key, JSON.stringify(existing));
+
+            console.log('💾 Development: Saved locally', operationId);
+
+            return {
+                success: true,
+                data: localData,
+                offline: true,
+                operationId: operationId,
+                message: 'Saved locally (development mode)'
+            };
+        }
+
         const isHealthy = await checkBackendHealth();
 
         if (!isHealthy) {
             // Store locally for later sync
-            const operationId = storeLocally(`resume_${Date.now()}`, data, 'create');
+            const operationId = `local_${Date.now()}`;
+            const localData = { ...data, _id: operationId, offline: true };
+
+            // Store in localStorage
+            const key = url.includes('/resumes') ? 'local_resumes' : 'local_data';
+            const existing = JSON.parse(localStorage.getItem(key) || '[]');
+            existing.push(localData);
+            localStorage.setItem(key, JSON.stringify(existing));
 
             return {
                 success: true,
-                data: { ...data, _id: `local_${operationId}` },
+                data: localData,
                 offline: true,
                 operationId: operationId,
                 message: 'Saved locally - will sync when online'
@@ -448,11 +466,17 @@ const apiMethods = {
         } catch (error) {
             if (!error.response) {
                 // Network error - save locally
-                const operationId = storeLocally(`resume_${Date.now()}`, data, 'create');
+                const operationId = `local_${Date.now()}`;
+                const localData = { ...data, _id: operationId, offline: true };
+
+                const key = url.includes('/resumes') ? 'local_resumes' : 'local_data';
+                const existing = JSON.parse(localStorage.getItem(key) || '[]');
+                existing.push(localData);
+                localStorage.setItem(key, JSON.stringify(existing));
 
                 return {
                     success: true,
-                    data: { ...data, _id: `local_${operationId}` },
+                    data: localData,
                     offline: true,
                     operationId: operationId,
                     message: 'Saved locally - will sync when online'
@@ -463,18 +487,63 @@ const apiMethods = {
     },
 
     async put(url, data = {}, config = {}) {
-        const isHealthy = await checkBackendHealth();
+        // Extract ID from URL
+        const id = url.split('/').pop();
 
-        if (!isHealthy) {
-            // Extract resume ID from URL
-            const resumeId = url.split('/resumes/')[1];
-            const operationId = storeLocally(`resume_${resumeId}`, data, 'update');
+        // For development, handle locally
+        if (window.location.hostname === 'localhost') {
+            const localData = {
+                ...data,
+                _id: id,
+                updatedAt: new Date().toISOString(),
+                offline: true
+            };
+
+            // Update in localStorage
+            const key = 'local_resumes';
+            const existing = JSON.parse(localStorage.getItem(key) || '[]');
+            const index = existing.findIndex(item => item._id === id);
+
+            if (index !== -1) {
+                existing[index] = localData;
+            } else {
+                existing.push(localData);
+            }
+
+            localStorage.setItem(key, JSON.stringify(existing));
+
+            console.log('💾 Development: Updated locally', id);
 
             return {
                 success: true,
-                data: { ...data, _id: resumeId },
+                data: localData,
                 offline: true,
-                operationId: operationId,
+                message: 'Updated locally (development mode)'
+            };
+        }
+
+        const isHealthy = await checkBackendHealth();
+
+        if (!isHealthy) {
+            const localData = { ...data, _id: id, offline: true };
+
+            // Update in localStorage
+            const key = 'local_resumes';
+            const existing = JSON.parse(localStorage.getItem(key) || '[]');
+            const index = existing.findIndex(item => item._id === id);
+
+            if (index !== -1) {
+                existing[index] = localData;
+            } else {
+                existing.push(localData);
+            }
+
+            localStorage.setItem(key, JSON.stringify(existing));
+
+            return {
+                success: true,
+                data: localData,
+                offline: true,
                 message: 'Updated locally - will sync when online'
             };
         }
@@ -484,14 +553,24 @@ const apiMethods = {
             return response.data;
         } catch (error) {
             if (!error.response) {
-                const resumeId = url.split('/resumes/')[1];
-                const operationId = storeLocally(`resume_${resumeId}`, data, 'update');
+                const localData = { ...data, _id: id, offline: true };
+
+                const key = 'local_resumes';
+                const existing = JSON.parse(localStorage.getItem(key) || '[]');
+                const index = existing.findIndex(item => item._id === id);
+
+                if (index !== -1) {
+                    existing[index] = localData;
+                } else {
+                    existing.push(localData);
+                }
+
+                localStorage.setItem(key, JSON.stringify(existing));
 
                 return {
                     success: true,
-                    data: { ...data, _id: resumeId },
+                    data: localData,
                     offline: true,
-                    operationId: operationId,
                     message: 'Updated locally - will sync when online'
                 };
             }
@@ -500,16 +579,35 @@ const apiMethods = {
     },
 
     async delete(url, config = {}) {
-        const isHealthy = await checkBackendHealth();
+        const id = url.split('/').pop();
 
-        if (!isHealthy) {
-            const resumeId = url.split('/resumes/')[1];
-            const operationId = storeLocally(`delete_${resumeId}`, { id: resumeId }, 'delete');
+        // For development, handle locally
+        if (window.location.hostname === 'localhost') {
+            const key = 'local_resumes';
+            const existing = JSON.parse(localStorage.getItem(key) || '[]');
+            const filtered = existing.filter(item => item._id !== id);
+            localStorage.setItem(key, JSON.stringify(filtered));
+
+            console.log('🗑️ Development: Deleted locally', id);
 
             return {
                 success: true,
                 offline: true,
-                operationId: operationId,
+                message: 'Deleted locally (development mode)'
+            };
+        }
+
+        const isHealthy = await checkBackendHealth();
+
+        if (!isHealthy) {
+            const key = 'local_resumes';
+            const existing = JSON.parse(localStorage.getItem(key) || '[]');
+            const filtered = existing.filter(item => item._id !== id);
+            localStorage.setItem(key, JSON.stringify(filtered));
+
+            return {
+                success: true,
+                offline: true,
                 message: 'Delete queued - will sync when online'
             };
         }
@@ -519,13 +617,14 @@ const apiMethods = {
             return response.data;
         } catch (error) {
             if (!error.response) {
-                const resumeId = url.split('/resumes/')[1];
-                const operationId = storeLocally(`delete_${resumeId}`, { id: resumeId }, 'delete');
+                const key = 'local_resumes';
+                const existing = JSON.parse(localStorage.getItem(key) || '[]');
+                const filtered = existing.filter(item => item._id !== id);
+                localStorage.setItem(key, JSON.stringify(filtered));
 
                 return {
                     success: true,
                     offline: true,
-                    operationId: operationId,
                     message: 'Delete queued - will sync when online'
                 };
             }
@@ -533,49 +632,50 @@ const apiMethods = {
         }
     },
 
-    getLocalData(url, userId) {
+    getLocalData(url) {
         try {
-            if (url.includes('/resumes')) {
-                // Get resumes from local storage
+            const userId = getUserId();
+
+            if (url.includes('/resumes') && !url.includes('/resumes/')) {
+                // Get all resumes
                 const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
                 const userResumes = localResumes.filter(r => r.userId === userId);
 
-                if (userResumes.length > 0) {
+                return {
+                    success: true,
+                    data: userResumes,
+                    offline: true,
+                    message: 'Using locally saved resumes'
+                };
+            }
+
+            if (url.includes('/resumes/') && !url.endsWith('/stats')) {
+                // Get specific resume
+                const id = url.split('/resumes/')[1];
+                const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+                const resume = localResumes.find(r => r._id === id || r.id === id);
+
+                if (resume) {
                     return {
                         success: true,
-                        data: userResumes,
+                        data: resume,
                         offline: true,
-                        message: 'Using locally saved resumes'
-                    };
-                }
-
-                // Also check pending operations
-                const pendingOps = JSON.parse(localStorage.getItem('pending_operations') || '[]');
-                const resumeOps = pendingOps.filter(op => op.type === 'create' || op.type === 'update');
-                const resumesFromOps = resumeOps.map(op => op.data).filter(r => r.userId === userId);
-
-                if (resumesFromOps.length > 0) {
-                    return {
-                        success: true,
-                        data: resumesFromOps,
-                        offline: true,
-                        message: 'Using pending resume operations'
+                        message: 'Using locally saved resume'
                     };
                 }
             }
 
             if (url.includes('/dashboard/stats') || url.includes('/resumes/stats')) {
-                // Calculate stats from local resumes
+                // Get stats
                 const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
                 const userResumes = localResumes.filter(r => r.userId === userId);
 
-                if (userResumes.length > 0) {
-                    return {
-                        success: true,
-                        data: this.calculateStats(userResumes),
-                        offline: true
-                    };
-                }
+                return {
+                    success: true,
+                    data: this.calculateStats(userResumes),
+                    offline: true,
+                    message: 'Using local statistics'
+                };
             }
 
             return null;
@@ -664,7 +764,7 @@ const apiMethods = {
     }
 };
 
-// ==================== RESUME SERVICE ====================
+// ==================== SIMPLIFIED RESUME SERVICE ====================
 const resumeService = {
     async getUserResumes() {
         const userId = getUserId();
@@ -676,109 +776,22 @@ const resumeService = {
 
         try {
             const response = await apiMethods.get('/resumes', {
-                params: { userId },
-                timeout: 5000
+                params: { userId }
             });
 
-            let resumes = response.data || response || [];
-
-            if (!Array.isArray(resumes)) {
-                resumes = [resumes];
-            }
-
-            console.log(`✅ Loaded ${resumes.length} resumes`);
-            return resumes;
+            return response.data || response || [];
         } catch (error) {
-            console.warn('Failed to fetch resumes from API:', error.message);
-
-            // Get local resumes as fallback
+            console.log('📁 Using local resumes data');
             const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
-            const userResumes = localResumes.filter(r => r.userId === userId);
-
-            if (userResumes.length > 0) {
-                console.log(`📁 Using ${userResumes.length} local resumes`);
-                return userResumes;
-            }
-
-            console.log('📭 No resumes available');
-            return [];
+            return localResumes.filter(r => r.userId === userId);
         }
-    },
-
-    async getResumeStats(userId = null) {
-        const targetUserId = userId || getUserId();
-
-        if (!targetUserId) {
-            return this.getDefaultStats();
-        }
-
-        try {
-            const response = await apiMethods.get(`/resumes/stats/${targetUserId}`);
-            return response.data || response || this.getDefaultStats();
-        } catch (error) {
-            console.warn('Failed to fetch resume stats:', error.message);
-
-            // Calculate stats from local resumes
-            const resumes = await this.getUserResumes();
-            return this.calculateStatsFromResumes(resumes);
-        }
-    },
-
-    async getUserStats(userId = null) {
-        return this.getResumeStats(userId);
-    },
-
-    calculateStatsFromResumes(resumes) {
-        if (!Array.isArray(resumes) || resumes.length === 0) {
-            return this.getDefaultStats();
-        }
-
-        const completed = resumes.filter(r => r.status === 'completed').length;
-        const inProgress = resumes.filter(r => r.status === 'in-progress').length;
-        const drafts = resumes.filter(r => r.status === 'draft').length;
-        const avgScore = resumes.length > 0
-            ? Math.round(resumes.reduce((sum, r) => sum + (r.analysis?.atsScore || 0), 0) / resumes.length)
-            : 0;
-        const highScore = resumes.filter(r => (r.analysis?.atsScore || 0) >= 80).length;
-        const needsImprovement = resumes.filter(r => (r.analysis?.atsScore || 0) < 60).length;
-        const totalViews = resumes.reduce((sum, r) => sum + (r.views || 0), 0);
-        const totalDownloads = resumes.reduce((sum, r) => sum + (r.downloads || 0), 0);
-
-        return {
-            totalResumes: resumes.length,
-            completedResumes: completed,
-            inProgressResumes: inProgress,
-            draftResumes: drafts,
-            averageAtsScore: avgScore,
-            totalViews: totalViews,
-            totalDownloads: totalDownloads,
-            highScoreResumes: highScore,
-            needsImprovementResumes: needsImprovement,
-            completionRate: resumes.length > 0
-                ? Math.round((completed / resumes.length) * 100)
-                : 0
-        };
-    },
-
-    getDefaultStats() {
-        return {
-            totalResumes: 0,
-            completedResumes: 0,
-            inProgressResumes: 0,
-            draftResumes: 0,
-            averageAtsScore: 0,
-            totalViews: 0,
-            totalDownloads: 0,
-            highScoreResumes: 0,
-            needsImprovementResumes: 0,
-            completionRate: 0
-        };
     },
 
     async createResume(resumeData) {
         const userId = getUserId();
 
         if (!userId) {
+            toast.error('Please login to create a resume');
             throw new Error('User not authenticated');
         }
 
@@ -795,44 +808,35 @@ const resumeService = {
             const newResume = response.data || response;
 
             if (response.offline) {
-                toast.success('Resume saved locally. Will sync when online.', {
-                    duration: 4000,
+                toast.success('Resume saved locally', {
+                    duration: 3000,
                     icon: '💾'
                 });
-
-                // Store locally for immediate access
-                const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
-                localResumes.push(newResume);
-                localStorage.setItem('local_resumes', JSON.stringify(localResumes));
             } else {
                 toast.success('Resume created successfully');
             }
 
             return newResume;
         } catch (error) {
-            if (error.message.includes('offline') || !error.response) {
-                const tempId = `local_${Date.now()}`;
-                const localResume = {
-                    ...resumeWithUser,
-                    _id: tempId,
-                    offline: true
-                };
+            // Create local resume
+            const localId = `local_${Date.now()}`;
+            const localResume = {
+                ...resumeWithUser,
+                _id: localId,
+                offline: true
+            };
 
-                // Store locally
-                const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
-                localResumes.push(localResume);
-                localStorage.setItem('local_resumes', JSON.stringify(localResumes));
+            // Store locally
+            const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+            localResumes.push(localResume);
+            localStorage.setItem('local_resumes', JSON.stringify(localResumes));
 
-                toast.success('Resume saved locally. Will sync when online.', {
-                    duration: 4000,
-                    icon: '💾'
-                });
+            toast.success('Resume saved locally', {
+                duration: 3000,
+                icon: '💾'
+            });
 
-                return localResume;
-            }
-
-            toast.error('Failed to create resume: ' + (error.message || 'Unknown error'));
-            throw error;
+            return localResume;
         }
     },
 
@@ -845,54 +849,40 @@ const resumeService = {
             const updatedResume = response.data || response;
 
             if (response.offline) {
-                toast.success('Changes saved locally. Will sync when online.', {
-                    duration: 3000,
+                toast.success('Changes saved locally', {
+                    duration: 2000,
                     icon: '💾'
                 });
-
-                // Update local storage
-                const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
-                const index = localResumes.findIndex(r => r._id === id || r.id === id);
-                if (index !== -1) {
-                    localResumes[index] = updatedResume;
-                } else {
-                    localResumes.push(updatedResume);
-                }
-                localStorage.setItem('local_resumes', JSON.stringify(localResumes));
             } else {
                 toast.success('Resume updated successfully');
             }
 
             return updatedResume;
         } catch (error) {
-            if (error.message.includes('offline') || !error.response) {
-                const localResume = {
-                    ...resumeData,
-                    _id: id,
-                    updatedAt: new Date().toISOString(),
-                    offline: true
-                };
+            // Update locally
+            const localResume = {
+                ...resumeData,
+                _id: id,
+                updatedAt: new Date().toISOString(),
+                offline: true
+            };
 
-                // Update local storage
-                const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
-                const index = localResumes.findIndex(r => r._id === id || r.id === id);
-                if (index !== -1) {
-                    localResumes[index] = localResume;
-                } else {
-                    localResumes.push(localResume);
-                }
-                localStorage.setItem('local_resumes', JSON.stringify(localResumes));
-
-                toast.success('Changes saved locally. Will sync when online.', {
-                    duration: 3000,
-                    icon: '💾'
-                });
-
-                return localResume;
+            // Update local storage
+            const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+            const index = localResumes.findIndex(r => r._id === id || r.id === id);
+            if (index !== -1) {
+                localResumes[index] = localResume;
+            } else {
+                localResumes.push(localResume);
             }
+            localStorage.setItem('local_resumes', JSON.stringify(localResumes));
 
-            toast.error('Failed to update resume: ' + (error.message || 'Unknown error'));
-            throw error;
+            toast.success('Changes saved locally', {
+                duration: 2000,
+                icon: '💾'
+            });
+
+            return localResume;
         }
     },
 
@@ -901,37 +891,20 @@ const resumeService = {
             const response = await apiMethods.delete(`/resumes/${id}`);
 
             if (response.offline) {
-                toast.success('Delete queued. Will sync when online.', {
-                    duration: 3000,
-                    icon: '💾'
-                });
-
-                // Remove from local storage
-                const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
-                const filteredResumes = localResumes.filter(r => r._id !== id && r.id !== id);
-                localStorage.setItem('local_resumes', JSON.stringify(filteredResumes));
+                toast.success('Resume deleted locally');
             } else {
                 toast.success('Resume deleted successfully');
             }
 
-            return { success: true, offline: response.offline };
+            return { success: true };
         } catch (error) {
-            if (error.message.includes('offline') || !error.response) {
-                // Remove from local storage
-                const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
-                const filteredResumes = localResumes.filter(r => r._id !== id && r.id !== id);
-                localStorage.setItem('local_resumes', JSON.stringify(filteredResumes));
+            // Delete locally
+            const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+            const filteredResumes = localResumes.filter(r => r._id !== id && r.id !== id);
+            localStorage.setItem('local_resumes', JSON.stringify(filteredResumes));
 
-                toast.success('Delete queued. Will sync when online.', {
-                    duration: 3000,
-                    icon: '💾'
-                });
-
-                return { success: true, offline: true };
-            }
-
-            toast.error('Failed to delete resume: ' + (error.message || 'Unknown error'));
-            throw error;
+            toast.success('Resume deleted locally');
+            return { success: true };
         }
     },
 
@@ -944,12 +917,12 @@ const resumeService = {
             const response = await apiMethods.get(`/resumes/${id}`);
             return response.data || response;
         } catch (error) {
-            // Check local storage if API fails
+            // Check local storage
             const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
             const resume = localResumes.find(r => r._id === id || r.id === id);
 
             if (resume) {
-                console.log('📁 Loaded resume from local storage:', id);
+                console.log('📁 Loaded resume from local storage');
                 return resume;
             }
 
@@ -1000,17 +973,66 @@ const resumeService = {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
+    },
+
+    async getResumeStats(userId = null) {
+        const targetUserId = userId || getUserId();
+
+        if (!targetUserId) {
+            return this.getDefaultStats();
+        }
+
+        try {
+            const response = await apiMethods.get(`/resumes/stats/${targetUserId}`);
+            return response.data || response || this.getDefaultStats();
+        } catch (error) {
+            // Calculate from local resumes
+            const resumes = await this.getUserResumes();
+            return this.calculateStatsFromResumes(resumes);
+        }
+    },
+
+    calculateStatsFromResumes(resumes) {
+        if (!Array.isArray(resumes) || resumes.length === 0) {
+            return this.getDefaultStats();
+        }
+
+        const completed = resumes.filter(r => r.status === 'completed').length;
+        const inProgress = resumes.filter(r => r.status === 'in-progress').length;
+        const drafts = resumes.filter(r => r.status === 'draft').length;
+        const avgScore = resumes.length > 0
+            ? Math.round(resumes.reduce((sum, r) => sum + (r.analysis?.atsScore || 0), 0) / resumes.length)
+            : 0;
+
+        return {
+            totalResumes: resumes.length,
+            completedResumes: completed,
+            inProgressResumes: inProgress,
+            draftResumes: drafts,
+            averageAtsScore: avgScore,
+            completionRate: resumes.length > 0
+                ? Math.round((completed / resumes.length) * 100)
+                : 0
+        };
+    },
+
+    getDefaultStats() {
+        return {
+            totalResumes: 0,
+            completedResumes: 0,
+            inProgressResumes: 0,
+            draftResumes: 0,
+            averageAtsScore: 0,
+            completionRate: 0
+        };
     }
 };
 
-// ==================== DASHBOARD SERVICE ====================
+// ==================== SIMPLIFIED DASHBOARD SERVICE ====================
 const dashboardService = {
     async getDashboardStats(userId) {
         try {
-            const response = await apiMethods.get(`/dashboard/stats/${userId}`, {
-                timeout: 5000
-            });
-
+            const response = await apiMethods.get(`/dashboard/stats/${userId}`);
             const stats = response.data || response || {};
 
             return {
@@ -1019,41 +1041,58 @@ const dashboardService = {
                 inProgressResumes: stats.inProgressResumes || 0,
                 draftResumes: stats.draftResumes || 0,
                 averageAtsScore: stats.averageAtsScore || 0,
-                onlineUsers: stats.onlineUsers || 1,
-                activeSessions: stats.activeSessions || 1,
-                storageUsed: stats.storageUsed || '0 MB',
-                storageLimit: stats.storageLimit || '500 MB',
-                lastSynced: new Date().toISOString(),
-                recentActivity: stats.recentActivity || [],
-                totalViews: stats.totalViews || 0,
-                totalDownloads: stats.totalDownloads || 0,
-                highScoreResumes: stats.highScoreResumes || 0,
-                needsImprovementResumes: stats.needsImprovementResumes || 0,
-                completionRate: stats.completionRate || 0
+                completionRate: stats.completionRate || 0,
+                lastSynced: new Date().toISOString()
             };
         } catch (error) {
-            console.warn('Failed to fetch dashboard stats:', error.message);
-
             // Calculate from local data
             const resumes = await resumeService.getUserResumes();
             const stats = resumeService.calculateStatsFromResumes(resumes);
 
             return {
                 ...stats,
-                onlineUsers: 1,
-                activeSessions: 1,
-                storageUsed: '0 MB',
-                storageLimit: '500 MB',
-                lastSynced: new Date().toISOString(),
-                recentActivity: []
+                lastSynced: new Date().toISOString()
             };
         }
     }
 };
 
-// ==================== AUTH SERVICE ====================
+// ==================== SIMPLIFIED AUTH SERVICE ====================
 const authService = {
     async login(email, password, rememberMe = false) {
+        // For development, always create demo user
+        if (window.location.hostname === 'localhost') {
+            console.log('🔧 Development: Creating demo user');
+
+            const demoUser = {
+                _id: 'demo-user-123',
+                id: 'demo-user-123',
+                name: email.split('@')[0] || 'Demo User',
+                email: email,
+                role: 'user',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(email.split('@')[0] || 'User')}&background=3b82f6&color=fff`
+            };
+
+            const demoToken = 'demo_token_' + Date.now();
+
+            if (rememberMe) {
+                localStorage.setItem('token', demoToken);
+            } else {
+                sessionStorage.setItem('token', demoToken);
+            }
+
+            localStorage.setItem('user_id', demoUser.id);
+            localStorage.setItem('user_data', JSON.stringify(demoUser));
+
+            // Initialize local data
+            initializeLocalData();
+
+            toast.success(`Welcome ${demoUser.name}! (Development Mode)`);
+            return { success: true, user: demoUser };
+        }
+
         try {
             const response = await api.post('/auth/login', { email, password });
             const { token, user } = response.data;
@@ -1070,45 +1109,37 @@ const authService = {
             toast.success(`Welcome back, ${user.name || user.email}!`);
             return { success: true, user };
         } catch (error) {
-            // For development, create a demo user
-            if (window.location.hostname === 'localhost' && !error.response) {
-                console.log('🔧 Development: Creating demo user');
-
-                const demoUser = {
-                    _id: 'demo-user-123',
-                    id: 'demo-user-123',
-                    name: email.split('@')[0] || 'Demo User',
-                    email: email,
-                    role: 'user',
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(email.split('@')[0] || 'User')}&background=3b82f6&color=fff`
-                };
-
-                const demoToken = 'demo_token_' + Date.now();
-
-                if (rememberMe) {
-                    localStorage.setItem('token', demoToken);
-                } else {
-                    sessionStorage.setItem('token', demoToken);
-                }
-
-                localStorage.setItem('user_id', demoUser.id);
-                localStorage.setItem('user_data', JSON.stringify(demoUser));
-
-                // Initialize local data
-                initializeLocalData();
-
-                toast.success(`Welcome ${demoUser.name}! (Development Mode)`);
-                return { success: true, user: demoUser };
-            }
-
-            toast.error(error.response?.data?.message || 'Login failed');
+            toast.error('Login failed');
             throw error;
         }
     },
 
     async register(userData) {
+        // For development, create demo user
+        if (window.location.hostname === 'localhost') {
+            console.log('🔧 Development: Creating demo user for registration');
+
+            const demoUser = {
+                ...userData,
+                _id: 'demo-user-' + Date.now(),
+                id: 'demo-user-' + Date.now(),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            const demoToken = 'demo_token_' + Date.now();
+
+            localStorage.setItem('token', demoToken);
+            localStorage.setItem('user_id', demoUser.id);
+            localStorage.setItem('user_data', JSON.stringify(demoUser));
+
+            // Initialize local data
+            initializeLocalData();
+
+            toast.success('Registration successful! (Development Mode)');
+            return { success: true, user: demoUser };
+        }
+
         try {
             const response = await api.post('/auth/register', userData);
             const { token, user } = response.data;
@@ -1120,32 +1151,7 @@ const authService = {
             toast.success('Registration successful! Welcome aboard!');
             return { success: true, user };
         } catch (error) {
-            // For development, create a demo user
-            if (window.location.hostname === 'localhost' && !error.response) {
-                console.log('🔧 Development: Creating demo user for registration');
-
-                const demoUser = {
-                    ...userData,
-                    _id: 'demo-user-' + Date.now(),
-                    id: 'demo-user-' + Date.now(),
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                };
-
-                const demoToken = 'demo_token_' + Date.now();
-
-                localStorage.setItem('token', demoToken);
-                localStorage.setItem('user_id', demoUser.id);
-                localStorage.setItem('user_data', JSON.stringify(demoUser));
-
-                // Initialize local data
-                initializeLocalData();
-
-                toast.success('Registration successful! (Development Mode)');
-                return { success: true, user: demoUser };
-            }
-
-            toast.error(error.response?.data?.message || 'Registration failed');
+            toast.error('Registration failed');
             throw error;
         }
     },
@@ -1185,23 +1191,26 @@ const apiService = {
 
     // Initialize
     init() {
-        console.log('🚀 API Service initialized');
+        console.log('🚀 API Service initialized for development');
         console.log('📡 API Base URL:', API_BASE_URL);
-        console.log('👤 Current User ID:', getUserId());
 
-        // Initialize local data for development
+        // Initialize local data
         if (window.location.hostname === 'localhost') {
             initializeLocalData();
         }
 
-        // Set auth header if token exists
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        if (token) {
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        }
+        // Check backend health
+        setTimeout(() => {
+            checkBackendHealth().then(isHealthy => {
+                if (!isHealthy) {
+                    console.log('🔄 Running in offline/local mode');
+                    console.log('💡 Start backend server at', API_BASE_URL, 'for full functionality');
+                }
+            });
+        }, 1000);
     }
 };
 
 // Export everything
 export default apiService;
-export { apiMethods, resumeService, authService, dashboardService };
+export { resumeService, authService, dashboardService };
