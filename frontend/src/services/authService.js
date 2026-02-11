@@ -9,15 +9,15 @@ const debug = {
   log: (endpoint, data, type = 'request') => {
     console.group(`🔍 API ${type.toUpperCase()}`);
     console.log(`📍 Endpoint: ${endpoint}`);
-    console.log(`📦 Data:`, type === 'request' ? { ...data, password: data.password ? '[HIDDEN]' : undefined } : data);
+    console.log('📦 Data:', type === 'request' ? { ...data, password: data.password ? '[HIDDEN]' : undefined } : data);
     console.log(`⏰ Time: ${new Date().toISOString()}`);
     console.groupEnd();
   },
   error: (endpoint, error, context) => {
     console.group(`❌ API ERROR: ${context}`);
     console.log(`📍 Endpoint: ${endpoint}`);
-    console.log(`💥 Error:`, error);
-    console.log(`📊 Response:`, {
+    console.log('💥 Error:', error);
+    console.log('📊 Response:', {
       status: error.response?.status,
       statusText: error.response?.statusText,
       data: error.response?.data,
@@ -204,8 +204,12 @@ const authService = {
         const token = response.data.token || response.data.data?.token;
         const user = response.data.user || response.data.data?.user;
 
-        if (token) authService.setToken(token);
-        if (user) authService.setUser(user);
+        if (token) {
+          authService.setToken(token);
+        }
+        if (user) {
+          authService.setUser(user);
+        }
 
         return {
           success: true,
@@ -238,20 +242,20 @@ const authService = {
           userMessage = serverMessage || 'Server is temporarily unavailable. Please try again shortly.';
         } else {
           switch (status) {
-            case 400:
-              userMessage = serverMessage || 'Invalid registration data. Please check your information.';
-              break;
-            case 409:
-              userMessage = serverMessage || 'An account with this email already exists.';
-              break;
-            case 422:
-              userMessage = serverMessage || 'Validation failed. Please check your input.';
-              break;
-            case 500:
-              userMessage = 'Server error. Please try again later.';
-              break;
-            default:
-              userMessage = serverMessage || `Registration failed (${status})`;
+          case 400:
+            userMessage = serverMessage || 'Invalid registration data. Please check your information.';
+            break;
+          case 409:
+            userMessage = serverMessage || 'An account with this email already exists.';
+            break;
+          case 422:
+            userMessage = serverMessage || 'Validation failed. Please check your input.';
+            break;
+          case 500:
+            userMessage = 'Server error. Please try again later.';
+            break;
+          default:
+            userMessage = serverMessage || `Registration failed (${status})`;
           }
         }
       } else if (error.request && !useMock) {
@@ -293,8 +297,12 @@ const authService = {
         const token = response.data.token || response.data.data?.token;
         const user = response.data.user || response.data.data?.user;
 
-        if (token) authService.setToken(token);
-        if (user) authService.setUser(user);
+        if (token) {
+          authService.setToken(token);
+        }
+        if (user) {
+          authService.setUser(user);
+        }
 
         return {
           success: true,
@@ -324,23 +332,23 @@ const authService = {
         const serverMessage = error.response.data?.message;
 
         switch (status) {
-          case 400:
-            userMessage = serverMessage || 'Invalid email or password format.';
-            break;
-          case 401:
-            userMessage = serverMessage || 'Invalid email or password.';
-            break;
-          case 404:
-            userMessage = serverMessage || 'Account not found. Please check your email.';
-            break;
-          case 422:
-            userMessage = serverMessage || 'Validation failed. Please check your input.';
-            break;
-          case 500:
-            userMessage = 'Server error. Please try again later.';
-            break;
-          default:
-            userMessage = serverMessage || `Login failed (${status})`;
+        case 400:
+          userMessage = serverMessage || 'Invalid email or password format.';
+          break;
+        case 401:
+          userMessage = serverMessage || 'Invalid email or password.';
+          break;
+        case 404:
+          userMessage = serverMessage || 'Account not found. Please check your email.';
+          break;
+        case 422:
+          userMessage = serverMessage || 'Validation failed. Please check your input.';
+          break;
+        case 500:
+          userMessage = 'Server error. Please try again later.';
+          break;
+        default:
+          userMessage = serverMessage || `Login failed (${status})`;
         }
       } else if (error.request && !useMock) {
         userMessage = 'Network error: Cannot connect to server. Please check your connection.';
@@ -381,8 +389,12 @@ const authService = {
         const token = response.data.token || response.data.data?.token;
         const user = response.data.user || response.data.data?.user;
 
-        if (token) authService.setToken(token);
-        if (user) authService.setUser(user);
+        if (token) {
+          authService.setToken(token);
+        }
+        if (user) {
+          authService.setUser(user);
+        }
 
         return {
           success: true,
@@ -416,17 +428,17 @@ const authService = {
         console.log('🔄 Using mock admin login');
         await new Promise(resolve => setTimeout(resolve, 1500));
         return {
-            success: true,
-            message: 'Admin login successful (MOCK)',
-            data: {
-                token: 'mock-admin-token',
-                user: {
-                    id: 'admin-123',
-                    name: 'Administrator',
-                    email: 'admin@example.com',
-                    role: 'admin'
-                }
+          success: true,
+          message: 'Admin login successful (MOCK)',
+          data: {
+            token: 'mock-admin-token',
+            user: {
+              id: 'admin-123',
+              name: 'Administrator',
+              email: 'admin@example.com',
+              role: 'admin'
             }
+          }
         };
       }
 
@@ -437,8 +449,12 @@ const authService = {
         const token = response.data.token || response.data.data?.token;
         const user = response.data.user || response.data.data?.user;
 
-        if (token) authService.setToken(token);
-        if (user) authService.setUser(user);
+        if (token) {
+          authService.setToken(token);
+        }
+        if (user) {
+          authService.setUser(user);
+        }
 
         return {
           success: true,
@@ -454,9 +470,9 @@ const authService = {
       
       let userMessage = 'Admin login failed';
       if (error.response) {
-          userMessage = error.response.data?.message || `Admin login failed (${error.response.status})`;
+        userMessage = error.response.data?.message || `Admin login failed (${error.response.status})`;
       } else if (error.request) {
-          userMessage = 'Network error: Cannot connect to server.';
+        userMessage = 'Network error: Cannot connect to server.';
       }
 
       return {
@@ -491,8 +507,12 @@ const authService = {
         const token = response.data.token || response.data.data?.token;
         const user = response.data.user || response.data.data?.user;
 
-        if (token) authService.setToken(token);
-        if (user) authService.setUser(user);
+        if (token) {
+          authService.setToken(token);
+        }
+        if (user) {
+          authService.setUser(user);
+        }
 
         return {
           success: true,
@@ -538,8 +558,12 @@ const authService = {
         const token = response.data.token || response.data.data?.token;
         const user = response.data.user || response.data.data?.user;
 
-        if (token) authService.setToken(token);
-        if (user) authService.setUser(user);
+        if (token) {
+          authService.setToken(token);
+        }
+        if (user) {
+          authService.setUser(user);
+        }
 
         return {
           success: true,

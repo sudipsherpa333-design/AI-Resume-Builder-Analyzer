@@ -636,4 +636,3 @@ const ThemeToggle = ({
 };
 
 export default ThemeToggle;
-export { ThemeProvider, useTheme };

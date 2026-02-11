@@ -1,6 +1,10 @@
 const { validationResult } = require('express-validator');
 const logger = require('../utils/logger');
 
+/**
+ * Request Validation Middleware using express-validator
+ * @param {Array} validations - Array of express-validator validation chains
+ */
 const validateRequest = (validations) => {
   return async (req, res, next) => {
     // Run all validations
@@ -39,9 +43,10 @@ const validateRequest = (validations) => {
   };
 };
 
-// Common validation schemas
-const validationSchemas = {
-  email: {
+// Common validation rules
+const validationRules = {
+  email: (field = 'email') => ({
+    in: ['body'],
     isEmail: {
       errorMessage: 'Please provide a valid email address'
     },
@@ -50,9 +55,10 @@ const validationSchemas = {
       options: { max: 255 },
       errorMessage: 'Email must be less than 255 characters'
     }
-  },
+  }),
 
-  password: {
+  password: (field = 'password') => ({
+    in: ['body'],
     isLength: {
       options: { min: 6 },
       errorMessage: 'Password must be at least 6 characters long'
@@ -61,53 +67,90 @@ const validationSchemas = {
       options: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
       errorMessage: 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
     }
-  },
+  }),
 
-  name: {
+  name: (field = 'name') => ({
+    in: ['body'],
     isLength: {
       options: { min: 2, max: 100 },
       errorMessage: 'Name must be between 2 and 100 characters'
     },
     trim: true
-  },
+  }),
 
-  phone: {
+  phone: (field = 'phone') => ({
+    in: ['body'],
     optional: true,
     matches: {
       options: /^[\+]?[1-9][\d]{0,15}$/,
       errorMessage: 'Please provide a valid phone number'
     }
-  },
+  }),
 
-  objectId: {
+  objectId: (field = 'id') => ({
+    in: ['params'],
     isMongoId: {
       errorMessage: 'Invalid ID format'
     }
-  },
+  }),
 
-  url: {
+  url: (field = 'url') => ({
+    in: ['body'],
     optional: true,
     isURL: {
       errorMessage: 'Please provide a valid URL'
     }
-  },
+  }),
 
-  date: {
+  date: (field = 'date') => ({
+    in: ['body'],
     optional: true,
     isISO8601: {
       errorMessage: 'Please provide a valid date in ISO format'
     }
-  },
+  }),
 
-  boolean: {
+  boolean: (field = 'value') => ({
+    in: ['body'],
     optional: true,
     isBoolean: {
       errorMessage: 'Value must be true or false'
     }
-  }
+  }),
+
+  // Resume specific validations
+  resumeTitle: (field = 'title') => ({
+    in: ['body'],
+    notEmpty: {
+      errorMessage: 'Resume title is required'
+    },
+    isLength: {
+      options: { min: 1, max: 100 },
+      errorMessage: 'Title must be between 1 and 100 characters'
+    },
+    trim: true
+  }),
+
+  resumeTemplate: (field = 'template') => ({
+    in: ['body'],
+    optional: true,
+    isIn: {
+      options: [['modern', 'classic', 'minimal', 'professional', 'creative']],
+      errorMessage: 'Invalid template selection'
+    }
+  }),
+
+  resumeStatus: (field = 'status') => ({
+    in: ['body'],
+    optional: true,
+    isIn: {
+      options: [['draft', 'published', 'archived']],
+      errorMessage: 'Invalid status'
+    }
+  })
 };
 
 module.exports = {
   validateRequest,
-  validationSchemas
+  validationRules
 };

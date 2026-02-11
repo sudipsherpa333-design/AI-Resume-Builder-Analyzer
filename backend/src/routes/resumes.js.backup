@@ -1,0 +1,35 @@
+import express from 'express';
+import { 
+    createResume, 
+    getUserResumes, 
+    getResume, 
+    updateResume, 
+    deleteResume,
+    testRoute 
+} from '../controllers/resumeController.js';
+import { authMiddleware as authenticate } from '../middleware/auth.js';
+
+const router = express.Router();
+
+// Test route (public)
+router.get('/test', testRoute);
+
+// All routes below require authentication
+router.use(authMiddleware);
+
+// Get all resumes for logged in user
+router.get('/', getUserResumes);
+
+// Create a new resume
+router.post('/', createResume);
+
+// Get a specific resume
+router.get('/:id', getResume);
+
+// Update a resume
+router.put('/:id', updateResume);
+
+// Delete a resume
+router.delete('/:id', deleteResume);
+
+export default router;

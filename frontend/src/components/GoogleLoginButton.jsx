@@ -4,7 +4,7 @@ import { FcGoogle } from 'react-icons/fc';
 import { useGoogleLogin } from '@react-oauth/google';
 import { Button } from '@mui/material';
 
-const GoogleLoginButton = ({ text = "Continue with Google", variant = "outlined", fullWidth = true }) => {
+const GoogleLoginButton = ({ text = 'Continue with Google', variant = 'outlined', fullWidth = true }) => {
   const { loginWithGoogle } = useAuth();
 
   const handleGoogleLogin = useGoogleLogin({

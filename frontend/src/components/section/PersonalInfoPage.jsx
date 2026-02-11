@@ -1,315 +1,261 @@
-// src/components/section/PersonalInfoPage.jsx - SIMPLIFIED PROFESSIONAL VERSION
-import React, { useState, useEffect } from 'react';
+// src/components/section/PersonalInfoPage.jsx
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  User, Mail, Phone, MapPin, Globe, Github, Linkedin,
-  Briefcase, Save, Upload, Camera, CheckCircle
+  User, Mail, Phone, MapPin, Globe, Linkedin, Github,
+  Briefcase, Save
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
-const PersonalInfoPage = ({ data, onChange, isSaving }) => {
-  // Form data state
+const PersonalInfoPage = ({ data = {}, onUpdate }) => {
   const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    location: '',
-    jobTitle: '',
-    website: '',
-    linkedin: '',
-    github: '',
-    photo: '',
-    ...data
+    name: data.name || '',
+    email: data.email || '',
+    phone: data.phone || '',
+    location: data.location || '',
+    website: data.website || '',
+    linkedin: data.linkedin || '',
+    github: data.github || '',
+    title: data.title || ''
   });
 
-  // Update form when props change
-  useEffect(() => {
-    setFormData(prev => ({
-      ...prev,
-      ...data
-    }));
-  }, [data]);
+  const [errors, setErrors] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Handle input changes
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Name is required';
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Invalid email format';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  // Save changes
-  const handleSave = () => {
-    // Validate required fields
-    if (!formData.fullName?.trim()) {
-      toast.error('Full name is required');
-      return;
-    }
-
-    if (!formData.email?.trim()) {
-      toast.error('Email is required');
-      return;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      toast.error('Please enter a valid email address');
-      return;
-    }
-
-    // Save data
-    if (onChange && typeof onChange === 'function') {
-      onChange(formData);
-      toast.success('Personal information saved');
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
-  // Handle photo upload
-  const handlePhotoUpload = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Validate file
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
-    if (!validTypes.includes(file.type)) {
-      toast.error('Please upload a JPG, PNG, or GIF image');
+  const handleSave = async () => {
+    if (!validateForm()) {
+      toast.error('Please fix the errors');
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image size should be less than 2MB');
-      return;
+    setIsSaving(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      onUpdate(formData);
+      toast.success('Personal information saved!');
+    } catch (error) {
+      toast.error('Failed to save');
+    } finally {
+      setIsSaving(false);
     }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData(prev => ({
-        ...prev,
-        photo: reader.result
-      }));
-      toast.success('Profile photo updated');
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Input fields configuration
-  const inputFields = [
-    {
-      id: 'fullName',
-      label: 'Full Name',
-      icon: User,
-      placeholder: 'John Doe',
-      type: 'text',
-      required: true
-    },
-    {
-      id: 'email',
-      label: 'Email Address',
-      icon: Mail,
-      placeholder: 'john@example.com',
-      type: 'email',
-      required: true
-    },
-    {
-      id: 'phone',
-      label: 'Phone Number',
-      icon: Phone,
-      placeholder: '+1 (555) 123-4567',
-      type: 'tel'
-    },
-    {
-      id: 'location',
-      label: 'Location',
-      icon: MapPin,
-      placeholder: 'City, Country',
-      type: 'text'
-    },
-    {
-      id: 'jobTitle',
-      label: 'Job Title',
-      icon: Briefcase,
-      placeholder: 'Senior Software Engineer',
-      type: 'text'
-    }
-  ];
-
-  // Social fields configuration
-  const socialFields = [
-    {
-      id: 'linkedin',
-      label: 'LinkedIn Profile',
-      icon: Linkedin,
-      placeholder: 'linkedin.com/in/username',
-      color: 'text-blue-600'
-    },
-    {
-      id: 'github',
-      label: 'GitHub Profile',
-      icon: Github,
-      placeholder: 'github.com/username',
-      color: 'text-gray-700'
-    },
-    {
-      id: 'website',
-      label: 'Personal Website',
-      icon: Globe,
-      placeholder: 'yourwebsite.com',
-      color: 'text-green-600'
-    }
-  ];
-
-  // Calculate completion percentage
-  const completionPercentage = () => {
-    const requiredFields = ['fullName', 'email'];
-    const completed = requiredFields.filter(field =>
-      formData[field]?.trim().length > 0
-    ).length;
-    return Math.round((completed / requiredFields.length) * 100);
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-8"
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-2xl font-bold text-gray-900">Personal Information</h3>
-          <p className="text-gray-600 mt-1">Your contact details and professional profile</p>
-        </div>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
-        >
-          <Save className="w-4 h-4" />
-          {isSaving ? 'Saving...' : 'Save'}
-        </button>
-      </div>
+    <div className="w-full max-w-4xl mx-auto">
+      {/* Fixed size modern card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
 
-      {/* Progress */}
-      <div className="bg-blue-50 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-blue-700">Completion</span>
-          <span className="text-sm font-semibold text-blue-700">{completionPercentage()}%</span>
+        {/* Header - Simple black text */}
+        <div className="px-6 py-6 border-b border-gray-100">
+          <h2 className="text-xl font-semibold text-black mb-1">
+            Personal Information
+          </h2>
+          <p className="text-gray-600 text-sm">
+            Basic details about yourself
+          </p>
         </div>
-        <div className="h-2 bg-blue-100 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-blue-600 rounded-full transition-all duration-300"
-            style={{ width: `${completionPercentage()}%` }}
-          />
-        </div>
-      </div>
 
-      {/* Photo Section */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-center gap-6">
-          <div className="relative">
-            <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border-2 border-gray-300">
-              {formData.photo ? (
-                <img
-                  src={formData.photo}
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <User className="w-12 h-12 text-gray-400" />
-              )}
-            </div>
-            <label className="absolute bottom-0 right-0 bg-white rounded-full p-2 border border-gray-300 cursor-pointer hover:bg-gray-50">
-              <Camera className="w-4 h-4 text-gray-600" />
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoUpload}
-              />
-            </label>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-900 mb-1">Profile Photo</h4>
-            <p className="text-sm text-gray-600 mb-3">
-              Add a professional headshot (JPG, PNG, max 2MB)
-            </p>
-            <label className="inline-flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
-              <Upload className="w-4 h-4" />
-              Upload Photo
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoUpload}
-              />
-            </label>
-          </div>
-        </div>
-      </div>
+        {/* Form Grid - Clean and organized */}
+        <div className="p-6">
+          <div className="space-y-8">
 
-      {/* Basic Information */}
-      <div className="space-y-6">
-        <h4 className="text-lg font-semibold text-gray-900">Basic Information</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {inputFields.map((field) => (
-            <div key={field.id} className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                {field.label}
-                {field.required && <span className="text-red-500 ml-1">*</span>}
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <field.icon className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type={field.type}
-                  value={formData[field.id] || ''}
-                  onChange={(e) => handleInputChange(field.id, e.target.value)}
-                  placeholder={field.placeholder}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Social Links */}
-      <div className="space-y-6">
-        <h4 className="text-lg font-semibold text-gray-900">Social Profiles</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {socialFields.map((field) => (
-            <div key={field.id} className="space-y-2">
-              <div className="flex items-center gap-2">
-                <field.icon className={`h-5 w-5 ${field.color}`} />
-                <label className="text-sm font-medium text-gray-700">
-                  {field.label}
+            {/* Row 1: Name & Title */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">
+                  Full Name *
                 </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => handleChange('name', e.target.value)}
+                    placeholder="John Doe"
+                    className={`w-full px-4 py-3 pl-11 rounded-lg border ${errors.name ? 'border-red-300' : 'border-gray-300'} focus:outline-none focus:border-blue-500 text-black`}
+                  />
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+                </div>
+                {errors.name && (
+                  <p className="text-red-500 text-sm mt-2">{errors.name}</p>
+                )}
               </div>
-              <input
-                type="url"
-                value={formData[field.id] || ''}
-                onChange={(e) => handleInputChange(field.id, e.target.value)}
-                placeholder={field.placeholder}
-                className="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-              />
-            </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Required Fields Note */}
-      <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-        <div className="flex items-start gap-3">
-          <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-gray-900">Required Information</p>
-            <p className="text-sm text-gray-600 mt-1">
-              Please ensure your full name and email address are accurate. These fields are required for your resume.
-            </p>
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">
+                  Professional Title
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => handleChange('title', e.target.value)}
+                    placeholder="Software Engineer"
+                    className="w-full px-4 py-3 pl-11 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500 text-black"
+                  />
+                  <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+                </div>
+              </div>
+            </div>
+
+            {/* Row 2: Email & Phone */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">
+                  Email Address *
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    placeholder="john@example.com"
+                    className={`w-full px-4 py-3 pl-11 rounded-lg border ${errors.email ? 'border-red-300' : 'border-gray-300'} focus:outline-none focus:border-blue-500 text-black`}
+                  />
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+                </div>
+                {errors.email && (
+                  <p className="text-red-500 text-sm mt-2">{errors.email}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">
+                  Phone Number
+                </label>
+                <div className="relative">
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => handleChange('phone', e.target.value)}
+                    placeholder="+1 (555) 123-4567"
+                    className="w-full px-4 py-3 pl-11 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500 text-black"
+                  />
+                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+                </div>
+              </div>
+            </div>
+
+            {/* Row 3: Location & Website */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">
+                  Location
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => handleChange('location', e.target.value)}
+                    placeholder="San Francisco, CA"
+                    className="w-full px-4 py-3 pl-11 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500 text-black"
+                  />
+                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">
+                  Website
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={formData.website}
+                    onChange={(e) => handleChange('website', e.target.value)}
+                    placeholder="yourwebsite.com"
+                    className="w-full px-4 py-3 pl-11 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500 text-black"
+                  />
+                  <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+                </div>
+              </div>
+            </div>
+
+            {/* Row 4: LinkedIn & GitHub */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">
+                  LinkedIn
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={formData.linkedin}
+                    onChange={(e) => handleChange('linkedin', e.target.value)}
+                    placeholder="linkedin.com/in/username"
+                    className="w-full px-4 py-3 pl-11 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500 text-black"
+                  />
+                  <Linkedin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-700" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">
+                  GitHub
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={formData.github}
+                    onChange={(e) => handleChange('github', e.target.value)}
+                    placeholder="github.com/username"
+                    className="w-full px-4 py-3 pl-11 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500 text-black"
+                  />
+                  <Github className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-800" />
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Save Button - Fixed at bottom */}
+          <div className="mt-10 pt-6 border-t border-gray-100">
+            <motion.button
+              onClick={handleSave}
+              disabled={isSaving}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="w-full md:w-auto px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 font-medium"
+            >
+              {isSaving ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-5 h-5" />
+                  Save Information
+                </>
+              )}
+            </motion.button>
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

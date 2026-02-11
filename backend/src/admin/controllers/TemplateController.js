@@ -1,5 +1,5 @@
 const Template = require('../../models/Template'); // Your existing Template model
-const Resume = require('../../models/Resume');
+const Resume = require('../../models/Resumes');
 const AdminLog = require('../models/AdminLog');
 const fs = require('fs').promises;
 const path = require('path');

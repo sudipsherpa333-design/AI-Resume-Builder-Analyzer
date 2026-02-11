@@ -1,96 +1,81 @@
-// frontend/src/components/auth/GoogleOAuthButton.jsx - FIXED VERSION
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { GoogleLogin } from '@react-oauth/google';
-import { useAuth } from '../../context/AuthContext';
-import toast from 'react-hot-toast';
+// src/components/auth/GoogleOAuthButton.jsx
+import React, { useState } from 'react';
+import { FcGoogle } from 'react-icons/fc';
+import { toast } from 'react-hot-toast';
+import apiService from '../../services/api';
 
-const GoogleOAuthButton = ({ buttonText = "Continue with Google" }) => {
-    const { loginWithGoogle, handleGoogleCallback } = useAuth();
-    const navigate = useNavigate();
+const GoogleOAuthButton = () => {
+  const [loading, setLoading] = useState(false);
 
-    // Method 1: Direct server-side OAuth (RECOMMENDED)
-    const handleServerSideOAuth = () => {
-        // Open Google OAuth directly from backend
-        window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google`;
-    };
+  const handleGoogleLogin = async () => {
+    if (loading) return;
 
-    // Method 2: Client-side OAuth with proper error handling
-    const handleGoogleSuccess = async (response) => {
-        try {
-            console.log('Google OAuth response:', response);
+    setLoading(true);
 
-            // Send credential to backend for verification
-            const verifyResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/google/verify`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    credential: response.credential || response.access_token
-                }),
-            });
+    try {
+      console.log('🚀 Starting Google OAuth...');
 
-            const data = await verifyResponse.json();
-            console.log('Backend verification response:', data);
+      // Store current page for redirect back
+      localStorage.setItem('preAuthPath', window.location.pathname);
 
-            if (data.success) {
-                // Handle successful login
-                const { token, user } = data.data;
+      // Check if OAuth is enabled
+      const config = await apiService.auth.getOAuthConfig();
 
-                // Store auth data
-                localStorage.setItem('token', token);
-                localStorage.setItem('user', JSON.stringify(user));
+      if (!config.googleOAuth?.enabled) {
+        toast.error('Google OAuth is not configured');
+        setLoading(false);
+        return;
+      }
 
-                toast.success('Google login successful!');
-                navigate('/dashboard');
-                window.location.reload(); // Refresh to update auth state
-            } else {
-                throw new Error(data.error || 'Google authentication failed');
-            }
+      console.log('✅ Google OAuth is enabled');
 
-        } catch (error) {
-            console.error('Google OAuth error:', error);
-            toast.error(error.message || 'Failed to login with Google');
-        }
-    };
+      // Get Google OAuth URL from backend (or construct it)
+      const authUrl = `${apiService.baseURL}/api/auth/google?redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}&prompt=select_account`;
 
-    const handleGoogleFailure = (error) => {
-        console.error('Google OAuth failed:', error);
-        toast.error('Google login failed. Please try again.');
-    };
+      console.log('🔗 Redirecting to:', authUrl);
 
-    return (
-        <div className="w-full">
-            {/* Method 1: Simple button that redirects to backend OAuth */}
-            <button
-                onClick={handleServerSideOAuth}
-                className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200 font-medium shadow-sm"
-            >
-                <img
-                    src="https://www.google.com/favicon.ico"
-                    alt="Google"
-                    className="w-5 h-5"
-                />
-                {buttonText}
-            </button>
+      // Use window.location (NO POPUP) to avoid Cross-Origin-Opener-Policy
+      window.location.href = authUrl;
 
-            {/* OR Method 2: Use @react-oauth/google component */}
-            {/* 
-            <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={handleGoogleFailure}
-                useOneTap={false}
-                shape="rectangular"
-                size="large"
-                text="continue_with"
-                theme="outline"
-                locale="en"
-                width="100%"
-            />
-            */}
+      // Note: No need to setLoading(false) here since page will redirect
+
+    } catch (error) {
+      console.error('❌ Google login error:', error);
+      toast.error('Failed to start Google login');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={handleGoogleLogin}
+        disabled={loading}
+        className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 transition-colors shadow hover:shadow-md"
+      >
+        {loading ? (
+          <>
+            <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+            <span>Connecting to Google...</span>
+          </>
+        ) : (
+          <>
+            <FcGoogle className="w-5 h-5" />
+            <span>Continue with Google</span>
+          </>
+        )}
+      </button>
+
+      {/* Simple debug info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded">
+          <p>Using redirect method (no popup)</p>
+          <p className="mt-1">Backend: {apiService.baseURL}</p>
+          <p>Callback: {window.location.origin}/auth/callback</p>
         </div>
-    );
+      )}
+    </div>
+  );
 };
 
 export default GoogleOAuthButton;

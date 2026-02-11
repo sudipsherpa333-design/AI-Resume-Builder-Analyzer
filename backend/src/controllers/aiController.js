@@ -1,4 +1,4 @@
-// server/controllers/aiController.js
+import Resume from '../models/Resume.js';
 import AIService from '../services/aiService.js';
 import Resume from '../models/Resume.js';
 import User from '../models/User.js';

@@ -58,14 +58,11 @@ api.interceptors.response.use(
       setTimeout(() => {
         window.location.href = '/login';
       }, 1500);
-    }
-    else if (status === 403) {
+    } else if (status === 403) {
       toast.error('You do not have permission.');
-    }
-    else if (!status && !navigator.onLine) {
+    } else if (!status && !navigator.onLine) {
       toast.error('You are offline. Check your connection.');
-    }
-    else {
+    } else {
       toast.error(error.response?.data?.message || 'An error occurred');
     }
 

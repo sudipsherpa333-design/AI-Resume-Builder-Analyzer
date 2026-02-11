@@ -1,9 +1,10 @@
-// backend/src/service/aiService.js - ULTIMATE 2026 RESUME AI SERVICE
+// backend/src/service/aiService.js - COMPLETE FIXED VERSION
 import OpenAI from 'openai';
 import { createWorker } from 'tesseract.js';
 import PDFParser from 'pdf-parse';
 import fetch from 'node-fetch';
 import winston from 'winston';
+import mongoose from 'mongoose';
 
 // Logger setup
 const logger = winston.createLogger({
@@ -73,16 +74,19 @@ Extract as structured JSON with:
 3. education: array of {school, degree, field, duration, gpa, achievements[]}
 4. skills: array of strings (technical + soft skills)
 5. certifications: array of {name, issuer, date, url}
-6. projects: array of {name, description, techStack[], duration, achievements[]}`;
+6. projects: array of {name, description, techStack[], duration, achievements[]}
+
+Important: Return ONLY valid JSON, no additional text.`;
 
             const completion = await openai.chat.completions.create({
                 model: process.env.OPENAI_MODEL || "gpt-4-turbo-preview",
                 messages: [
-                    { role: "system", content: "You are a professional data extractor for LinkedIn profiles. Extract structured resume data." },
+                    { role: "system", content: "You are a professional data extractor for LinkedIn profiles. Extract structured resume data. Return ONLY valid JSON." },
                     { role: "user", content: prompt }
                 ],
                 temperature: 0.3,
-                max_tokens: 1500
+                max_tokens: 2000,
+                response_format: { type: "json_object" }
             });
 
             const response = completion.choices[0]?.message?.content;
@@ -90,12 +94,12 @@ Extract as structured JSON with:
 
             try {
                 linkedinData = JSON.parse(response);
-            } catch {
-                // Fallback mock data
+                logger.info('✅ LinkedIn data extracted successfully');
+            } catch (parseError) {
+                logger.warn('Failed to parse LinkedIn data, using fallback:', parseError);
                 linkedinData = this.getMockLinkedInData(linkedinUrl);
             }
 
-            logger.info('✅ LinkedIn data extracted successfully');
             return linkedinData;
 
         } catch (error) {
@@ -115,6 +119,11 @@ Extract as structured JSON with:
 
             if (!openai) {
                 throw new Error('OpenAI client not initialized');
+            }
+
+            // Validate resume data
+            if (!resumeData || typeof resumeData !== 'object') {
+                throw new Error('Invalid resume data provided');
             }
 
             // Extract keywords from job description
@@ -179,7 +188,16 @@ Extract as structured JSON with:
 
         } catch (error) {
             logger.error('❌ AI enhancement error:', error);
-            throw error;
+
+            // Return original data with error flag
+            return {
+                ...resumeData,
+                aiEnhancements: {
+                    applied: false,
+                    error: error.message,
+                    lastEnhanced: new Date().toISOString()
+                }
+            };
         }
     }
 
@@ -439,6 +457,10 @@ Requirements:
     // ==================== HELPER METHODS ====================
 
     static async callAI(prompt, parseJSON = false, temperature = 0.7) {
+        if (!openai) {
+            throw new Error('AI service is not available');
+        }
+
         try {
             const completion = await openai.chat.completions.create({
                 model: process.env.OPENAI_MODEL || "gpt-4-turbo-preview",
@@ -474,6 +496,16 @@ Requirements:
 
         } catch (error) {
             logger.error('AI call failed:', error);
+
+            // Check for rate limiting or quota issues
+            if (error.status === 429) {
+                throw new Error('AI service rate limited. Please try again in a moment.');
+            } else if (error.status === 401) {
+                throw new Error('AI service authentication failed. Please contact support.');
+            } else if (error.status === 503) {
+                throw new Error('AI service temporarily unavailable. Please try again later.');
+            }
+
             throw error;
         }
     }
@@ -852,6 +884,49 @@ Output format: numbered list of suggestions only, e.g.:
                 timestamp: new Date().toISOString()
             };
         }
+    }
+
+    // Validate resume data before AI processing
+    static validateResumeData(resumeData) {
+        const errors = [];
+
+        if (!resumeData || typeof resumeData !== 'object') {
+            errors.push('Resume data must be an object');
+            return errors;
+        }
+
+        if (!resumeData.personalInfo) {
+            errors.push('Personal info is required');
+        }
+
+        if (!resumeData.experience && !resumeData.skills) {
+            errors.push('At least experience or skills section is required');
+        }
+
+        return errors;
+    }
+
+    // Rate limiting for AI calls
+    static async rateLimitedCall(apiCall, maxRetries = 3) {
+        let retries = 0;
+
+        while (retries < maxRetries) {
+            try {
+                return await apiCall();
+            } catch (error) {
+                if (error.status === 429 && retries < maxRetries - 1) {
+                    // Rate limited, wait and retry
+                    const waitTime = Math.pow(2, retries) * 1000; // Exponential backoff
+                    logger.warn(`Rate limited, waiting ${waitTime}ms before retry ${retries + 1}`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                    retries++;
+                } else {
+                    throw error;
+                }
+            }
+        }
+
+        throw new Error('Max retries exceeded');
     }
 }
 

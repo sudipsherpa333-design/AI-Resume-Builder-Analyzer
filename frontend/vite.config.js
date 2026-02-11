@@ -30,7 +30,7 @@ export default defineConfig(({ mode }) => {
     ],
 
     server: {
-      port: 3000,
+      port: parseInt(env.VITE_DEV_SERVER_PORT) || 5173,
       host: 'localhost', // Changed from '0.0.0.0' to 'localhost' for stability
       open: true,
       strictPort: true,
@@ -46,7 +46,7 @@ export default defineConfig(({ mode }) => {
       // ✅ FIXED: Proxy configuration
       proxy: {
         '/api': {
-          target: env.VITE_BACKEND_URL || 'http://localhost:5000',
+          target: env.VITE_BACKEND_URL || 'http://localhost:5001',
           changeOrigin: true,
           secure: false,
           rewrite: (path) => path.replace(/^\/api/, ''),
@@ -60,7 +60,7 @@ export default defineConfig(({ mode }) => {
           }
         },
         '/socket.io': {
-          target: env.VITE_BACKEND_URL || 'http://localhost:5000',
+          target: env.VITE_BACKEND_URL || 'http://localhost:5001',
           ws: true,
           changeOrigin: true,
           secure: false
@@ -70,7 +70,7 @@ export default defineConfig(({ mode }) => {
       // ✅ FIXED: HMR configuration
       hmr: {
         host: 'localhost',
-        port: 3000,
+        port: parseInt(env.VITE_DEV_SERVER_PORT) || 5173,
         protocol: 'ws',
         overlay: false
       },

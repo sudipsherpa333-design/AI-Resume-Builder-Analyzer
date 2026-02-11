@@ -1,6 +1,6 @@
 // backend/src/admin/controllers/dashboardController.js
 const User = require('../../models/User');
-const Resume = require('../../models/Resume');
+const Resume = require('../../models/Resumes');
 const Template = require('../../models/Template');
 const ActivityLog = require('../../models/ActivityLog');
 const { formatBytes } = require('../../utils/helpers');

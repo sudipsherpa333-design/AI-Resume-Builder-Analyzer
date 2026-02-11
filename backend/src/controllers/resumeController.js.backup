@@ -1,0 +1,396 @@
+import Resume from '../models/Resume.js';
+import User from '../models/User.js';
+import Resume from '../models/Resume.js';
+
+// Helper functions
+const calculateATSScore = (resume) => {
+    let score = 50;
+    if (resume.summary && resume.summary.length > 100) score += 10;
+    if (resume.experience && resume.experience.length > 0) score += 15;
+    if (resume.education && resume.education.length > 0) score += 10;
+    if (resume.skills && resume.skills.length >= 5) score += 10;
+    if (resume.personalInfo?.email) score += 5;
+    if (resume.personalInfo?.phone) score += 5;
+    return Math.min(score, 100);
+};
+
+const calculateWordCount = (resume) => {
+    let count = 0;
+    if (resume.summary) count += resume.summary.split(/\s+/).length;
+    if (resume.experience) {
+        resume.experience.forEach(exp => {
+            if (exp.description) count += exp.description.split(/\s+/).length;
+        });
+    }
+    return count;
+};
+
+const generateAnalysis = (resume) => {
+    const strengths = [];
+    const improvements = [];
+    const suggestions = [
+        "Use action verbs to describe achievements",
+        "Quantify results with numbers",
+        "Include relevant keywords",
+        "Proofread for errors"
+    ];
+
+    if (resume.personalInfo?.firstName) strengths.push("Complete personal info");
+    if (resume.summary && resume.summary.length > 50) strengths.push("Good summary");
+    if (resume.experience?.length > 0) strengths.push("Experience included");
+    if (resume.education?.length > 0) strengths.push("Education included");
+
+    if (!resume.summary || resume.summary.length < 50) improvements.push("Add more detail to summary");
+    if (!resume.experience?.length) improvements.push("Add work experience");
+    if (!resume.education?.length) improvements.push("Add education");
+    if (!resume.skills || resume.skills.length < 3) improvements.push("Add more skills");
+
+    return {
+        score: calculateATSScore(resume),
+        atsScore: calculateATSScore(resume),
+        completeness: resume.progress || 0,
+        strengths,
+        improvements,
+        suggestions,
+        keywords: ['experience', 'skills', 'education'],
+        readabilityScore: 75,
+        wordCount: calculateWordCount(resume),
+        lastAnalyzed: new Date()
+    };
+};
+
+// Test route - always works
+export const testRoute = (req, res) => {
+    res.json({
+        success: true,
+        message: 'Resume API is working!',
+        endpoints: {
+            getResumes: 'GET /api/resumes',
+            createResume: 'POST /api/resumes',
+            getResume: 'GET /api/resumes/:id',
+            updateResume: 'PUT /api/resumes/:id',
+            deleteResume: 'DELETE /api/resumes/:id',
+            duplicateResume: 'POST /api/resumes/:id/duplicate',
+            analyzeResume: 'POST /api/resumes/:id/analyze'
+        },
+        timestamp: new Date().toISOString()
+    });
+};
+
+// Get all resumes for user
+export const getUserResumes = async (req, res) => {
+    try {
+        console.log('📥 Getting resumes for user:', req.user?.id);
+
+        if (!req.user?.id) {
+            return res.status(401).json({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+
+        const resumes = await Resume.find({ user: req.user.id })
+            .sort({ updatedAt: -1 })
+            .select('-analysis -templateSettings');
+
+        console.log(`✅ Found ${resumes.length} resumes for user ${req.user.id}`);
+
+        res.json({
+            success: true,
+            count: resumes.length,
+            data: resumes
+        });
+    } catch (error) {
+        console.error('❌ Get resumes error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+};
+
+// Create new resume
+export const createResume = async (req, res) => {
+    try {
+        console.log('📝 Creating resume for user:', req.user?.id);
+        console.log('Request body:', req.body);
+
+        if (!req.user?.id) {
+            return res.status(401).json({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+
+        const resumeData = {
+            user: req.user.id,
+            title: req.body.title || 'New Resume',
+            personalInfo: req.body.personalInfo || {},
+            summary: req.body.summary || '',
+            experience: req.body.experience || [],
+            education: req.body.education || [],
+            skills: req.body.skills || [],
+            projects: req.body.projects || [],
+            certifications: req.body.certifications || [],
+            languages: req.body.languages || [],
+            templateSettings: req.body.templateSettings || {},
+            status: req.body.status || 'draft'
+        };
+
+        const resume = await Resume.create(resumeData);
+
+        console.log(`✅ Resume created: ${resume._id}`);
+
+        res.status(201).json({
+            success: true,
+            message: 'Resume created successfully',
+            data: resume
+        });
+    } catch (error) {
+        console.error('❌ Create resume error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+};
+
+// Get single resume
+export const getResumeById = async (req, res) => {
+    try {
+        console.log(`📥 Getting resume: ${req.params.id}`);
+
+        const resume = await Resume.findById(req.params.id);
+
+        if (!resume) {
+            return res.status(404).json({
+                success: false,
+                error: 'Resume not found'
+            });
+        }
+
+        // Check if user owns the resume (unless it's a shared/public resume)
+        if (resume.user.toString() !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized to access this resume'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: resume
+        });
+    } catch (error) {
+        console.error('❌ Get resume error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
+// Update resume
+export const updateResume = async (req, res) => {
+    try {
+        console.log(`📝 Updating resume: ${req.params.id}`);
+
+        let resume = await Resume.findById(req.params.id);
+
+        if (!resume) {
+            return res.status(404).json({
+                success: false,
+                error: 'Resume not found'
+            });
+        }
+
+        if (resume.user.toString() !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized'
+            });
+        }
+
+        // Update fields
+        Object.keys(req.body).forEach(key => {
+            if (key !== '_id' && key !== 'user' && key !== 'createdAt') {
+                resume[key] = req.body[key];
+            }
+        });
+
+        resume.updatedAt = Date.now();
+        resume = await resume.save();
+
+        console.log(`✅ Resume updated: ${resume._id}`);
+
+        res.json({
+            success: true,
+            message: 'Resume updated successfully',
+            data: resume
+        });
+    } catch (error) {
+        console.error('❌ Update resume error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
+// Delete resume
+export const deleteResume = async (req, res) => {
+    try {
+        console.log(`🗑️ Deleting resume: ${req.params.id}`);
+
+        const resume = await Resume.findById(req.params.id);
+
+        if (!resume) {
+            return res.status(404).json({
+                success: false,
+                error: 'Resume not found'
+            });
+        }
+
+        if (resume.user.toString() !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized'
+            });
+        }
+
+        await resume.deleteOne();
+
+        console.log(`✅ Resume deleted: ${req.params.id}`);
+
+        res.json({
+            success: true,
+            message: 'Resume deleted successfully'
+        });
+    } catch (error) {
+        console.error('❌ Delete resume error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
+// Duplicate resume
+export const duplicateResume = async (req, res) => {
+    try {
+        console.log(`📋 Duplicating resume: ${req.params.id}`);
+
+        const resume = await Resume.findById(req.params.id);
+
+        if (!resume) {
+            return res.status(404).json({
+                success: false,
+                error: 'Resume not found'
+            });
+        }
+
+        if (resume.user.toString() !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized'
+            });
+        }
+
+        const duplicateData = resume.toObject();
+        delete duplicateData._id;
+        delete duplicateData.createdAt;
+        delete duplicateData.updatedAt;
+        delete duplicateData.analyzedAt;
+
+        duplicateData.title = `${resume.title} (Copy)`;
+        duplicateData.status = 'draft';
+        duplicateData.analysis = {
+            score: 0,
+            atsScore: 0,
+            completeness: 0,
+            strengths: [],
+            improvements: [],
+            suggestions: [],
+            keywords: [],
+            readabilityScore: 0,
+            wordCount: 0,
+            lastAnalyzed: null
+        };
+
+        const newResume = await Resume.create(duplicateData);
+
+        console.log(`✅ Resume duplicated: ${resume._id} -> ${newResume._id}`);
+
+        res.status(201).json({
+            success: true,
+            message: 'Resume duplicated successfully',
+            data: newResume
+        });
+    } catch (error) {
+        console.error('❌ Duplicate resume error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
+// Analyze resume
+export const analyzeResume = async (req, res) => {
+    try {
+        console.log(`🤖 Analyzing resume: ${req.params.id}`);
+
+        let resume = await Resume.findById(req.params.id);
+
+        if (!resume) {
+            return res.status(404).json({
+                success: false,
+                error: 'Resume not found'
+            });
+        }
+
+        if (resume.user.toString() !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized'
+            });
+        }
+
+        // Generate analysis
+        resume.analysis = generateAnalysis(resume);
+        resume.analyzedAt = new Date();
+
+        resume = await resume.save();
+
+        console.log(`✅ Resume analyzed: ${resume._id}, Score: ${resume.analysis.score}`);
+
+        res.json({
+            success: true,
+            message: 'Resume analyzed successfully',
+            data: {
+                resume,
+                analysis: resume.analysis
+            }
+        });
+    } catch (error) {
+        console.error('❌ Analyze resume error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
+// Export all functions
+export default {
+    testRoute,
+    getUserResumes,
+    createResume,
+    getResumeById,
+    updateResume,
+    deleteResume,
+    duplicateResume,
+    analyzeResume
+};

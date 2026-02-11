@@ -1,180 +1,442 @@
-import mongoose from "mongoose";
+// backend/src/models/Resume.js - COMPLETE ES6 VERSION
+import mongoose from 'mongoose';
 
-// Experience Schema
+// ==================== SCHEMA DEFINITIONS ====================
+
 const experienceSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: [true, 'Job title is required'],
+    trim: true,
+    maxlength: [100, 'Job title cannot exceed 100 characters']
+  },
   company: {
     type: String,
-    required: true,
-    trim: true
+    required: [true, 'Company name is required'],
+    trim: true,
+    maxlength: [100, 'Company name cannot exceed 100 characters']
   },
-  position: {
+  location: {
     type: String,
-    required: true,
-    trim: true
+    trim: true,
+    maxlength: [100, 'Location cannot exceed 100 characters']
   },
-  startDate: String,
-  endDate: String,
+  startDate: {
+    type: Date,
+    required: [true, 'Start date is required']
+  },
+  endDate: {
+    type: Date,
+    validate: {
+      validator: function (value) {
+        // End date should be after start date if provided
+        return !value || value >= this.startDate;
+      },
+      message: 'End date must be after start date'
+    }
+  },
   current: {
     type: Boolean,
     default: false
-  },
-  description: String,
-  location: String,
-  achievements: [String],
-  skills: [String]
-}, {
-  _id: true,
-  timestamps: false
-});
-
-// Education Schema
-const educationSchema = new mongoose.Schema({
-  institution: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  degree: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  field: String,
-  startDate: String,
-  endDate: String,
-  current: {
-    type: Boolean,
-    default: false
-  },
-  gpa: String,
-  location: String,
-  honors: [String],
-  relevantCourses: [String]
-}, {
-  _id: true,
-  timestamps: false
-});
-
-// Skill Schema
-const skillSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  level: {
-    type: String,
-    enum: ['Beginner', 'Intermediate', 'Advanced', 'Expert'],
-    default: 'Intermediate'
-  },
-  category: {
-    type: String,
-    enum: ['Technical', 'Soft Skills', 'Tools', 'Languages', 'Certifications', 'Other'],
-    default: 'Technical'
-  },
-  yearsOfExperience: Number
-}, {
-  _id: true,
-  timestamps: false
-});
-
-// Project Schema
-const projectSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    trim: true
   },
   description: {
     type: String,
-    required: true
+    trim: true,
+    maxlength: [1000, 'Description cannot exceed 1000 characters']
   },
-  technologies: [String],
-  link: String,
-  startDate: String,
-  endDate: String,
-  current: {
-    type: Boolean,
-    default: false
-  },
-  role: String,
-  outcomes: [String]
+  bulletPoints: [{
+    type: String,
+    trim: true,
+    maxlength: [200, 'Bullet point cannot exceed 200 characters']
+  }],
+  achievements: [{
+    type: String,
+    trim: true,
+    maxlength: [300, 'Achievement cannot exceed 300 characters']
+  }],
+  technologies: [{
+    type: String,
+    trim: true
+  }]
 }, {
   _id: true,
   timestamps: false
 });
 
-// Personal Info Schema
-const personalInfoSchema = new mongoose.Schema({
-  firstName: {
+const educationSchema = new mongoose.Schema({
+  degree: {
     type: String,
-    required: true,
-    trim: true
+    required: [true, 'Degree is required'],
+    trim: true,
+    maxlength: [100, 'Degree cannot exceed 100 characters']
   },
-  lastName: {
+  institution: {
     type: String,
-    required: true,
-    trim: true
+    required: [true, 'Institution is required'],
+    trim: true,
+    maxlength: [200, 'Institution cannot exceed 200 characters']
   },
-  email: {
+  location: {
     type: String,
-    required: true,
-    trim: true
+    trim: true,
+    maxlength: [100, 'Location cannot exceed 100 characters']
   },
-  phone: String,
-  address: String,
-  city: String,
-  state: String,
-  country: String,
-  zipCode: String,
-  linkedin: String,
-  github: String,
-  portfolio: String,
-  website: String,
-  summary: String,
-  objective: String,
-  jobTitle: String,
-  industry: String
+  startDate: {
+    type: Date,
+    required: [true, 'Start date is required']
+  },
+  endDate: {
+    type: Date,
+    validate: {
+      validator: function (value) {
+        return !value || value >= this.startDate;
+      },
+      message: 'End date must be after start date'
+    }
+  },
+  gpa: {
+    type: String,
+    trim: true,
+    maxlength: [10, 'GPA cannot exceed 10 characters']
+  },
+  description: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Description cannot exceed 500 characters']
+  },
+  honors: [{
+    type: String,
+    trim: true,
+    maxlength: [100, 'Honor cannot exceed 100 characters']
+  }],
+  relevantCourses: [{
+    type: String,
+    trim: true,
+    maxlength: [100, 'Course name cannot exceed 100 characters']
+  }]
 }, {
-  _id: false,
+  _id: true,
   timestamps: false
 });
 
-// Certification Schema
+const projectSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: [true, 'Project title is required'],
+    trim: true,
+    maxlength: [100, 'Project title cannot exceed 100 characters']
+  },
+  role: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Role cannot exceed 100 characters']
+  },
+  description: {
+    type: String,
+    trim: true,
+    maxlength: [1000, 'Description cannot exceed 1000 characters']
+  },
+  technologies: [{
+    type: String,
+    trim: true
+  }],
+  startDate: Date,
+  endDate: Date,
+  link: {
+    type: String,
+    trim: true,
+    match: [/^https?:\/\/.+/, 'Please enter a valid URL']
+  },
+  githubUrl: {
+    type: String,
+    trim: true,
+    match: [/^https?:\/\/.+/, 'Please enter a valid URL']
+  },
+  demoUrl: {
+    type: String,
+    trim: true,
+    match: [/^https?:\/\/.+/, 'Please enter a valid URL']
+  },
+  keyAchievements: [{
+    type: String,
+    trim: true,
+    maxlength: [200, 'Achievement cannot exceed 200 characters']
+  }]
+}, {
+  _id: true,
+  timestamps: false
+});
+
 const certificationSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true,
-    trim: true
+    required: [true, 'Certification name is required'],
+    trim: true,
+    maxlength: [200, 'Certification name cannot exceed 200 characters']
   },
-  issuer: String,
-  date: String,
-  credentialId: String,
-  credentialUrl: String,
-  expires: String
+  issuer: {
+    type: String,
+    required: [true, 'Issuer is required'],
+    trim: true,
+    maxlength: [100, 'Issuer cannot exceed 100 characters']
+  },
+  date: {
+    type: Date,
+    required: [true, 'Date is required']
+  },
+  expiryDate: Date,
+  credentialId: {
+    type: String,
+    trim: true,
+    maxlength: [50, 'Credential ID cannot exceed 50 characters']
+  },
+  link: {
+    type: String,
+    trim: true,
+    match: [/^https?:\/\/.+/, 'Please enter a valid URL']
+  },
+  skills: [{
+    type: String,
+    trim: true
+  }]
 }, {
   _id: true,
   timestamps: false
 });
 
-// Language Schema
-const languageSchema = new mongoose.Schema({
-  language: {
+const skillSchema = new mongoose.Schema({
+  name: {
     type: String,
-    required: true,
-    trim: true
+    required: [true, 'Skill name is required'],
+    trim: true,
+    maxlength: [50, 'Skill name cannot exceed 50 characters']
   },
-  proficiency: {
+  level: {
     type: String,
-    enum: ['Basic', 'Conversational', 'Professional', 'Native'],
-    default: 'Professional'
+    enum: ['beginner', 'intermediate', 'advanced', 'expert'],
+    default: 'intermediate'
+  },
+  category: {
+    type: String,
+    enum: ['technical', 'soft', 'language', 'framework', 'tool'],
+    default: 'technical'
+  },
+  yearsOfExperience: {
+    type: Number,
+    min: 0,
+    max: 50
+  },
+  lastUsed: Date,
+  proficiency: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: 50
   }
 }, {
   _id: true,
   timestamps: false
 });
 
-// Analysis Schema
+const languageSchema = new mongoose.Schema({
+  language: {
+    type: String,
+    required: [true, 'Language is required'],
+    trim: true,
+    maxlength: [50, 'Language cannot exceed 50 characters']
+  },
+  proficiency: {
+    type: String,
+    enum: ['native', 'fluent', 'intermediate', 'basic', 'beginner'],
+    default: 'intermediate'
+  },
+  level: {
+    type: Number,
+    min: 1,
+    max: 5,
+    default: 3
+  },
+  certified: Boolean,
+  certification: String
+}, {
+  _id: true,
+  timestamps: false
+});
+
+const personalInfoSchema = new mongoose.Schema({
+  firstName: {
+    type: String,
+    required: [true, 'First name is required'],
+    trim: true,
+    maxlength: [50, 'First name cannot exceed 50 characters']
+  },
+  lastName: {
+    type: String,
+    required: [true, 'Last name is required'],
+    trim: true,
+    maxlength: [50, 'Last name cannot exceed 50 characters']
+  },
+  email: {
+    type: String,
+    required: [true, 'Email is required'],
+    trim: true,
+    lowercase: true,
+    match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+  },
+  phone: {
+    type: String,
+    trim: true,
+    maxlength: [20, 'Phone number cannot exceed 20 characters']
+  },
+  address: {
+    type: String,
+    trim: true,
+    maxlength: [200, 'Address cannot exceed 200 characters']
+  },
+  city: {
+    type: String,
+    trim: true,
+    maxlength: [50, 'City cannot exceed 50 characters']
+  },
+  state: {
+    type: String,
+    trim: true,
+    maxlength: [50, 'State cannot exceed 50 characters']
+  },
+  country: {
+    type: String,
+    trim: true,
+    maxlength: [50, 'Country cannot exceed 50 characters']
+  },
+  zipCode: {
+    type: String,
+    trim: true,
+    maxlength: [20, 'Zip code cannot exceed 20 characters']
+  },
+  linkedin: {
+    type: String,
+    trim: true,
+    match: [/^https?:\/\/.+/, 'Please enter a valid URL']
+  },
+  github: {
+    type: String,
+    trim: true,
+    match: [/^https?:\/\/.+/, 'Please enter a valid URL']
+  },
+  portfolio: {
+    type: String,
+    trim: true,
+    match: [/^https?:\/\/.+/, 'Please enter a valid URL']
+  },
+  website: {
+    type: String,
+    trim: true,
+    match: [/^https?:\/\/.+/, 'Please enter a valid URL']
+  },
+  summary: {
+    type: String,
+    trim: true,
+    maxlength: [2000, 'Summary cannot exceed 2000 characters']
+  },
+  jobTitle: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Job title cannot exceed 100 characters']
+  },
+  photoUrl: {
+    type: String,
+    trim: true,
+    match: [/^https?:\/\/.+/, 'Please enter a valid URL']
+  }
+}, {
+  _id: false,
+  timestamps: false
+});
+
+const templateSettingsSchema = new mongoose.Schema({
+  templateName: {
+    type: String,
+    enum: ['modern', 'classic', 'creative', 'minimal', 'professional', 'executive'],
+    default: 'modern'
+  },
+  colors: {
+    primary: {
+      type: String,
+      default: '#3b82f6',
+      match: [/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Please enter a valid hex color']
+    },
+    secondary: {
+      type: String,
+      default: '#6b7280',
+      match: [/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Please enter a valid hex color']
+    },
+    accent: {
+      type: String,
+      default: '#10b981',
+      match: [/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Please enter a valid hex color']
+    },
+    background: {
+      type: String,
+      default: '#ffffff',
+      match: [/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Please enter a valid hex color']
+    },
+    text: {
+      type: String,
+      default: '#000000',
+      match: [/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Please enter a valid hex color']
+    },
+    header: {
+      type: String,
+      default: '#1e40af',
+      match: [/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Please enter a valid hex color']
+    }
+  },
+  font: {
+    type: String,
+    enum: ['Roboto', 'Inter', 'Montserrat', 'Open Sans', 'Lato', 'Poppins', 'Merriweather'],
+    default: 'Roboto'
+  },
+  fontSize: {
+    type: String,
+    enum: ['small', 'medium', 'large'],
+    default: 'medium'
+  },
+  spacing: {
+    type: String,
+    enum: ['compact', 'normal', 'relaxed'],
+    default: 'normal'
+  },
+  showPhoto: {
+    type: Boolean,
+    default: false
+  },
+  photoPosition: {
+    type: String,
+    enum: ['left', 'right', 'top'],
+    default: 'left'
+  },
+  layout: {
+    type: String,
+    enum: ['single-column', 'two-column'],
+    default: 'single-column'
+  },
+  margins: {
+    top: { type: Number, default: 20, min: 0, max: 100 },
+    right: { type: Number, default: 20, min: 0, max: 100 },
+    bottom: { type: Number, default: 20, min: 0, max: 100 },
+    left: { type: Number, default: 20, min: 0, max: 100 }
+  },
+  lineHeight: {
+    type: Number,
+    default: 1.5,
+    min: 1,
+    max: 2.5
+  }
+}, {
+  _id: false,
+  timestamps: false
+});
+
 const analysisSchema = new mongoose.Schema({
   score: {
     type: Number,
@@ -194,114 +456,83 @@ const analysisSchema = new mongoose.Schema({
     min: 0,
     max: 100
   },
-  strengths: [String],
-  improvements: [String],
-  suggestions: [String],
-  keywords: [String],
-  industryMatch: String,
-  readabilityScore: Number,
-  wordCount: Number,
-  characterCount: Number,
-  missingSections: [String],
-  lastAnalyzed: {
-    type: Date,
-    default: Date.now
-  }
-}, {
-  _id: false,
-  timestamps: false
-});
-
-// Template Settings Schema
-const templateSettingsSchema = new mongoose.Schema({
-  templateName: {
+  strengths: [{
     type: String,
-    default: 'modern',
-    enum: ['modern', 'classic', 'creative', 'minimal', 'professional', 'elegant']
-  },
-  colors: {
-    primary: { type: String, default: '#3b82f6' },
-    secondary: { type: String, default: '#6b7280' },
-    accent: { type: String, default: '#10b981' },
-    background: { type: String, default: '#ffffff' },
-    text: { type: String, default: '#000000' }
-  },
-  font: {
+    trim: true
+  }],
+  improvements: [{
     type: String,
-    default: 'Roboto',
-    enum: ['Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Merriweather', 'Arial', 'Times New Roman']
-  },
-  fontSize: {
+    trim: true
+  }],
+  suggestions: [{
     type: String,
-    default: 'medium',
-    enum: ['small', 'medium', 'large']
-  },
-  spacing: {
+    trim: true
+  }],
+  keywords: [{
     type: String,
-    default: 'normal',
-    enum: ['compact', 'normal', 'relaxed']
+    trim: true
+  }],
+  readabilityScore: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
   },
-  showPhoto: {
-    type: Boolean,
-    default: false
-  }
-}, {
-  _id: false,
-  timestamps: false
-});
-
-// Sharing Settings Schema
-const sharingSchema = new mongoose.Schema({
-  publicUrl: String,
-  qrCode: String,
-  isPublic: {
-    type: Boolean,
-    default: false
-  },
-  password: String,
-  expiresAt: Date,
-  lastShared: Date,
-  viewCount: {
+  wordCount: {
     type: Number,
     default: 0
+  },
+  sectionCompleteness: {
+    personalInfo: { type: Number, default: 0 },
+    summary: { type: Number, default: 0 },
+    experience: { type: Number, default: 0 },
+    education: { type: Number, default: 0 },
+    skills: { type: Number, default: 0 },
+    projects: { type: Number, default: 0 }
+  },
+  keywordMatches: [{
+    keyword: String,
+    count: Number,
+    relevance: Number
+  }],
+  actionVerbsCount: Number,
+  quantifiableAchievements: Number,
+  lastAnalyzed: {
+    type: Date,
+    default: null
   }
 }, {
   _id: false,
   timestamps: false
 });
 
-// Main Resume Schema
+// ==================== MAIN RESUME SCHEMA ====================
+
 const resumeSchema = new mongoose.Schema({
-  // User reference
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
+    required: [true, 'User reference is required'],
     index: true
   },
-
-  // Resume metadata
   title: {
     type: String,
-    required: true,
+    required: [true, 'Resume title is required'],
     trim: true,
-    default: 'My Resume'
+    maxlength: [200, 'Title cannot exceed 200 characters'],
+    default: 'New Resume'
   },
   slug: {
     type: String,
+    trim: true,
     unique: true,
     sparse: true
   },
-  version: {
-    type: Number,
-    default: 1
-  },
-
-  // Resume content
   personalInfo: personalInfoSchema,
   summary: {
     type: String,
-    default: ''
+    trim: true,
+    maxlength: [2000, 'Summary cannot exceed 2000 characters']
   },
   experience: [experienceSchema],
   education: [educationSchema],
@@ -309,191 +540,205 @@ const resumeSchema = new mongoose.Schema({
   projects: [projectSchema],
   certifications: [certificationSchema],
   languages: [languageSchema],
-  awards: [{
-    name: String,
-    issuer: String,
-    date: String,
-    description: String
-  }],
   references: [{
     name: String,
     title: String,
     company: String,
     email: String,
-    phone: String
+    phone: String,
+    relationship: String
   }],
-
-  // Resume analysis
-  analysis: analysisSchema,
-
-  // Template and styling
+  volunteerWork: [{
+    organization: String,
+    role: String,
+    startDate: Date,
+    endDate: Date,
+    description: String,
+    hours: Number
+  }],
+  awards: [{
+    name: String,
+    issuer: String,
+    date: Date,
+    description: String
+  }],
+  publications: [{
+    title: String,
+    publisher: String,
+    date: Date,
+    link: String,
+    description: String
+  }],
   templateSettings: templateSettingsSchema,
-
-  // Sharing settings
-  sharing: sharingSchema,
-
-  // Status and visibility
   status: {
     type: String,
-    enum: ['draft', 'in_progress', 'completed', 'needs_work', 'archived'],
-    default: 'draft'
+    enum: ['draft', 'published', 'archived', 'deleted'],
+    default: 'draft',
+    index: true
   },
+  visibility: {
+    type: String,
+    enum: ['private', 'unlisted', 'public'],
+    default: 'private'
+  },
+  analysis: analysisSchema,
+  progress: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
+  tags: [{
+    type: String,
+    trim: true,
+    maxlength: [50, 'Tag cannot exceed 50 characters']
+  }],
   isPrimary: {
     type: Boolean,
     default: false
   },
-
-  // AI Generated content
-  aiGenerated: {
+  isStarred: {
     type: Boolean,
     default: false
   },
-  aiPrompt: String,
-  aiEnhancements: {
-    count: { type: Number, default: 0 },
-    lastEnhanced: Date,
-    sections: [String]
+  isPinned: {
+    type: Boolean,
+    default: false
   },
-
-  // Analytics
   views: {
     type: Number,
-    default: 0
+    default: 0,
+    min: 0
   },
   downloads: {
     type: Number,
-    default: 0
+    default: 0,
+    min: 0
   },
-  lastViewed: Date,
-  lastEdited: Date,
-  analyzedAt: Date,
-
-  // Version control
-  history: [{
-    action: String,
-    section: String,
-    data: Object,
-    timestamp: {
-      type: Date,
-      default: Date.now
-    },
-    userAgent: String
-  }]
-
+  shareToken: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  expiresAt: Date,
+  version: {
+    type: Number,
+    default: 1
+  },
+  previousVersions: [{
+    version: Number,
+    data: mongoose.Schema.Types.Mixed,
+    createdAt: Date
+  }],
+  metadata: {
+    createdBy: String,
+    lastModifiedBy: String,
+    source: String,
+    aiGenerated: {
+      type: Boolean,
+      default: false
+    }
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
-// Indexes for faster queries
-resumeSchema.index({ user: 1, createdAt: -1 });
-resumeSchema.index({ user: 1, status: 1 });
-resumeSchema.index({ user: 1, isPrimary: 1 });
-resumeSchema.index({ slug: 1 });
-resumeSchema.index({ title: 'text', 'personalInfo.summary': 'text', 'personalInfo.jobTitle': 'text' });
-resumeSchema.index({ status: 1, updatedAt: -1 });
-resumeSchema.index({ 'analysis.atsScore': -1 });
-resumeSchema.index({ 'sharing.isPublic': 1 });
+// ==================== VIRTUAL PROPERTIES ====================
 
-// Virtual for full name
+// Full name virtual
 resumeSchema.virtual('fullName').get(function () {
   if (this.personalInfo) {
-    return `${this.personalInfo.firstName} ${this.personalInfo.lastName}`.trim();
+    return `${this.personalInfo.firstName || ''} ${this.personalInfo.lastName || ''}`.trim();
   }
   return '';
 });
 
-// Virtual for total experience years
+// Experience duration virtual
 resumeSchema.virtual('totalExperienceYears').get(function () {
   if (!this.experience || this.experience.length === 0) return 0;
 
   let totalMonths = 0;
-
   this.experience.forEach(exp => {
-    if (exp.startDate) {
-      const start = parseDate(exp.startDate);
-      let end = exp.current ? new Date() : parseDate(exp.endDate);
-
-      if (start && end) {
-        const months = (end.getFullYear() - start.getFullYear()) * 12 +
-          (end.getMonth() - start.getMonth());
-        totalMonths += Math.max(0, months);
-      }
-    }
+    const start = new Date(exp.startDate);
+    const end = exp.current ? new Date() : new Date(exp.endDate);
+    const months = (end.getFullYear() - start.getFullYear()) * 12 +
+      (end.getMonth() - start.getMonth());
+    totalMonths += Math.max(0, months);
   });
 
   return Math.round(totalMonths / 12 * 10) / 10; // Round to 1 decimal
 });
 
-// Virtual for progress percentage
-resumeSchema.virtual('progress').get(function () {
-  const sections = ['personalInfo', 'summary', 'experience', 'education', 'skills'];
-  let completed = 0;
+// Skills count by category
+resumeSchema.virtual('skillsByCategory').get(function () {
+  if (!this.skills) return {};
 
-  sections.forEach(section => {
-    if (this.isSectionComplete(section)) {
-      completed++;
-    }
-  });
-
-  return Math.round((completed / sections.length) * 100);
+  return this.skills.reduce((acc, skill) => {
+    const category = skill.category || 'other';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(skill);
+    return acc;
+  }, {});
 });
 
-// Method to check if section is complete
-resumeSchema.methods.isSectionComplete = function (section) {
-  switch (section) {
-    case 'personalInfo':
-      return !!(this.personalInfo?.firstName &&
-        this.personalInfo?.lastName &&
-        this.personalInfo?.email &&
-        this.personalInfo?.jobTitle);
-    case 'summary':
-      return !!(this.summary && this.summary.trim().length > 100);
-    case 'experience':
-      return Array.isArray(this.experience) && this.experience.length > 0;
-    case 'education':
-      return Array.isArray(this.education) && this.education.length > 0;
-    case 'skills':
-      return Array.isArray(this.skills) && this.skills.length >= 5;
-    default:
-      return true;
-  }
-};
+// ==================== INDEXES ====================
 
-// Pre-save middleware to generate slug
+resumeSchema.index({ user: 1, status: 1 });
+resumeSchema.index({ user: 1, updatedAt: -1 });
+resumeSchema.index({ user: 1, isPrimary: 1 });
+resumeSchema.index({ user: 1, isStarred: 1 });
+resumeSchema.index({ tags: 1 });
+resumeSchema.index({ 'analysis.score': -1 });
+resumeSchema.index({ shareToken: 1 }, { unique: true, sparse: true });
+resumeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+// ==================== PRE-SAVE MIDDLEWARE ====================
+
+// Generate slug before saving
 resumeSchema.pre('save', function (next) {
-  if (this.isModified('title') || !this.slug) {
+  if (this.isModified('title')) {
     const baseSlug = this.title
       .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim();
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
 
-    const randomStr = Math.random().toString(36).substring(2, 8);
-    this.slug = `${baseSlug}-${randomStr}`;
+    this.slug = `${baseSlug}-${Date.now().toString(36)}`;
   }
 
-  // Update lastEdited timestamp
-  this.lastEdited = new Date();
+  // Update progress
+  this.calculateProgress();
 
-  // Auto-calculate ATS score if not set
-  if (!this.analysis?.atsScore || this.isModified()) {
-    this.calculateATS();
+  next();
+});
+
+// Auto-update timestamps
+resumeSchema.pre('save', function (next) {
+  this.updatedAt = Date.now();
+
+  if (this.isNew) {
+    // Generate share token for new resumes
+    if (!this.shareToken) {
+      this.shareToken = require('crypto')
+        .randomBytes(16)
+        .toString('hex')
+        .slice(0, 32);
+    }
   }
 
   next();
 });
 
-// Pre-save middleware to ensure only one primary resume per user
+// Ensure only one primary resume per user
 resumeSchema.pre('save', async function (next) {
-  if (this.isPrimary && this.isModified('isPrimary')) {
+  if (this.isPrimary) {
     try {
-      await this.constructor.updateMany(
+      await mongoose.model('Resume').updateMany(
         {
           user: this.user,
-          _id: { $ne: this._id }
+          _id: { $ne: this._id },
+          isPrimary: true
         },
         { $set: { isPrimary: false } }
       );
@@ -504,141 +749,209 @@ resumeSchema.pre('save', async function (next) {
   next();
 });
 
-// Calculate ATS score
-resumeSchema.methods.calculateATS = function () {
-  let score = 50; // Base score
+// ==================== METHODS ====================
 
-  // Check personal info
-  if (this.personalInfo?.firstName && this.personalInfo?.lastName) score += 10;
-  if (this.personalInfo?.email) score += 5;
-  if (this.personalInfo?.phone) score += 5;
+// Calculate progress method
+resumeSchema.methods.calculateProgress = function () {
+  let progress = 0;
+  const weights = {
+    personalInfo: 20,
+    summary: 15,
+    experience: 25,
+    education: 15,
+    skills: 15,
+    additional: 10
+  };
 
-  // Check summary
-  if (this.summary && this.summary.trim().length > 100) score += 10;
-
-  // Check experience
-  if (Array.isArray(this.experience) && this.experience.length > 0) {
-    score += Math.min(this.experience.length * 5, 20);
+  // Personal Info (need at least name and email)
+  if (this.personalInfo?.firstName &&
+    this.personalInfo?.lastName &&
+    this.personalInfo?.email) {
+    progress += weights.personalInfo;
   }
 
-  // Check education
-  if (Array.isArray(this.education) && this.education.length > 0) {
-    score += Math.min(this.education.length * 5, 15);
+  // Summary (at least 50 characters)
+  if (this.summary && this.summary.trim().length >= 50) {
+    progress += weights.summary;
   }
 
-  // Check skills
-  if (Array.isArray(this.skills) && this.skills.length >= 5) {
-    score += 10;
+  // Experience (at least one entry)
+  if (this.experience && this.experience.length > 0) {
+    progress += weights.experience;
   }
 
-  // Check for keywords (simplified)
-  const resumeText = JSON.stringify(this).toLowerCase();
-  const keywords = ['javascript', 'react', 'node.js', 'python', 'java', 'sql', 'aws', 'docker'];
-  const foundKeywords = keywords.filter(keyword => resumeText.includes(keyword));
-  score += Math.min(foundKeywords.length * 2, 10);
-
-  // Cap score
-  score = Math.min(score, 100);
-
-  if (!this.analysis) {
-    this.analysis = {};
+  // Education (at least one entry)
+  if (this.education && this.education.length > 0) {
+    progress += weights.education;
   }
-  this.analysis.atsScore = score;
-  this.analysis.lastAnalyzed = new Date();
-  this.analyzedAt = new Date();
 
-  return score;
+  // Skills (at least 3 skills)
+  if (this.skills && this.skills.length >= 3) {
+    progress += weights.skills;
+  }
+
+  // Additional sections (projects, certifications, languages, etc.)
+  if ((this.projects && this.projects.length > 0) ||
+    (this.certifications && this.certifications.length > 0) ||
+    (this.languages && this.languages.length > 0) ||
+    (this.awards && this.awards.length > 0)) {
+    progress += weights.additional;
+  }
+
+  this.progress = Math.min(100, Math.max(0, progress));
+  return this.progress;
 };
 
-// Method to add to history
-resumeSchema.methods.addHistory = function (action, section, data = null) {
-  this.history.unshift({
-    action,
-    section,
-    data,
-    timestamp: new Date(),
-    userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'server'
-  });
+// Generate share URL
+resumeSchema.methods.getShareUrl = function () {
+  if (!this.shareToken) return null;
+  return `${process.env.CLIENT_URL}/view/${this.shareToken}`;
+};
 
-  // Keep only last 100 entries
-  if (this.history.length > 100) {
-    this.history = this.history.slice(0, 100);
+// Duplicate resume
+resumeSchema.methods.duplicate = async function (userId) {
+  const duplicateData = this.toObject();
+
+  // Remove unique fields
+  delete duplicateData._id;
+  delete duplicateData.createdAt;
+  delete duplicateData.updatedAt;
+  delete duplicateData.shareToken;
+  delete duplicateData.views;
+  delete duplicateData.downloads;
+
+  // Update fields
+  duplicateData.user = userId;
+  duplicateData.title = `${this.title} (Copy)`;
+  duplicateData.status = 'draft';
+  duplicateData.isPrimary = false;
+  duplicateData.isStarred = false;
+  duplicateData.isPinned = false;
+
+  // Reset analysis
+  if (duplicateData.analysis) {
+    duplicateData.analysis.score = 0;
+    duplicateData.analysis.lastAnalyzed = null;
   }
+
+  const Resume = mongoose.model('Resume');
+  return await Resume.create(duplicateData);
 };
 
-// Method to duplicate resume
-resumeSchema.methods.duplicate = async function () {
-  const duplicatedResume = this.toObject();
-  delete duplicatedResume._id;
-  delete duplicatedResume.slug;
-  delete duplicatedResume.history;
-
-  duplicatedResume.title = `${this.title} (Copy)`;
-  duplicatedResume.isPrimary = false;
-  duplicatedResume.views = 0;
-  duplicatedResume.downloads = 0;
-  duplicatedResume.createdAt = new Date();
-  duplicatedResume.updatedAt = new Date();
-
-  return await this.constructor.create(duplicatedResume);
-};
-
-// Method to export resume as JSON
-resumeSchema.methods.exportAsJSON = function () {
-  const resumeData = this.toObject();
+// Export to JSON
+resumeSchema.methods.toExportJSON = function () {
+  const obj = this.toObject();
 
   // Remove internal fields
-  delete resumeData._id;
-  delete resumeData.user;
-  delete resumeData.__v;
-  delete resumeData.createdAt;
-  delete resumeData.updatedAt;
-  delete resumeData.slug;
-  delete resumeData.isPrimary;
-  delete resumeData.views;
-  delete resumeData.downloads;
-  delete resumeData.lastViewed;
-  delete resumeData.lastEdited;
-  delete resumeData.analyzedAt;
-  delete resumeData.history;
-  delete resumeData.sharing;
+  delete obj._id;
+  delete obj.__v;
+  delete obj.user;
+  delete obj.shareToken;
+  delete obj.expiresAt;
+  delete obj.previousVersions;
+  delete obj.metadata;
+  delete obj.views;
+  delete obj.downloads;
 
-  return resumeData;
+  // Add metadata
+  obj.exportedAt = new Date().toISOString();
+  obj.exportVersion = '1.0';
+  obj.source = 'AI Resume Builder & Analyzer';
+
+  return obj;
 };
 
-// Method to update analysis
-resumeSchema.methods.updateAnalysis = function (analysisData) {
-  this.analysis = {
-    ...this.analysis,
-    ...analysisData,
-    lastAnalyzed: new Date()
+// ==================== STATIC METHODS ====================
+
+// Find by user with pagination
+resumeSchema.statics.findByUser = function (userId, options = {}) {
+  const {
+    page = 1,
+    limit = 20,
+    status,
+    search,
+    sortBy = 'updatedAt',
+    sortOrder = 'desc'
+  } = options;
+
+  const query = { user: userId };
+
+  // Filter by status
+  if (status) {
+    query.status = status;
+  }
+
+  // Search in title and personal info
+  if (search) {
+    query.$or = [
+      { title: { $regex: search, $options: 'i' } },
+      { 'personalInfo.firstName': { $regex: search, $options: 'i' } },
+      { 'personalInfo.lastName': { $regex: search, $options: 'i' } },
+      { tags: { $regex: search, $options: 'i' } }
+    ];
+  }
+
+  const sort = {};
+  sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+  return this.find(query)
+    .sort(sort)
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .populate('user', 'name email');
+};
+
+// Get dashboard statistics
+resumeSchema.statics.getDashboardStats = async function (userId) {
+  const stats = await this.aggregate([
+    { $match: { user: mongoose.Types.ObjectId(userId) } },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: 1 },
+        published: {
+          $sum: { $cond: [{ $eq: ['$status', 'published'] }, 1, 0] }
+        },
+        drafts: {
+          $sum: { $cond: [{ $eq: ['$status', 'draft'] }, 1, 0] }
+        },
+        archived: {
+          $sum: { $cond: [{ $eq: ['$status', 'archived'] }, 1, 0] }
+        },
+        avgProgress: { $avg: '$progress' },
+        avgScore: { $avg: '$analysis.score' },
+        totalViews: { $sum: '$views' },
+        totalDownloads: { $sum: '$downloads' }
+      }
+    }
+  ]);
+
+  return stats[0] || {
+    total: 0,
+    published: 0,
+    drafts: 0,
+    archived: 0,
+    avgProgress: 0,
+    avgScore: 0,
+    totalViews: 0,
+    totalDownloads: 0
   };
-  this.analyzedAt = new Date();
-  return this.save();
 };
 
-// Method to increment views
-resumeSchema.methods.incrementViews = function () {
-  this.views += 1;
-  this.lastViewed = new Date();
-  return this.save();
+// Find by share token
+resumeSchema.statics.findByShareToken = async function (token) {
+  return this.findOne({
+    shareToken: token,
+    status: 'published',
+    $or: [
+      { expiresAt: null },
+      { expiresAt: { $gt: new Date() } }
+    ]
+  });
 };
 
-// Method to increment downloads
-resumeSchema.methods.incrementDownloads = function () {
-  this.downloads += 1;
-  return this.save();
-};
+// ==================== MODEL ====================
 
-// Helper function to parse dates
-function parseDate(dateStr) {
-  if (!dateStr) return null;
-
-  // Try parsing different date formats
-  const date = new Date(dateStr);
-  return isNaN(date.getTime()) ? null : date;
-}
-
-const Resume = mongoose.model("Resume", resumeSchema);
+const Resume = mongoose.model('Resume', resumeSchema);
 
 export default Resume;

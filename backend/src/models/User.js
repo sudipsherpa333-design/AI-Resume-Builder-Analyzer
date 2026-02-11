@@ -1,4 +1,4 @@
-// models/User.js - COMPLETE WORKING VERSION
+// models/User.js - COMPLETE FIXED VERSION
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
@@ -44,10 +44,10 @@ const userSchema = new mongoose.Schema({
     sparse: true,
     default: ''
   },
-  facebookId: {
+  provider: {
     type: String,
-    sparse: true,
-    default: ''
+    enum: ['local', 'google', 'facebook'],
+    default: 'local'
   },
   isOAuth: {
     type: Boolean,
@@ -59,11 +59,6 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['user', 'admin', 'super_admin'],
     default: 'user'
-  },
-  isAdmin: {
-    type: Boolean,
-    default: false,
-    select: false
   },
   isVerified: {
     type: Boolean,
@@ -157,7 +152,7 @@ const userSchema = new mongoose.Schema({
       type: Number,
       default: 0
     },
-    needsWorkResumes: {
+    inProgressResumes: {
       type: Number,
       default: 0
     },
@@ -185,14 +180,17 @@ const userSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Resume'
     },
-    lastActivity: Date
+    lastActivity: {
+      type: Date,
+      default: Date.now
+    }
   },
 
   // Recent Activity Log
   recentActivity: [{
     type: {
       type: String,
-      enum: ['resume_created', 'resume_updated', 'resume_completed', 'ai_used', 'export', 'login', 'profile_updated']
+      enum: ['resume_created', 'resume_updated', 'resume_completed', 'ai_used', 'export', 'login', 'profile_updated', 'account_created']
     },
     resumeId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -316,39 +314,40 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-// Indexes
+// ======================
+// INDEXES
+// ======================
+
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ googleId: 1 }, { sparse: true });
-userSchema.index({ facebookId: 1 }, { sparse: true });
 userSchema.index({ role: 1 });
 userSchema.index({ isActive: 1, isSuspended: 1, isDeleted: 1 });
 userSchema.index({ createdAt: -1 });
 userSchema.index({ 'dashboardStats.lastActivity': -1 });
 userSchema.index({ 'usage.lastResumeCreated': -1 });
-userSchema.index({ 'flags.hasCompletedProfile': 1 });
-userSchema.index({ 'flags.hasCreatedFirstResume': 1 });
 
-// Virtual for full profile URL
+// ======================
+// VIRTUAL PROPERTIES
+// ======================
+
 userSchema.virtual('profileUrl').get(function () {
   return `/api/users/${this._id}/profile`;
 });
 
-// Virtual for isLocked
 userSchema.virtual('isLocked').get(function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 });
 
-// Virtual for storage usage percentage
 userSchema.virtual('storage.usagePercentage').get(function () {
+  if (!this.storage.limit || this.storage.limit === 0) return 0;
   return Math.round((this.storage.used / this.storage.limit) * 100);
 });
 
-// Virtual for canUseAI
+// ✅ KEEP ONLY VIRTUAL PROPERTY (removed duplicate method)
 userSchema.virtual('canUseAI').get(function () {
   return this.aiCredits > 0 || this.plan !== 'free';
 });
 
-// Virtual for days since account creation
 userSchema.virtual('accountAgeDays').get(function () {
   const createdAt = this.createdAt || new Date();
   const now = new Date();
@@ -356,7 +355,6 @@ userSchema.virtual('accountAgeDays').get(function () {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 });
 
-// Virtual for plan status
 userSchema.virtual('planStatus').get(function () {
   if (this.subscriptionEnds && new Date() > this.subscriptionEnds) {
     return 'expired';
@@ -364,25 +362,32 @@ userSchema.virtual('planStatus').get(function () {
   return this.plan;
 });
 
-// ====================== FIXED: Pre-save middleware ======================
+// ======================
+// MIDDLEWARE
+// ======================
+
+// Pre-save: Hash password
 userSchema.pre('save', async function (next) {
   console.log('🔄 [User Model] pre-save middleware running');
-  console.log('📝 Is password modified?', this.isModified('password'));
-  console.log('🔑 Is OAuth?', this.isOAuth);
-  console.log('📧 Email:', this.email);
 
-  // Only hash password if it's modified and user is not OAuth
-  if (!this.isModified('password') || (this.isOAuth && !this.password)) {
-    console.log('⏭️ Skipping password hash');
+  // Skip for OAuth users without password
+  if (this.isOAuth && !this.password) {
+    console.log('⏭️ OAuth user without password - skipping hash');
+    return next();
+  }
+
+  // Only hash password if it's modified
+  if (!this.isModified('password')) {
+    console.log('⏭️ Password not modified - skipping hash');
     return next();
   }
 
   try {
     console.log('🔐 Hashing password for:', this.email);
     const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
+    const hash = await bcrypt.hash(this.password, salt);
+    this.password = hash;
     console.log('✅ Password hashed successfully');
-    console.log('🔑 Hash prefix:', this.password?.substring(0, 20) + '...');
     next();
   } catch (error) {
     console.error('❌ Password hashing error:', error);
@@ -390,9 +395,9 @@ userSchema.pre('save', async function (next) {
   }
 });
 
-// Pre-save middleware to update flags
+// Pre-save: Update flags and activity
 userSchema.pre('save', function (next) {
-  console.log('🏷️ Updating user flags...');
+  console.log('🏷️ Updating user flags and stats...');
 
   // Update profile completion flag
   this.flags.hasCompletedProfile = !!(
@@ -403,87 +408,88 @@ userSchema.pre('save', function (next) {
     this.profile?.location
   );
 
-  // Update first resume flag if not already set
-  if (this.usage.resumeCount > 0 && !this.flags.hasCreatedFirstResume) {
+  // Update other flags based on usage
+  if (this.usage?.resumeCount > 0 && !this.flags.hasCreatedFirstResume) {
     this.flags.hasCreatedFirstResume = true;
-    console.log('✅ Set hasCreatedFirstResume flag');
   }
 
-  // Update AI usage flag
-  if (this.usage.aiUsageCount > 0 && !this.flags.hasUsedAI) {
+  if (this.usage?.aiUsageCount > 0 && !this.flags.hasUsedAI) {
     this.flags.hasUsedAI = true;
-    console.log('✅ Set hasUsedAI flag');
   }
 
-  // Update export flag
-  if (this.usage.exportCount > 0 && !this.flags.hasExportedResume) {
+  if (this.usage?.exportCount > 0 && !this.flags.hasExportedResume) {
     this.flags.hasExportedResume = true;
-    console.log('✅ Set hasExportedResume flag');
+  }
+
+  // Add activity for new user creation
+  if (this.isNew) {
+    this.recentActivity = [{
+      type: 'account_created',
+      description: 'Account created successfully',
+      timestamp: new Date()
+    }];
   }
 
   next();
 });
 
-// ====================== FIXED: matchPassword method ======================
-userSchema.methods.matchPassword = async function (enteredPassword) {
-  console.log('\n🔑 [User Model] matchPassword called for:', this.email);
-  console.log('📝 User has password:', !!this.password);
+// ======================
+// INSTANCE METHODS
+// ======================
+
+/**
+ * Compare entered password with stored hash
+ */
+userSchema.methods.comparePassword = async function (enteredPassword) {
+  console.log('\n🔑 [User Model] comparePassword called');
+  console.log('📧 User email:', this.email);
   console.log('🔒 Is OAuth user:', this.isOAuth);
+  console.log('🔑 Password exists:', !!this.password);
 
-  // Check if user is OAuth-only (no password)
-  if (this.isOAuth && !this.password) {
-    console.log('⚠️ OAuth user trying password login');
-    return false;
-  }
-
-  // Check if password exists
   if (!this.password) {
     console.log('❌ No password stored for user');
-    return false;
+    throw new Error('No password set for this account');
   }
 
-  // Check if account is locked
   if (this.isLocked) {
-    console.log('🔒 Account is locked');
+    console.log('🔒 Account is temporarily locked');
     throw new Error('Account is temporarily locked due to too many failed login attempts');
   }
 
-  console.log('🔍 Comparing passwords...');
-  console.log('📏 Entered password length:', enteredPassword?.length);
-  console.log('🔐 Stored hash prefix:', this.password?.substring(0, 20) + '...');
-
-  // DIRECT bcrypt comparison with error handling
   try {
+    console.log('🔍 Comparing passwords...');
     const isMatch = await bcrypt.compare(enteredPassword, this.password);
     console.log('✅ Password comparison result:', isMatch);
 
     if (isMatch) {
-      console.log('🎉 Password matched!');
-
-      // Reset login attempts if there were any
-      if (this.loginAttempts > 0 || this.lockUntil) {
-        this.loginAttempts = 0;
-        this.lockUntil = undefined;
-        console.log('🔄 Reset login attempts');
-      }
-
-      // Update login stats
+      // Reset login attempts
+      this.loginAttempts = 0;
+      this.lockUntil = undefined;
       this.lastLogin = new Date();
-      this.usage.loginCount = (this.usage?.loginCount || 0) + 1;
+
+      // Update usage stats
+      this.usage.loginCount = (this.usage.loginCount || 0) + 1;
       this.dashboardStats.lastActivity = new Date();
 
-      console.log('📊 Updated login stats');
+      // Add login activity
+      this.recentActivity = this.recentActivity || [];
+      this.recentActivity.unshift({
+        type: 'login',
+        description: 'Logged in successfully',
+        timestamp: new Date()
+      });
 
-      // Save user (without validation to avoid issues)
+      // Keep only last 20 activities
+      if (this.recentActivity.length > 20) {
+        this.recentActivity = this.recentActivity.slice(0, 20);
+      }
+
       await this.save({ validateBeforeSave: false });
-
-      console.log('💾 User saved successfully');
+      console.log('💾 User saved after successful login');
     } else {
-      console.log('❌ Password did not match');
-
       // Increment failed attempts
       this.loginAttempts = (this.loginAttempts || 0) + 1;
-      console.log('📈 Failed login attempts:', this.loginAttempts);
+      console.log('❌ Failed login attempt:', this.loginAttempts);
 
       // Lock account after 5 failed attempts
       if (this.loginAttempts >= 5) {
@@ -495,15 +501,54 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
     }
 
     return isMatch;
-
-  } catch (bcryptError) {
-    console.error('❌ Bcrypt comparison error:', bcryptError);
-    return false;
+  } catch (error) {
+    console.error('❌ Bcrypt comparison error:', error);
+    throw error;
   }
 };
 
-// ====================== OTHER METHODS (Keep as is) ======================
+/**
+ * Alias for comparePassword (backward compatibility)
+ */
+userSchema.methods.matchPassword = async function (enteredPassword) {
+  return this.comparePassword(enteredPassword);
+};
 
+/**
+ * Generate password reset token
+ */
+userSchema.methods.generatePasswordResetToken = function () {
+  const resetToken = crypto.randomBytes(32).toString('hex');
+
+  this.resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  this.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+  return resetToken;
+};
+
+/**
+ * Generate email verification token
+ */
+userSchema.methods.generateEmailVerificationToken = function () {
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+
+  this.emailVerificationToken = crypto
+    .createHash('sha256')
+    .update(verificationToken)
+    .digest('hex');
+
+  this.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+
+  return verificationToken;
+};
+
+/**
+ * Update resume count and related stats
+ */
 userSchema.methods.updateResumeCount = async function () {
   try {
     const Resume = mongoose.model('Resume');
@@ -515,12 +560,10 @@ userSchema.methods.updateResumeCount = async function () {
     this.usage.resumeCount = count;
     this.dashboardStats.totalResumes = count;
 
-    // Update first resume flag
     if (count > 0 && !this.flags.hasCreatedFirstResume) {
       this.flags.hasCreatedFirstResume = true;
     }
 
-    // Update last resume created date if we have resumes
     if (count > 0) {
       const latestResume = await Resume.findOne({ user: this._id })
         .sort({ createdAt: -1 })
@@ -540,33 +583,45 @@ userSchema.methods.updateResumeCount = async function () {
   }
 };
 
-userSchema.methods.addActivity = function (activity) {
-  // Keep only last 50 activities
-  this.recentActivity.unshift({
-    ...activity,
-    timestamp: new Date()
-  });
+/**
+ * Add activity to user's recent activity log
+ */
+userSchema.methods.addActivity = async function (activity) {
+  try {
+    this.recentActivity = this.recentActivity || [];
+    this.recentActivity.unshift({
+      ...activity,
+      timestamp: new Date()
+    });
 
-  if (this.recentActivity.length > 50) {
-    this.recentActivity = this.recentActivity.slice(0, 50);
+    if (this.recentActivity.length > 50) {
+      this.recentActivity = this.recentActivity.slice(0, 50);
+    }
+
+    this.dashboardStats.lastActivity = new Date();
+    await this.save({ validateBeforeSave: false });
+
+    return this;
+  } catch (error) {
+    console.error('Error adding activity:', error);
+    throw error;
   }
-
-  this.dashboardStats.lastActivity = new Date();
-  return this.save({ validateBeforeSave: false });
 };
 
+/**
+ * Update dashboard statistics based on resumes
+ */
 userSchema.methods.updateDashboardStats = async function (resumes = []) {
   try {
     const stats = {
       totalResumes: resumes.length,
       completedResumes: resumes.filter(r => r.status === 'completed').length,
       draftsResumes: resumes.filter(r => r.status === 'draft').length,
-      needsWorkResumes: resumes.filter(r => r.status === 'needs_work').length,
+      inProgressResumes: resumes.filter(r => r.status === 'in-progress').length,
       totalViews: resumes.reduce((sum, r) => sum + (r.views || 0), 0),
       totalDownloads: resumes.reduce((sum, r) => sum + (r.downloads || 0), 0)
     };
 
-    // Calculate average ATS score
     const scores = resumes
       .filter(r => r.analysis?.atsScore)
       .map(r => r.analysis.atsScore);
@@ -577,12 +632,10 @@ userSchema.methods.updateDashboardStats = async function (resumes = []) {
 
     stats.bestATSScore = scores.length > 0 ? Math.max(...scores) : 0;
 
-    // Update last active resume (most recently updated)
-    const latestResume = resumes.sort((a, b) =>
-      new Date(b.updatedAt) - new Date(a.updatedAt)
-    )[0];
-
-    if (latestResume) {
+    if (resumes.length > 0) {
+      const latestResume = resumes.sort((a, b) =>
+        new Date(b.updatedAt) - new Date(a.updatedAt)
+      )[0];
       stats.lastActiveResume = latestResume._id;
     }
 
@@ -597,159 +650,187 @@ userSchema.methods.updateDashboardStats = async function (resumes = []) {
   }
 };
 
-userSchema.methods.generateVerificationToken = function () {
-  const verificationToken = crypto.randomBytes(32).toString('hex');
-  this.emailVerificationToken = crypto
-    .createHash('sha256')
-    .update(verificationToken)
-    .digest('hex');
-  this.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  return verificationToken;
-};
+/**
+ * Check if user can use AI features - REMOVED (now using virtual property)
+ * Use: user.canUseAI (not user.canUseAI())
+ */
 
-userSchema.methods.generatePasswordResetToken = function () {
-  const resetToken = crypto.randomBytes(32).toString('hex');
-  this.resetPasswordToken = crypto
-    .createHash('sha256')
-    .update(resetToken)
-    .digest('hex');
-  this.resetPasswordExpires = new Date(Date.now() + 30 * 60 * 1000);
-  return resetToken;
-};
-
-userSchema.methods.useAICredits = async function (credits = 1) {
-  if (this.aiCredits < credits && this.plan === 'free') {
-    throw new Error('Insufficient AI credits. Please upgrade your plan or purchase more credits.');
+/**
+ * Consume AI credits
+ */
+userSchema.methods.consumeAICredits = async function (amount = 1) {
+  if (this.plan === 'free') {
+    if (this.aiCredits < amount) {
+      throw new Error('Insufficient AI credits');
+    }
+    this.aiCredits -= amount;
   }
 
-  this.aiCredits -= credits;
-  this.usage.aiUsageCount += credits;
+  this.usage.aiUsageCount = (this.usage.aiUsageCount || 0) + 1;
   this.usage.lastAIAssisted = new Date();
 
   if (!this.flags.hasUsedAI) {
     this.flags.hasUsedAI = true;
   }
 
-  await this.addActivity({
-    type: 'ai_used',
-    description: `Used ${credits} AI credit${credits > 1 ? 's' : ''}`,
-    metadata: { credits }
-  });
-
-  await this.save({ validateBeforeSave: false });
-
-  return this.aiCredits;
-};
-
-userSchema.methods.addAICredits = async function (credits) {
-  this.aiCredits += credits;
-
-  await this.addActivity({
-    type: 'ai_used',
-    description: `Added ${credits} AI credit${credits > 1 ? 's' : ''}`,
-    metadata: { credits, action: 'add' }
-  });
-
   await this.save({ validateBeforeSave: false });
   return this.aiCredits;
 };
 
-userSchema.methods.updateStorageUsage = async function (sizeInBytes) {
-  this.storage.used += sizeInBytes;
+/**
+ * Get user profile completion percentage
+ */
+userSchema.methods.getProfileCompletion = function () {
+  const fields = [
+    'name',
+    'email',
+    'profile.title',
+    'profile.bio',
+    'profile.location',
+    'avatar'
+  ];
 
-  if (this.storage.used > this.storage.limit) {
-    throw new Error('Storage limit exceeded. Please upgrade your plan to increase storage.');
+  let completed = 0;
+  fields.forEach(field => {
+    if (this.get(field)) completed++;
+  });
+
+  return Math.round((completed / fields.length) * 100);
+};
+
+/**
+ * Check if user storage is within limits
+ */
+userSchema.methods.checkStorageLimit = function (additionalBytes = 0) {
+  const totalUsed = this.storage.used + additionalBytes;
+  return totalUsed <= this.storage.limit;
+};
+
+/**
+ * Add storage usage
+ */
+userSchema.methods.addStorageUsage = async function (bytes) {
+  if (!this.checkStorageLimit(bytes)) {
+    throw new Error('Storage limit exceeded');
   }
 
+  this.storage.used += bytes;
   await this.save({ validateBeforeSave: false });
   return this.storage.used;
 };
 
-userSchema.methods.updateProfile = async function (profileData) {
-  this.profile = { ...this.profile, ...profileData };
+// ======================
+// STATIC METHODS
+// ======================
 
-  await this.addActivity({
-    type: 'profile_updated',
-    description: 'Profile information updated',
-    metadata: { fields: Object.keys(profileData) }
-  });
-
-  await this.save();
-  return this;
-};
-
-userSchema.methods.getPublicProfile = function () {
-  return {
-    id: this._id,
-    name: this.name,
-    avatar: this.avatar,
-    profile: this.profile,
-    flags: this.flags,
-    dashboardStats: {
-      totalResumes: this.dashboardStats.totalResumes,
-      averageATSScore: this.dashboardStats.averageATSScore,
-      bestATSScore: this.dashboardStats.bestATSScore
-    }
-  };
-};
-
-userSchema.statics.findByEmail = function (email) {
+/**
+ * Find user by email (case-insensitive)
+ */
+userSchema.statics.findByEmail = async function (email) {
   return this.findOne({ email: email.toLowerCase() });
 };
 
-userSchema.statics.findActiveUsers = function () {
-  return this.find({ isActive: true, isSuspended: false, isDeleted: false });
+/**
+ * Find user by Google ID
+ */
+userSchema.statics.findByGoogleId = async function (googleId) {
+  return this.findOne({ googleId });
 };
 
-userSchema.statics.getUserStats = async function () {
-  const stats = await this.aggregate([
-    {
-      $match: {
-        isDeleted: false,
-        isSuspended: false
-      }
-    },
-    {
-      $group: {
-        _id: null,
-        totalUsers: { $sum: 1 },
-        activeUsers: { $sum: { $cond: ['$isActive', 1, 0] } },
-        verifiedUsers: { $sum: { $cond: ['$isVerified', 1, 0] } },
-        totalResumes: { $sum: '$usage.resumeCount' },
-        totalAICreditsUsed: { $sum: '$usage.aiUsageCount' },
-        averageATSScore: { $avg: '$dashboardStats.averageATSScore' },
-        planDistribution: {
-          $push: '$plan'
-        }
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        totalUsers: 1,
-        activeUsers: 1,
-        verifiedUsers: 1,
-        totalResumes: 1,
-        totalAICreditsUsed: 1,
-        averageATSScore: { $round: ['$averageATSScore', 2] },
-        planDistribution: {
-          free: { $size: { $filter: { input: '$planDistribution', as: 'plan', cond: { $eq: ['$$plan', 'free'] } } } },
-          pro: { $size: { $filter: { input: '$planDistribution', as: 'plan', cond: { $eq: ['$$plan', 'pro'] } } } },
-          enterprise: { $size: { $filter: { input: '$planDistribution', as: 'plan', cond: { $eq: ['$$plan', 'enterprise'] } } } }
-        }
-      }
-    }
-  ]);
+/**
+ * Find or create user from Google OAuth
+ */
+userSchema.statics.findOrCreateFromGoogle = async function (googleData) {
+  const { sub: googleId, email, name, picture } = googleData;
 
-  return stats[0] || {
-    totalUsers: 0,
-    activeUsers: 0,
-    verifiedUsers: 0,
-    totalResumes: 0,
-    totalAICreditsUsed: 0,
-    averageATSScore: 0,
-    planDistribution: { free: 0, pro: 0, enterprise: 0 }
+  let user = await this.findOne({
+    $or: [
+      { email: email.toLowerCase() },
+      { googleId }
+    ]
+  });
+
+  if (!user) {
+    user = new this({
+      name,
+      email: email.toLowerCase(),
+      avatar: picture,
+      googleId,
+      provider: 'google',
+      isOAuth: true,
+      isVerified: true,
+      emailVerifiedAt: new Date()
+    });
+    await user.save();
+  } else {
+    // Update existing user
+    user.name = name;
+    user.avatar = picture;
+    user.googleId = googleId;
+    user.provider = 'google';
+    user.isOAuth = true;
+    user.isVerified = true;
+    user.emailVerifiedAt = new Date();
+    user.lastLogin = new Date();
+    await user.save();
+  }
+
+  return user;
+};
+
+/**
+ * Get all active users
+ */
+userSchema.statics.getActiveUsers = async function () {
+  return this.find({
+    isActive: true,
+    isSuspended: false,
+    isDeleted: false
+  });
+};
+
+/**
+ * Get user stats for admin dashboard
+ */
+userSchema.statics.getAdminStats = async function () {
+  const totalUsers = await this.countDocuments({ isDeleted: false });
+  const activeUsers = await this.countDocuments({
+    isActive: true,
+    isSuspended: false,
+    isDeleted: false
+  });
+  const googleUsers = await this.countDocuments({ provider: 'google' });
+  const verifiedUsers = await this.countDocuments({ isVerified: true });
+
+  return {
+    totalUsers,
+    activeUsers,
+    googleUsers,
+    verifiedUsers,
+    verificationRate: totalUsers > 0 ? (verifiedUsers / totalUsers) * 100 : 0
   };
+};
+
+// ======================
+// QUERY HELPERS
+// ======================
+
+userSchema.query.active = function () {
+  return this.where({
+    isActive: true,
+    isSuspended: false,
+    isDeleted: false
+  });
+};
+
+userSchema.query.withResumeStats = function () {
+  return this.where('dashboardStats.totalResumes').gt(0);
+};
+
+userSchema.query.recentlyActive = function (days = 7) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return this.where('dashboardStats.lastActivity').gte(date);
 };
 
 // Create the model

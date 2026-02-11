@@ -1,638 +1,392 @@
-// ------------------- PersonalInfoWizard.jsx -------------------
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+// src/components/wizard/PersonalInfoWizard.jsx
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import {
-    User,
-    Mail,
-    Phone,
-    MapPin,
-    Globe,
-    Linkedin,
-    Github,
-    Briefcase,
-    Calendar,
-    ChevronRight,
-    ChevronLeft,
-    Check,
-    Upload,
-    X,
-    AlertCircle,
-    Zap,
-    Target,
-    ExternalLink,
-    Loader2
+  User, Mail, Phone, MapPin, Globe,
+  Linkedin, Github, Upload, CheckCircle,
+  Sparkles, Loader2
 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
 
 const PersonalInfoWizard = ({
-    data = {},
-    onChange = () => { },
-    onComplete = () => { },
-    onBack = () => { },
-    isLoading = false,
-    aiSuggestions = [],
-    onApplySuggestion = () => { }
+  data,
+  onChange,
+  onNext,
+  onBack,
+  isStepValid,
+  aiSuggestions = [],
+  onGenerateAI,
+  isGeneratingAI,
+  onApplySuggestion
 }) => {
-    const [step, setStep] = useState(1);
-    const [formData, setFormData] = useState({
-        fullName: '',
-        email: '',
-        phone: '',
-        location: '',
-        portfolioUrl: '',
-        linkedinUrl: '',
-        githubUrl: '',
-        jobTitle: '',
-        yearsOfExperience: '',
-        ...data // Merge with provided data
-    });
+  const [activeSection, setActiveSection] = useState(0);
+  const [isValidating, setIsValidating] = useState(false);
 
-    const [errors, setErrors] = useState({});
-    const [isValidating, setIsValidating] = useState(false);
-    const [uploadedImage, setUploadedImage] = useState(null);
+  const personalInfo = data.personalInfo || {};
 
-    const totalSteps = 3;
-
-    // Update form data when prop changes
-    useEffect(() => {
-        if (data && Object.keys(data).length > 0) {
-            setFormData(prev => ({
-                ...prev,
-                ...data
-            }));
-        }
-    }, [data]);
-
-    const handleChange = (field, value) => {
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
-
-        // Clear error for this field
-        if (errors[field]) {
-            setErrors(prev => ({
-                ...prev,
-                [field]: ''
-            }));
-        }
-
-        // Call onChange callback with updated data
-        onChange({
-            ...formData,
-            [field]: value
-        });
-    };
-
-    const validateStep = () => {
-        const newErrors = {};
-        setIsValidating(true);
-
-        switch (step) {
-            case 1: // Contact Info
-                if (!formData.fullName?.trim()) newErrors.fullName = 'Full name is required';
-                if (!formData.email?.trim()) newErrors.email = 'Email is required';
-                else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-                    newErrors.email = 'Please enter a valid email';
-                }
-                if (!formData.phone?.trim()) newErrors.phone = 'Phone number is required';
-                break;
-
-            case 2: // Professional Info
-                if (!formData.jobTitle?.trim()) newErrors.jobTitle = 'Current job title is required';
-                if (!formData.yearsOfExperience?.trim()) newErrors.yearsOfExperience = 'Years of experience is required';
-                else if (isNaN(formData.yearsOfExperience) || parseInt(formData.yearsOfExperience) < 0) {
-                    newErrors.yearsOfExperience = 'Please enter a valid number';
-                }
-                break;
-
-            case 3: // Links & Portfolio
-                // Optional fields, no validation required
-                break;
-        }
-
-        setErrors(newErrors);
-        setIsValidating(false);
-        return Object.keys(newErrors).length === 0;
-    };
-
-    const handleNext = () => {
-        if (validateStep()) {
-            if (step < totalSteps) {
-                setStep(step + 1);
-            } else {
-                handleComplete();
-            }
-        }
-    };
-
-    const handlePrevious = () => {
-        if (step > 1) {
-            setStep(step - 1);
-        } else {
-            onBack();
-        }
-    };
-
-    const handleComplete = () => {
-        if (validateStep()) {
-            const completeData = {
-                ...formData,
-                lastUpdated: new Date().toISOString()
-            };
-
-            onComplete(completeData);
-            toast.success('Personal information saved successfully!');
-        }
-    };
-
-    const handleImageUpload = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            if (file.size > 5 * 1024 * 1024) { // 5MB limit
-                toast.error('Image size should be less than 5MB');
-                return;
-            }
-
-            if (!file.type.startsWith('image/')) {
-                toast.error('Please upload an image file');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setUploadedImage(reader.result);
-                toast.success('Profile photo uploaded');
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const removeImage = () => {
-        setUploadedImage(null);
-        toast.success('Profile photo removed');
-    };
-
-    const handleApplySuggestion = (suggestion) => {
-        onApplySuggestion(suggestion);
-        toast.success('AI suggestion applied');
-    };
-
-    const steps = [
-        {
-            id: 1,
-            title: 'Contact Information',
-            description: 'Basic details for employers to reach you',
-            icon: User
-        },
-        {
-            id: 2,
-            title: 'Professional Details',
-            description: 'Your current role and experience',
-            icon: Briefcase
-        },
-        {
-            id: 3,
-            title: 'Links & Portfolio',
-            description: 'Online presence and profiles',
-            icon: Globe
-        }
-    ];
-
-    const renderStepContent = () => {
-        switch (step) {
-            case 1:
-                return (
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="space-y-6"
-                    >
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="text-lg font-semibold text-gray-900">Contact Information</h3>
-                                <p className="text-sm text-gray-600">How employers can reach you</p>
-                            </div>
-                            <div className="p-2 bg-blue-100 rounded-lg">
-                                <User className="w-5 h-5 text-blue-600" />
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col items-center justify-center mb-6">
-                            <div className="relative mb-4">
-                                <div className="w-24 h-24 rounded-full bg-gradient-to-r from-blue-100 to-cyan-100 flex items-center justify-center overflow-hidden border-4 border-white shadow-lg">
-                                    {uploadedImage ? (
-                                        <img
-                                            src={uploadedImage}
-                                            alt="Profile"
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <User className="w-12 h-12 text-blue-400" />
-                                    )}
-                                </div>
-                                <label className="absolute bottom-0 right-0 p-2 bg-blue-600 rounded-full cursor-pointer hover:bg-blue-700 transition-colors shadow-lg">
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={handleImageUpload}
-                                    />
-                                    <Upload className="w-4 h-4 text-white" />
-                                </label>
-                                {uploadedImage && (
-                                    <button
-                                        onClick={removeImage}
-                                        className="absolute top-0 right-0 p-1 bg-red-100 rounded-full hover:bg-red-200 transition-colors"
-                                    >
-                                        <X className="w-3 h-3 text-red-600" />
-                                    </button>
-                                )}
-                            </div>
-                            <p className="text-sm text-gray-600 text-center">
-                                Optional profile photo (Max 5MB)
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Full Name *
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.fullName || ''}
-                                    onChange={(e) => handleChange('fullName', e.target.value)}
-                                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.fullName ? 'border-red-300' : 'border-gray-300'}`}
-                                    placeholder="John Doe"
-                                />
-                                {errors.fullName && (
-                                    <p className="text-sm text-red-600 flex items-center gap-1">
-                                        <AlertCircle className="w-4 h-4" />
-                                        {errors.fullName}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Email Address *
-                                </label>
-                                <div className="relative">
-                                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="email"
-                                        value={formData.email || ''}
-                                        onChange={(e) => handleChange('email', e.target.value)}
-                                        className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.email ? 'border-red-300' : 'border-gray-300'}`}
-                                        placeholder="john@example.com"
-                                    />
-                                </div>
-                                {errors.email && (
-                                    <p className="text-sm text-red-600 flex items-center gap-1">
-                                        <AlertCircle className="w-4 h-4" />
-                                        {errors.email}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Phone Number *
-                                </label>
-                                <div className="relative">
-                                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="tel"
-                                        value={formData.phone || ''}
-                                        onChange={(e) => handleChange('phone', e.target.value)}
-                                        className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.phone ? 'border-red-300' : 'border-gray-300'}`}
-                                        placeholder="+1 (555) 123-4567"
-                                    />
-                                </div>
-                                {errors.phone && (
-                                    <p className="text-sm text-red-600 flex items-center gap-1">
-                                        <AlertCircle className="w-4 h-4" />
-                                        {errors.phone}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Location
-                                </label>
-                                <div className="relative">
-                                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        value={formData.location || ''}
-                                        onChange={(e) => handleChange('location', e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        placeholder="City, State/Country"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </motion.div>
-                );
-
-            case 2:
-                return (
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="space-y-6"
-                    >
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="text-lg font-semibold text-gray-900">Professional Details</h3>
-                                <p className="text-sm text-gray-600">Your current role and experience</p>
-                            </div>
-                            <div className="p-2 bg-green-100 rounded-lg">
-                                <Briefcase className="w-5 h-5 text-green-600" />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Current Job Title *
-                                </label>
-                                <div className="relative">
-                                    <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        value={formData.jobTitle || ''}
-                                        onChange={(e) => handleChange('jobTitle', e.target.value)}
-                                        className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.jobTitle ? 'border-red-300' : 'border-gray-300'}`}
-                                        placeholder="Senior Software Engineer"
-                                    />
-                                </div>
-                                {errors.jobTitle && (
-                                    <p className="text-sm text-red-600 flex items-center gap-1">
-                                        <AlertCircle className="w-4 h-4" />
-                                        {errors.jobTitle}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Years of Experience *
-                                </label>
-                                <div className="relative">
-                                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        max="50"
-                                        value={formData.yearsOfExperience || ''}
-                                        onChange={(e) => handleChange('yearsOfExperience', e.target.value)}
-                                        className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.yearsOfExperience ? 'border-red-300' : 'border-gray-300'}`}
-                                        placeholder="5"
-                                    />
-                                </div>
-                                {errors.yearsOfExperience && (
-                                    <p className="text-sm text-red-600 flex items-center gap-1">
-                                        <AlertCircle className="w-4 h-4" />
-                                        {errors.yearsOfExperience}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-200">
-                            <div className="flex items-start gap-3">
-                                <Zap className="w-5 h-5 text-blue-600 mt-0.5" />
-                                <div>
-                                    <h4 className="font-medium text-gray-900">AI Tip</h4>
-                                    <p className="text-sm text-gray-600 mt-1">
-                                        Be specific with your job title. Instead of "Developer," use "Full Stack Developer with React & Node.js Expertise."
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {aiSuggestions && aiSuggestions.length > 0 && (
-                            <div className="space-y-3">
-                                <h4 className="font-medium text-gray-900 flex items-center gap-2">
-                                    <Target className="w-4 h-4 text-purple-600" />
-                                    AI Suggestions
-                                </h4>
-                                {aiSuggestions.map((suggestion, index) => (
-                                    <motion.div
-                                        key={index}
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: index * 0.1 }}
-                                        className="p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200"
-                                    >
-                                        <div className="flex items-start justify-between">
-                                            <div>
-                                                <p className="text-sm font-medium text-gray-900">{suggestion.title}</p>
-                                                <p className="text-sm text-gray-600 mt-1">{suggestion.description}</p>
-                                            </div>
-                                            <button
-                                                onClick={() => handleApplySuggestion(suggestion)}
-                                                className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
-                                            >
-                                                Apply
-                                            </button>
-                                        </div>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        )}
-                    </motion.div>
-                );
-
-            case 3:
-                return (
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="space-y-6"
-                    >
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="text-lg font-semibold text-gray-900">Links & Portfolio</h3>
-                                <p className="text-sm text-gray-600">Showcase your online presence</p>
-                            </div>
-                            <div className="p-2 bg-purple-100 rounded-lg">
-                                <Globe className="w-5 h-5 text-purple-600" />
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    LinkedIn Profile
-                                </label>
-                                <div className="relative">
-                                    <Linkedin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
-                                    <input
-                                        type="url"
-                                        value={formData.linkedinUrl || ''}
-                                        onChange={(e) => handleChange('linkedinUrl', e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        placeholder="https://linkedin.com/in/username"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    GitHub Profile
-                                </label>
-                                <div className="relative">
-                                    <Github className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-800" />
-                                    <input
-                                        type="url"
-                                        value={formData.githubUrl || ''}
-                                        onChange={(e) => handleChange('githubUrl', e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        placeholder="https://github.com/username"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Portfolio Website
-                                </label>
-                                <div className="relative">
-                                    <ExternalLink className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="url"
-                                        value={formData.portfolioUrl || ''}
-                                        onChange={(e) => handleChange('portfolioUrl', e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        placeholder="https://yourportfolio.com"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
-                            <div className="flex items-start gap-3">
-                                <Check className="w-5 h-5 text-green-600 mt-0.5" />
-                                <div>
-                                    <h4 className="font-medium text-gray-900">Almost There!</h4>
-                                    <p className="text-sm text-gray-600 mt-1">
-                                        Adding links to your professional profiles can increase your chances of getting hired by 40%.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </motion.div>
-                );
-
-            default:
-                return null;
-        }
-    };
-
-    if (isLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] p-6">
-                <Loader2 className="w-12 h-12 animate-spin text-blue-500 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading Personal Information</h3>
-                <p className="text-gray-600 text-center">AI is analyzing your data...</p>
-            </div>
-        );
+  // Sections for the wizard
+  const sections = [
+    {
+      id: 'basic',
+      title: 'Basic Information',
+      icon: User,
+      fields: ['name', 'surname']
+    },
+    {
+      id: 'contact',
+      title: 'Contact Details',
+      icon: Phone,
+      fields: ['email', 'phone']
+    },
+    {
+      id: 'location',
+      title: 'Location',
+      icon: MapPin,
+      fields: ['city', 'postcode', 'country']
+    },
+    {
+      id: 'professional',
+      title: 'Professional Links',
+      icon: Globe,
+      fields: ['linkedinUrl', 'githubUrl', 'portfolioUrl']
     }
+  ];
 
-    return (
-        <div className="w-full max-w-4xl mx-auto p-4 md:p-6">
-            {/* Progress Bar */}
-            <div className="mb-8">
-                <div className="flex items-center justify-between mb-2">
-                    <h2 className="text-2xl font-bold text-gray-900">Personal Information</h2>
-                    <span className="text-sm font-medium text-blue-600">
-                        Step {step} of {totalSteps}
-                    </span>
-                </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(step / totalSteps) * 100}%` }}
-                        className="h-full bg-gradient-to-r from-blue-500 to-cyan-500"
-                    />
-                </div>
+  const handleInputChange = (field, value) => {
+    const updatedPersonalInfo = {
+      ...personalInfo,
+      [field]: value
+    };
 
-                {/* Step Indicators */}
-                <div className="flex justify-between mt-4">
-                    {steps.map((stepItem) => (
-                        <div
-                            key={stepItem.id}
-                            className={`flex flex-col items-center ${stepItem.id <= step ? 'text-blue-600' : 'text-gray-400'}`}
-                        >
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${stepItem.id <= step ? 'bg-blue-100 border-2 border-blue-500' : 'bg-gray-100'}`}>
-                                <stepItem.icon className="w-5 h-5" />
-                            </div>
-                            <span className="text-xs font-medium">{stepItem.title}</span>
-                        </div>
-                    ))}
+    onChange({
+      ...data,
+      personalInfo: updatedPersonalInfo
+    });
+  };
+
+  const handleNextSection = () => {
+    if (activeSection < sections.length - 1) {
+      setActiveSection(activeSection + 1);
+    } else if (isStepValid) {
+      onNext();
+    }
+  };
+
+  const handlePrevSection = () => {
+    if (activeSection > 0) {
+      setActiveSection(activeSection - 1);
+    } else {
+      onBack();
+    }
+  };
+
+  // Validate email
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  };
+
+  // Format phone number
+  const formatPhoneNumber = (value) => {
+    // Remove all non-digits
+    const phone = value.replace(/\D/g, '');
+
+    // Format as: 980-123-4567
+    if (phone.length <= 3) return phone;
+    if (phone.length <= 6) return `${phone.slice(0, 3)}-${phone.slice(3)}`;
+    return `${phone.slice(0, 3)}-${phone.slice(3, 6)}-${phone.slice(6, 10)}`;
+  };
+
+  const handlePhoneChange = (value) => {
+    const formatted = formatPhoneNumber(value);
+    handleInputChange('phone', formatted);
+  };
+
+  // AI Suggestions for this step
+  const personalSuggestions = aiSuggestions.filter(s =>
+    s.category === 'personal_info' ||
+    s.tags?.includes('contact') ||
+    s.title.toLowerCase().includes('email') ||
+    s.title.toLowerCase().includes('phone') ||
+    s.title.toLowerCase().includes('name')
+  );
+
+  const renderField = (field) => {
+    const value = personalInfo[field] || '';
+    const label = field.charAt(0).toUpperCase() + field.slice(1);
+    const placeholder = `Enter your ${label.toLowerCase()}`;
+
+    switch (field) {
+      case 'name':
+      case 'surname':
+      case 'city':
+      case 'postcode':
+      case 'country':
+        return (
+          <div key={field} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {field === 'surname' ? 'Sur Name' : label}
+              <span className="text-red-500 ml-1">*</span>
+            </label>
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => handleInputChange(field, e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              placeholder={placeholder}
+            />
+          </div>
+        );
+
+      case 'email':
+        return (
+          <div key={field} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {label}
+              <span className="text-red-500 ml-1">*</span>
+            </label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                <Mail className="w-5 h-5 text-gray-400" />
+              </div>
+              <input
+                type="email"
+                value={value}
+                onChange={(e) => handleInputChange(field, e.target.value)}
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="your.email@example.com"
+              />
+              {value && !validateEmail(value) && (
+                <div className="text-sm text-red-500 mt-1">
+                  Please enter a valid email address
                 </div>
+              )}
             </div>
+          </div>
+        );
 
-            {/* Main Content */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                {renderStepContent()}
-
-                {/* Navigation Buttons */}
-                <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200">
-                    <button
-                        onClick={handlePrevious}
-                        className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors flex items-center gap-2"
-                    >
-                        <ChevronLeft className="w-5 h-5" />
-                        {step === 1 ? 'Back to Sections' : 'Previous'}
-                    </button>
-
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => {
-                                if (validateStep()) {
-                                    onComplete(formData);
-                                    toast.success('Saved as draft');
-                                }
-                            }}
-                            className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-                        >
-                            Save Draft
-                        </button>
-
-                        <button
-                            onClick={handleNext}
-                            disabled={isValidating}
-                            className="px-8 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-medium rounded-lg hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {step === totalSteps ? 'Complete Setup' : 'Continue'}
-                            <ChevronRight className="w-5 h-5" />
-                        </button>
-                    </div>
-                </div>
+      case 'phone':
+        return (
+          <div key={field} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {label}
+              <span className="text-red-500 ml-1">*</span>
+            </label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                <Phone className="w-5 h-5 text-gray-400" />
+              </div>
+              <input
+                type="tel"
+                value={value}
+                onChange={(e) => handlePhoneChange(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="980-123-4567"
+                maxLength="12"
+              />
             </div>
+          </div>
+        );
 
-            {/* Step Indicator Dots */}
-            <div className="flex justify-center gap-2 mt-6">
-                {Array.from({ length: totalSteps }).map((_, index) => (
-                    <button
-                        key={index}
-                        onClick={() => {
-                            if (index + 1 <= step) {
-                                setStep(index + 1);
-                            }
-                        }}
-                        className={`w-2 h-2 rounded-full transition-all ${index + 1 === step ? 'bg-blue-600 w-8' : 'bg-gray-300'}`}
-                        aria-label={`Go to step ${index + 1}`}
-                    />
-                ))}
+      case 'linkedinUrl':
+      case 'githubUrl':
+      case 'portfolioUrl':
+        const icon = field === 'linkedinUrl' ? Linkedin :
+          field === 'githubUrl' ? Github : Globe;
+        const labelText = field === 'linkedinUrl' ? 'LinkedIn URL' :
+          field === 'githubUrl' ? 'GitHub URL' :
+            'Portfolio Website';
+
+        return (
+          <div key={field} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {labelText}
+            </label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                {React.createElement(icon, { className: "w-5 h-5 text-gray-400" })}
+              </div>
+              <input
+                type="url"
+                value={value}
+                onChange={(e) => handleInputChange(field, e.target.value)}
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder={`https://${field === 'linkedinUrl' ? 'linkedin.com/in/' :
+                  field === 'githubUrl' ? 'github.com/' : 'yourportfolio.com'}`}
+              />
             </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Progress Indicator */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-gray-600">
+            Section {activeSection + 1} of {sections.length}
+          </span>
+          <span className="text-sm font-medium text-blue-600">
+            {sections[activeSection].title}
+          </span>
         </div>
-    );
+        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${((activeSection + 1) / sections.length) * 100}%` }}
+            className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
+          />
+        </div>
+      </div>
+
+      {/* AI Suggestions Card */}
+      {personalSuggestions.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-5 h-5 text-blue-600" />
+            <span className="font-semibold text-blue-800">AI Suggestions</span>
+          </div>
+          <div className="space-y-2">
+            {personalSuggestions.slice(0, 2).map((suggestion, index) => (
+              <div
+                key={index}
+                className="flex items-start gap-3 p-3 bg-white/80 rounded-lg"
+              >
+                <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">
+                    {suggestion.title}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {suggestion.description}
+                  </div>
+                </div>
+                {suggestion.action && (
+                  <button
+                    onClick={() => onApplySuggestion(suggestion)}
+                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Apply
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Current Section Form */}
+      <motion.div
+        key={sections[activeSection].id}
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        className="space-y-6"
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-blue-100 rounded-lg">
+            {React.createElement(sections[activeSection].icon, { className: "w-6 h-6 text-blue-600" })}
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">
+            {sections[activeSection].title}
+          </h2>
+        </div>
+
+        {/* Form Grid */}
+        <div className={`grid gap-6 ${sections[activeSection].fields.length > 2
+          ? 'grid-cols-1 md:grid-cols-2'
+          : 'grid-cols-1'
+          }`}>
+          {sections[activeSection].fields.map(field => renderField(field))}
+        </div>
+
+        {/* Field Completion Status */}
+        {sections[activeSection].id === 'contact' && (
+          <div className="mt-6 p-4 bg-gray-50 rounded-xl">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">
+                Contact Validation
+              </span>
+              {validateEmail(personalInfo.email) && personalInfo.phone?.length >= 10 ? (
+                <span className="text-sm text-green-600 font-medium flex items-center gap-1">
+                  <CheckCircle className="w-4 h-4" />
+                  Valid
+                </span>
+              ) : (
+                <span className="text-sm text-amber-600 font-medium">
+                  Needs attention
+                </span>
+              )}
+            </div>
+            <div className="text-sm text-gray-600">
+              What's the best way for employers to contact you? We suggest including an email and phone number.
+            </div>
+          </div>
+        )}
+
+        {/* AI Generate Button */}
+        {sections[activeSection].id === 'basic' && (
+          <div className="mt-6">
+            <button
+              onClick={() => onGenerateAI('personal_info', personalInfo)}
+              disabled={isGeneratingAI}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 text-purple-700 rounded-xl hover:border-purple-300 hover:shadow-sm transition-all disabled:opacity-50"
+            >
+              {isGeneratingAI ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  AI Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  AI Suggest Professional Details
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </motion.div>
+
+      {/* Navigation Buttons */}
+      <div className="flex items-center justify-between pt-8 border-t border-gray-200">
+        <button
+          onClick={handlePrevSection}
+          className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-colors"
+        >
+          {activeSection === 0 ? 'Back' : 'Previous'}
+        </button>
+
+        <div className="flex items-center gap-4">
+          {activeSection === sections.length - 1 && isStepValid && (
+            <div className="flex items-center gap-2 text-green-600">
+              <CheckCircle className="w-5 h-5" />
+              <span className="font-medium">All required fields complete</span>
+            </div>
+          )}
+
+          <button
+            onClick={handleNextSection}
+            disabled={!isStepValid && sections[activeSection].fields.some(f =>
+              ['name', 'surname', 'email', 'phone'].includes(f)
+            )}
+            className={`px-8 py-3.5 rounded-xl font-semibold transition-all ${isStepValid || !sections[activeSection].fields.some(f =>
+              ['name', 'surname', 'email', 'phone'].includes(f)
+            )
+              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-xl hover:scale-[1.02]'
+              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+          >
+            {activeSection === sections.length - 1 ? 'Save & Continue' : 'Next'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default PersonalInfoWizard;

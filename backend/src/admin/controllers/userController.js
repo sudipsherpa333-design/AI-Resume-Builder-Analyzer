@@ -1,6 +1,6 @@
 // backend/src/admin/controllers/userController.js
 const User = require('../../models/User');
-const Resume = require('../../models/Resume');
+const Resume = require('../../models/Resumes');
 const AdminLog = require('../models/AdminLog');
 
 class UserController {
